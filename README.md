@@ -9,8 +9,9 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-Phase 1 of the first version: the app, its menu bar item and the setup window that asks for the microphone, screen
-recording and (optionally) Accessibility. Transcription, the tools and the bundle follow.
+Phases 1 and 2 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
+screen recording and (optionally) Accessibility, and the session timeline and bundle composer in `KoeCore`.
+Transcription, the tools and the clipboard follow.
 
 ## Build
 
@@ -42,13 +43,40 @@ case, full sentences, no em dashes.
 ## Layout
 
 ```
-Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, then the session timeline and bundle composer
+Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the timeline), BundleComposer
 Sources/Koe/App/   main, AppDelegate, the status menu
 Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates), the setup window
 Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon, Components/
 Tests/KoeCoreTests Swift Testing
 Resources/         Info.plist, Fonts/, Icons/ (generated)
 ```
+
+## The bundle
+
+A `Session` holds the words you said (`TimedWord`, each with its start and end in the session's audio) and what you
+added (`Annotation`: a screenshot, clip, file or note, stamped with the audio time at the moment you started it).
+`BundleComposer` turns it into what Koe copies:
+
+```
+Look at the sidebar. [1: padding is 8, should be 12] The button here [2] looks off.
+
+[3] Now the menu opens too slowly. [Note: compare with Finder]
+
+Attachments:
+[1] Image of Safari, "Settings": ~/Library/Application Support/Koe/Sessions/…/1.png
+[2] Image of Safari, "Settings": …/2.png
+[3] Video of Figma: …/3.mov
+```
+
+- Each annotation goes to the word boundary nearest its time. Inside a gap the distance is zero; inside a word it
+  goes to the nearer side, and the exact middle goes after the word.
+- A sentence end within 0.6 s wins over a nearer gap mid-sentence, so a screenshot doesn't split "the button | here".
+- A pause of 2.5 s after a sentence starts a paragraph. An annotation in the later half of that pause opens the next
+  paragraph, since you were already on to the next thing.
+- Files, screenshots and clips are numbered `[n]` in reading order, not in the order you added them, so the nth
+  image pasted is the nth marker. A note on an attachment rides in its marker; a note on its own reads `[Note: …]`.
+- The footer lists every file with its path, for terminal agents that read files rather than pasted images. The
+  HTML flavor is the same text with images inline.
 
 ## Notes
 
