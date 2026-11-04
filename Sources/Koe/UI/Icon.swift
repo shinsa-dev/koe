@@ -11,6 +11,13 @@ enum Icon: String, CaseIterable {
     case stop = "IconStop"
     case close = "IconCrossSmall"
     case paperclip = "IconPaperclip1"
+    case video = "IconVideo"
+    case play = "IconPlay"
+    case pause = "IconPause"
+    case previous = "IconChevronLeftSmall"
+    case next = "IconChevronRightSmall"
+    case add = "IconPlusSmall"
+    case trash = "IconTrashCanSimple"
 
     /// The web's icon sizes: sm 14, md 16, lg 20 (globals.css → --icon-size-*).
     enum Size: CGFloat {

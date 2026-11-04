@@ -3,9 +3,9 @@ import KoeCore
 import os
 import SwiftUI
 
-/// Runs the tools you use while talking: a screenshot of a region or window, a typed note, and files dropped on the
-/// pill. Each is stamped with the session's audio time at the moment you start it, and starts a session when none
-/// is running.
+/// Runs the tools you use while talking: a screenshot of a region or window, a typed note, a clip of a region you
+/// review slowed down, and files dropped on the pill. Each is stamped with the session's audio time at the moment you
+/// start it, and starts a session when none is running.
 @MainActor
 final class ToolCoordinator {
     private let sessions: SessionController
@@ -15,10 +15,20 @@ final class ToolCoordinator {
     private let presentSetup: () -> Void
     private var overlay: [ToolPanel] = []
     private var notePanel: ToolPanel?
+    private lazy var clips = ClipTool(sessions: sessions, pickRegion: { [weak self] preset, done in
+        guard let self else { return done(nil) }
+        pickClipRegion(preset: preset, done: done)
+    })
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "tools")
 
     /// Replaces the live screen capture for `--backdrop`, so captures of Koe show a known image, not your screen.
     var backdrop: CGImage?
+    /// Stands in for every recorded clip with `--clip-file`, so the review can be tried and captured without
+    /// recording the screen.
+    var clipFile: URL? {
+        get { clips.clipFile }
+        set { clips.clipFile = newValue }
+    }
 
     init(sessions: SessionController, permissions: PermissionCenter, ensureSession: @escaping () -> Bool,
          presentSetup: @escaping () -> Void) {
@@ -28,7 +38,8 @@ final class ToolCoordinator {
         self.presentSetup = presentSetup
     }
 
-    var isBusy: Bool { !overlay.isEmpty || notePanel != nil }
+    var isBusy: Bool { !overlay.isEmpty || notePanel != nil || clips.isBusy }
+    var isRecordingClip: Bool { clips.isRecording }
 
     // MARK: Screenshot
 
@@ -43,11 +54,7 @@ final class ToolCoordinator {
         Task { [self] in
             let freeze: Freeze
             do {
-                if let backdrop {
-                    freeze = Freeze.backdrop(backdrop)
-                } else {
-                    freeze = try await ScreenFreezer.freeze()
-                }
+                freeze = try await self.freeze()
             } catch {
                 Self.log.error("Freeze failed: \(error.localizedDescription, privacy: .public)")
                 sessions.post(notice: error.localizedDescription)
@@ -66,6 +73,11 @@ final class ToolCoordinator {
                 picker.submit()
             }
         }
+    }
+
+    private func freeze() async throws -> Freeze {
+        if let backdrop { return Freeze.backdrop(backdrop) }
+        return try await ScreenFreezer.freeze()
     }
 
     private func showOverlay(for picker: RegionPicker) {
@@ -146,6 +158,53 @@ final class ToolCoordinator {
             Task {
                 try? await Task.sleep(for: .milliseconds(600))
                 finish(true)
+            }
+        }
+    }
+
+    // MARK: Clip
+
+    /// Picks a region to record, or stops the clip that is recording.
+    func clip(preset: ClipScript? = nil) {
+        if clips.isRecording {
+            clips.stopRecording()
+            return
+        }
+        guard !isBusy else { return }
+        permissions.refresh()
+        guard clipFile != nil || backdrop != nil || permissions.checklist.status(of: .screenRecording) == .granted else {
+            presentSetup()
+            return
+        }
+        guard ensureSession(), let ticket = sessions.openTicket() else { return }
+        clips.begin(ticket: ticket, preset: preset)
+    }
+
+    /// The session is stopping: a clip still recording stops too, and goes on to its review.
+    func sessionStopping() {
+        if clips.isRecording { clips.stopRecording() }
+    }
+
+    /// Freezes the screen for you to pick the region a clip records, and hands it on, or nil when you cancel.
+    private func pickClipRegion(preset: CGRect?, done: @escaping (RegionChoice?) -> Void) {
+        Task { [self] in
+            let freeze: Freeze
+            do {
+                freeze = try await self.freeze()
+            } catch {
+                sessions.post(notice: error.localizedDescription)
+                done(nil)
+                return
+            }
+            let picker = RegionPicker(freeze: freeze, purpose: .clip)
+            picker.onFinish = { choice in
+                self.closeOverlay()
+                done(choice)
+            }
+            if let preset {
+                picker.preset(preset, note: nil)
+            } else {
+                showOverlay(for: picker)
             }
         }
     }

@@ -4,8 +4,20 @@ import KoeCore
 /// What Koe's menu bar item shows. Rebuilt each time it opens, so the session and setup lines are always current.
 @MainActor
 enum StatusMenu {
-    static func build(_ menu: NSMenu, checklist: SetupChecklist, phase: RecorderPhase, takenHotKeys: Set<KeyCombo>,
-                      target: AppDelegate) {
+    /// What the menu reflects when it opens.
+    struct State {
+        var checklist: SetupChecklist
+        var phase: RecorderPhase
+        var recordingClip: Bool
+        /// The shortcuts another app already holds, which the menu points out.
+        var takenHotKeys: Set<KeyCombo>
+    }
+
+    static func build(_ menu: NSMenu, state current: State, target: AppDelegate) {
+        let checklist = current.checklist
+        let phase = current.phase
+        let recordingClip = current.recordingClip
+        let takenHotKeys = current.takenHotKeys
         menu.removeAllItems()
         menu.autoenablesItems = false
 
@@ -13,7 +25,7 @@ enum StatusMenu {
         state.isEnabled = false
         menu.addItem(state)
         if !takenHotKeys.isEmpty {
-            let names = [KeyCombo.toggleSession, .screenshot, .note].filter(takenHotKeys.contains).map(\.displayName)
+            let names = [KeyCombo.toggleSession, .screenshot, .note, .clip].filter(takenHotKeys.contains).map(\.displayName)
             let taken = NSMenuItem(
                 title: "Another app uses \(names.joined(separator: ", ")), so use them from here.",
                 action: nil, keyEquivalent: ""
@@ -28,10 +40,14 @@ enum StatusMenu {
         menu.addItem(toggle)
         let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, takenHotKeys, target)
         let note = item("Add a note", #selector(AppDelegate.addNote), .note, takenHotKeys, target)
-        screenshot.isEnabled = phase.toggleIntent != .ignore
-        note.isEnabled = phase.toggleIntent != .ignore
+        let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip,
+                        takenHotKeys, target)
+        screenshot.isEnabled = phase.toggleIntent != .ignore && !recordingClip
+        note.isEnabled = phase.toggleIntent != .ignore && !recordingClip
+        clip.isEnabled = phase.toggleIntent != .ignore || recordingClip
         menu.addItem(screenshot)
         menu.addItem(note)
+        menu.addItem(clip)
         menu.addItem(.separator())
 
         let setup = NSMenuItem(title: "Set up permissions…", action: #selector(AppDelegate.openSetup), keyEquivalent: "")

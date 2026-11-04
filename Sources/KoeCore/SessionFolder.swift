@@ -6,6 +6,7 @@ public struct SessionFolder: Sendable, Equatable {
     public let url: URL
     private var taken: Set<String> = []
     private var screenshots = 0
+    private var clips = 0
 
     public init(url: URL) {
         self.url = url
@@ -24,6 +25,16 @@ public struct SessionFolder: Sendable, Equatable {
     public mutating func nextScreenshot() -> URL {
         screenshots += 1
         return reserve("screenshot-\(screenshots).png")
+    }
+
+    public mutating func nextClip() -> URL {
+        clips += 1
+        return reserve("clip-\(clips).mov")
+    }
+
+    /// A frame picked out of a clip: `clip-1-frame-25.png`.
+    public mutating func frame(_ index: Int, of clip: URL) -> URL {
+        reserve("\(clip.deletingPathExtension().lastPathComponent)-frame-\(index + 1).png")
     }
 
     /// A file you dropped keeps its name, made safe and unique: `spec sheet.pdf` → `spec-sheet.pdf`, then `spec-sheet-2.pdf`.

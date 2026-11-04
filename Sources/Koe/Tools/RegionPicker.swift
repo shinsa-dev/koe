@@ -18,10 +18,15 @@ final class RegionPicker {
         case noting(screen: Int, region: CGRect)
     }
 
+    /// A screenshot asks for a note under the region; a clip starts recording the moment you pick it.
+    enum Purpose { case screenshot, clip }
+
     let freeze: Freeze
+    let purpose: Purpose
     var stage: Stage = .choosing {
         didSet {
-            if case .noting(let index, _) = stage, stage != oldValue { onNoting?(index) }
+            guard case .noting(let index, _) = stage, stage != oldValue else { return }
+            if purpose == .clip { submit() } else { onNoting?(index) }
         }
     }
     /// Called with the screen whose note card opens, which must take the keyboard.
@@ -34,8 +39,9 @@ final class RegionPicker {
     private var picked: WindowInfo?
     @ObservationIgnored var onFinish: ((RegionChoice?) -> Void)?
 
-    init(freeze: Freeze) {
+    init(freeze: Freeze, purpose: Purpose = .screenshot) {
         self.freeze = freeze
+        self.purpose = purpose
     }
 
     func hover(at point: CGPoint?, on index: Int) {
@@ -145,7 +151,7 @@ struct RegionPickerView: View {
                 )
                 .offset(x: origin.x, y: origin.y)
             } else if picker.stage == .choosing, index == 0 {
-                Hint()
+                Hint(purpose: picker.purpose)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 48)
             }
@@ -231,10 +237,12 @@ private struct SizeChip: View {
 }
 
 private struct Hint: View {
+    let purpose: RegionPicker.Purpose
+
     var body: some View {
         HStack(spacing: 8) {
-            IconView(icon: .screenCapture, size: .small, color: Palette.icon2)
-            Text("Drag over a region, or click a window.")
+            IconView(icon: purpose == .clip ? .video : .screenCapture, size: .small, color: Palette.icon2)
+            Text(purpose == .clip ? "Drag over the region to record, or click a window." : "Drag over a region, or click a window.")
                 .font(Typography.body)
                 .foregroundStyle(Palette.fg4)
             Kbd("Esc")
@@ -242,9 +250,11 @@ private struct Hint: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 34)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.card)
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
+        }
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
         .allowsHitTesting(false)
     }
 }

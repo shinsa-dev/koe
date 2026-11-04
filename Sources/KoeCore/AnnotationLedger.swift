@@ -32,6 +32,19 @@ public struct AnnotationLedger: Sendable, Equatable {
         return true
     }
 
+    /// Takes several annotations for one ticket, such as a clip and the frames you picked from it. Each is stamped
+    /// `after` seconds past the ticket's time.
+    @discardableResult
+    public mutating func close(_ ticket: Ticket, with annotations: [(annotation: Annotation, after: AudioTime)]) -> Bool {
+        guard open.remove(ticket) != nil else { return false }
+        for (annotation, after) in annotations {
+            var annotation = annotation
+            annotation.time = ticket.time + max(0, after)
+            self.annotations.append(annotation)
+        }
+        return true
+    }
+
     public mutating func endTranscript() {
         transcriptDone = true
     }

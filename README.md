@@ -9,10 +9,10 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-Phases 1 to 4 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
+Phases 1 to 5 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
 screen recording and (optionally) Accessibility, the session timeline and bundle composer in `KoeCore`, live
-on-device transcription with the ⌥Space hotkey and the pill, and the screenshot, note and drop tools. The clip tool
-and the clipboard follow.
+on-device transcription with the ⌥Space hotkey and the pill, the screenshot, note and drop tools, and the slow-motion
+clip tool. The clipboard follows.
 
 ## Build
 
@@ -38,7 +38,7 @@ Koe looks and reads like Shinsa. Its design system is Shinsa's, generated rather
   pipeline. Koe never uses SF Symbols.
 
 They read `~/Developer/Projects/shinsa` (`SHINSA_REPO`, `SHINSA_SOURCE`). The components (`Card`, `Hero`,
-`KoeButtonStyle`) are the web's `SettingsCard`, `RemoteHero` and `Button`. Copy follows Shinsa's voice: sentence
+`KoeButtonStyle`, `SegmentedTabs`) are the web's `SettingsCard`, `RemoteHero`, `Button` and default `Tabs`. Copy follows Shinsa's voice: sentence
 case, full sentences, no em dashes.
 
 ## Layout
@@ -49,7 +49,8 @@ Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global sh
 Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
 Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen, and the drop target
-Sources/Koe/Tools/ ToolCoordinator, ScreenFreezer, RegionPicker (the frozen-screen overlay), NoteCard, ToolPanel
+Sources/Koe/Tools/ ToolCoordinator, ScreenFreezer, RegionPicker (the frozen-screen overlay), NoteCard, ToolPanel;
+                   ClipTool, ClipRecorder, RecordingIndicator, ClipMovie, ClipReviewer (the clip tool)
 Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates), the setup window
 Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon, Components/
 Tests/KoeCoreTests Swift Testing
@@ -70,7 +71,8 @@ Look at the sidebar. [1: padding is 8, should be 12] The button here [2] looks o
 Attachments:
 [1] Image of Safari, "Settings": ~/Library/Application Support/Koe/Sessions/…/1.png
 [2] Image of Safari, "Settings": …/2.png
-[3] Video of Figma: …/3.mov
+[3] Video of Figma: …/clip-1.mov
+[4] Frame 0.42 s into [3], of Figma: …/clip-1-frame-25.png
 ```
 
 - Each annotation goes to the word boundary nearest its time. Inside a gap the distance is zero; inside a word it
@@ -80,6 +82,7 @@ Attachments:
   paragraph, since you were already on to the next thing.
 - Files, screenshots and clips are numbered `[n]` in reading order, not in the order you added them, so the nth
   image pasted is the nth marker. A note on an attachment rides in its marker; a note on its own reads `[Note: …]`.
+- A frame picked out of a clip is a screenshot that says which clip it came from and when in it.
 - The footer lists every file with its path, for terminal agents that read files rather than pasted images. The
   HTML flavor is the same text with images inline.
 
@@ -110,6 +113,19 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   no room). Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
 - **Note, ⌥⇧N.** A note card under the pill. A blank note adds nothing.
+- **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
+  down. Pick a region as for a screenshot (the pick starts recording; there is no note card). `ClipRecorder` records
+  it with ScreenCaptureKit's `SCRecordingOutput` at up to 60 fps, with the pointer and without Koe's windows, to
+  `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
+  stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 0.25× (`PlaybackSpeed`): play
+  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame, each with an
+  optional note. Return attaches, Esc discards (in a note, Esc only leaves the note).
+- A screen recording only stores a frame when something changed, so `ClipMovie` reads the clip's real frame times
+  (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
+  pulled with zero tolerance, so the image you pick is the one you saw.
+- The clip is stamped when recording began, and each picked frame at that time plus its time in the clip, so a frame
+  lands at the words you said while it was on screen. All of them close the ticket taken when you pressed ⌥⇧C.
+  Frames are saved full size as `clip-<n>-frame-<m>.png`.
 - **Drop on the pill.** Each file is stamped when it lands and copied (an APFS clone) into the session's folder, so
   the bundle keeps it if the original moves. The pill shows how many attachments the session holds.
 - Tool panels are non-activating: they take typing without bringing Koe to the front, so the app you were in keeps
@@ -129,5 +145,8 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
   --print-session`.
 - `--script "<steps>"` plays tools into the session at audio times (`ScriptedStep`): `1.5 shot 120,80,640,360 A
-  note; 3 note Compare with Finder; 4 drop /tmp/spec.pdf`; `shot!` and `note!` leave the tool open. `--backdrop
-  <png>` shows that image instead of capturing your screen, so captures of Koe never show what's on your screen.
+  note; 3 note Compare with Finder; 4 drop /tmp/spec.pdf; 6 clip 120,80,640,360 2 0.4,1.1` (records 2 s and picks
+  the frames 0.4 s and 1.1 s in); `shot!`, `note!` and `clip!` leave the tool open. `--backdrop <png>` shows that
+  image instead of capturing your screen, so captures of Koe never show what's on your screen, and `--clip-file
+  <mov>` stands in for every recorded clip (a scripted one still shows the recording outline for its length). A
+  script needs a session, so pair it with `--start`.

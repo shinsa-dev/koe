@@ -32,6 +32,16 @@ public enum ScreenGeometry {
         return pixels.isNull || pixels.width < 1 || pixels.height < 1 ? nil : pixels
     }
 
+    /// The pixel size to record a region of `size` points at `scale`: whole and even, since H.264 needs even sides,
+    /// and at least 2 × 2.
+    public static func recordingPixels(of size: CGSize, scale: CGFloat) -> (width: Int, height: Int) {
+        func even(_ points: CGFloat) -> Int {
+            let pixels = Int((points * max(1, scale)).rounded())
+            return max(2, pixels - pixels % 2)
+        }
+        return (even(size.width), even(size.height))
+    }
+
     /// Where a note card of `cardSize` goes for a selection on a screen `bounds` large: under it, above it when there
     /// is no room below, or inside its bottom edge when it fills the screen. Its left edge follows the selection's
     /// and it always stays `margin` inside the screen.

@@ -65,22 +65,24 @@ public struct BundleComposer: Sendable {
 
         let paragraphs = layout(words: words, markers: markers)
         let byID = Dictionary(uniqueKeysWithValues: session.annotations.map { ($0.id, $0) })
+        let numbers = Dictionary(uniqueKeysWithValues: assets.map { ($0.annotationID, $0.number) })
         let footer = assets.map { item in
-            (item, byID[item.annotationID]?.source)
+            let annotation = byID[item.annotationID]
+            return (item, describe(item.asset, source: annotation?.source, frame: annotation?.frame, numbers: numbers))
         }
 
         var text = paragraphs.map { $0.map(\.plain).joined(separator: " ") }.joined(separator: "\n\n")
         if !footer.isEmpty {
-            let lines = footer.map { item, source in "[\(item.number)] \(describe(item.asset, source: source)): \(item.asset.url.path)" }
+            let lines = footer.map { item, label in "[\(item.number)] \(label): \(item.asset.url.path)" }
             text += (text.isEmpty ? "" : "\n\n") + "Attachments:\n" + lines.joined(separator: "\n")
         }
 
         var html = paragraphs.map { "<p>" + $0.map(\.html).joined(separator: " ") + "</p>" }.joined()
         if !footer.isEmpty {
-            let items = footer.map { item, source in
+            let items = footer.map { item, label in
                 let path = escape(item.asset.url.path)
                 let link = "<a href=\"\(escape(item.asset.url.absoluteString))\">\(path)</a>"
-                return "<li>[\(item.number)] \(escape(describe(item.asset, source: source))): \(link)</li>"
+                return "<li>[\(item.number)] \(escape(label)): \(link)</li>"
             }
             html += "<p>Attachments:</p><ul>" + items.joined() + "</ul>"
         }
@@ -139,11 +141,18 @@ public struct BundleComposer: Sendable {
         return paragraphs.filter { !$0.isEmpty }
     }
 
-    private func describe(_ asset: Asset, source: CaptureSource?) -> String {
-        let name = switch asset.kind {
+    /// "Image of Safari, "Settings"", or for a frame picked out of clip [3], "Frame 0.42 s into [3], of Figma".
+    private func describe(_ asset: Asset, source: CaptureSource?, frame: ClipFrame?, numbers: [UUID: Int]) -> String {
+        var name = switch asset.kind {
         case .image: "Image"
         case .video: "Video"
         case .file: "File"
+        }
+        if let frame {
+            let seconds = String(format: "%.2f s", frame.time)
+            name = numbers[frame.clipID].map { "Frame \(seconds) into [\($0)]" } ?? "Frame \(seconds) into a clip"
+            guard let source else { return name }
+            return "\(name), of \(source.app)"
         }
         guard let source else { return name }
         if let window = source.window, !window.isEmpty { return "\(name) of \(source.app), \"\(window)\"" }

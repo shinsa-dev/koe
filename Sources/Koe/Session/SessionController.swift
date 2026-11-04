@@ -103,6 +103,21 @@ final class SessionController {
         settleIfDone()
     }
 
+    /// Hands back a clip and the frames picked from it, each stamped some seconds after the ticket's time.
+    func close(_ ticket: AnnotationLedger.Ticket, with annotations: [(annotation: Annotation, after: AudioTime)]) {
+        guard ledger.close(ticket, with: annotations) else { return }
+        annotationCount = ledger.annotations.count
+        settleIfDone()
+    }
+
+    func clipURL() throws -> URL {
+        try reserveFile { $0.nextClip() }
+    }
+
+    func frameURL(_ index: Int, of clip: URL) throws -> URL {
+        try reserveFile { $0.frame(index, of: clip) }
+    }
+
     /// Where the session's next screenshot goes; the folder exists once this returns.
     func screenshotURL() throws -> URL {
         try reserveFile { $0.nextScreenshot() }

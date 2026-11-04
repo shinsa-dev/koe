@@ -22,6 +22,8 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
     public static let screenshot = KeyCombo(keyCode: 1, modifiers: option | shift)
     /// ⌥⇧N: opens a field for a typed note.
     public static let note = KeyCombo(keyCode: 45, modifiers: option | shift)
+    /// ⌥⇧C: picks a region to record a clip of, and stops the recording.
+    public static let clip = KeyCombo(keyCode: 8, modifiers: option | shift)
 
     /// How macOS writes it in menus: modifiers in the order ⌃⌥⇧⌘, then the key.
     public var displayName: String {

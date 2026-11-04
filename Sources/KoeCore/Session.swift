@@ -66,6 +66,18 @@ public struct CaptureSource: Codable, Sendable, Equatable {
     }
 }
 
+/// Where a frame picked out of a clip comes from.
+public struct ClipFrame: Codable, Sendable, Equatable {
+    public var clipID: UUID
+    /// Seconds into the clip.
+    public var time: AudioTime
+
+    public init(clipID: UUID, time: AudioTime) {
+        self.clipID = clipID
+        self.time = max(0, time)
+    }
+}
+
 /// Something you added while talking, stamped with the audio time at the moment you started it.
 public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public enum Kind: Codable, Sendable, Equatable {
@@ -81,13 +93,17 @@ public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public var kind: Kind
     public var note: String?
     public var source: CaptureSource?
+    /// For a frame picked out of a clip: which clip, and when in it.
+    public var frame: ClipFrame?
 
-    public init(id: UUID = UUID(), time: AudioTime, kind: Kind, note: String? = nil, source: CaptureSource? = nil) {
+    public init(id: UUID = UUID(), time: AudioTime, kind: Kind, note: String? = nil, source: CaptureSource? = nil,
+                frame: ClipFrame? = nil) {
         self.id = id
         self.time = max(0, time)
         self.kind = kind
         self.note = note
         self.source = source
+        self.frame = frame
     }
 
     public var asset: Asset? {

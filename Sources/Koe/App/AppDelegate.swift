@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (.toggleSession, { [weak self] in self?.toggleSession() }),
             (.screenshot, { [weak self] in self?.takeScreenshot() }),
             (.note, { [weak self] in self?.addNote() }),
+            (.clip, { [weak self] in self?.recordClip() }),
         ]
         for (combo, handler) in hotKeys where HotKeys.shared.register(combo, handler: handler) == nil {
             takenHotKeys.insert(combo)
@@ -48,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
+        tools.clipFile = Launch.value(after: "--clip-file").map { URL(fileURLWithPath: $0) }
 
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
             setup.present()
@@ -62,8 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         permissions.refresh()
-        StatusMenu.build(menu, checklist: permissions.checklist, phase: sessions.phase,
-                         takenHotKeys: takenHotKeys, target: self)
+        StatusMenu.build(menu, state: StatusMenu.State(
+            checklist: permissions.checklist, phase: sessions.phase, recordingClip: tools.isRecordingClip,
+            takenHotKeys: takenHotKeys
+        ), target: self)
     }
 
     @objc func toggleSession() {
@@ -80,6 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func takeScreenshot() { tools.screenshot() }
 
     @objc func addNote() { tools.note() }
+
+    @objc func recordClip() { tools.clip() }
 
     /// Starts a session for a tool used while none runs, and says whether one is running now.
     private func ensureSession() -> Bool {
@@ -106,6 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
                 case .note(let text): tools.note(text: text, holds: step.holds)
                 case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
+                case .clip(let rect, let seconds, let picks):
+                    tools.clip(preset: ClipScript(region: rect, seconds: seconds, picks: picks, holds: step.holds))
                 }
             }
         }
@@ -113,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func phaseChanged(_ phase: RecorderPhase) {
         if phase == .idle { pill.hide() } else { pill.show() }
+        if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.contentTintColor = Tokens.redText
         } else {

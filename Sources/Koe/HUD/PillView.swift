@@ -39,9 +39,8 @@ struct PillView: View {
         .padding(.trailing, 5)
         .padding(.vertical, 5)
         .frame(minHeight: 34)
-        .background(Palette.card, in: shape)
+        .background { shape.fill(Palette.card).shadow(color: .black.opacity(0.1), radius: 10, y: 3) }
         .overlay(shape.strokeBorder(dropTargeted ? Palette.action : Palette.border, lineWidth: dropTargeted ? 2 : 1))
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
         .dropDestination(for: URL.self) { urls, _ in
             guard sessions.phase.isActive else { return false }
             onDrop(urls)
