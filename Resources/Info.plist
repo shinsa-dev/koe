@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Koe</string>
+	<key>CFBundleDisplayName</key>
+	<string>Koe</string>
+	<key>CFBundleExecutable</key>
+	<string>Koe</string>
+	<key>CFBundleIdentifier</key>
+	<string>studio.shinsa.koe</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Koe transcribes what you say on this Mac. Your voice never leaves it.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Koe turns your voice into text on this Mac, with Apple's on-device speech model.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Koe takes the screenshots and clips you ask for while you talk.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Koe, part of Shinsa</string>
+</dict>
+</plist>

@@ -1,0 +1,13 @@
+included:
+  - Sources
+  - Tests
+excluded:
+  - .build
+  - Sources/Koe/UI/Tokens.swift
+line_length:
+  warning: 140
+  error: 180
+identifier_name:
+  excluded: [id, x, y]
+disabled_rules:
+  - trailing_comma
