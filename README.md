@@ -9,10 +9,10 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-Phases 1 to 5 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
-screen recording and (optionally) Accessibility, the session timeline and bundle composer in `KoeCore`, live
-on-device transcription with the ⌥Space hotkey and the pill, the screenshot, note and drop tools, and the slow-motion
-clip tool. The clipboard follows.
+The first version, end to end: the menu bar item, the setup window that asks for the microphone, screen recording
+and (optionally) Accessibility, live on-device transcription with the ⌥Space hotkey and the pill, the screenshot,
+note, drop and slow-motion clip tools, and the bundle on the clipboard when you stop, with recent sessions and
+settings in the menu.
 
 ## Build
 
@@ -38,14 +38,18 @@ Koe looks and reads like Shinsa. Its design system is Shinsa's, generated rather
   pipeline. Koe never uses SF Symbols.
 
 They read `~/Developer/Projects/shinsa` (`SHINSA_REPO`, `SHINSA_SOURCE`). The components (`Card`, `Hero`,
-`KoeButtonStyle`, `SegmentedTabs`) are the web's `SettingsCard`, `RemoteHero`, `Button` and default `Tabs`. Copy follows Shinsa's voice: sentence
+`KoeButtonStyle`, `SegmentedTabs`, `KoeSwitchStyle`, `SettingsGroup`, `SettingRow`) are the web's `SettingsCard`,
+`RemoteHero`, `Button`, default `Tabs`, `Switch`, `SettingsGroup` and `SettingRow`. Copy follows Shinsa's voice: sentence
 case, full sentences, no em dashes.
 
 ## Layout
 
 ```
-Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the timeline), BundleComposer
-Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global shortcuts)
+Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the timeline), BundleComposer,
+                   ClipboardPlan, SessionArchive and HistoryEntry, KoeSettings
+Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global shortcuts), SessionLibrary
+Sources/Koe/Clipboard/ BundleWriter: the bundle onto NSPasteboard, and ⌘V for you
+Sources/Koe/Settings/ The settings window
 Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
 Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen, and the drop target
@@ -84,7 +88,25 @@ Attachments:
   image pasted is the nth marker. A note on an attachment rides in its marker; a note on its own reads `[Note: …]`.
 - A frame picked out of a clip is a screenshot that says which clip it came from and when in it.
 - The footer lists every file with its path, for terminal agents that read files rather than pasted images. The
-  HTML flavor is the same text with images inline.
+  HTML flavor is the same text, markers in bold, with no images: the files paste in on their own, and a `file://`
+  image in a web editor shows broken.
+
+## The clipboard
+
+When a session ends, `SessionLibrary` saves it as `session.json` in its folder, then `ClipboardPlan` lays out the
+clipboard and `BundleWriter` writes it: the first item holds the text (plain and HTML), then one item per file, its
+file URL, in marker order. Chat boxes take the text from the first item and every file as an attachment. A file
+that no longer exists is left out; with "Copy files with the text" off, only the text goes on.
+
+- Checked with a WebKit view: a paste gets both files with their types and the HTML. WebKit hides the plain text
+  when files come with it, so in Safari-based editors the HTML is the text, which is why it carries everything the
+  plain text does.
+- "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
+  in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied".
+- The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
+  anywhere."), or that it heard nothing.
+- The menu lists the latest sessions (3, 5 or 10, in settings) under "Recent sessions", with when and how many
+  attachments; clicking one copies its bundle again from `session.json`, with the settings as they are now.
 
 ## Transcription
 
@@ -140,7 +162,7 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so the row says so.
 - `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` opens the setup window at launch
-  and `--open-menu` opens the menu, for screenshots. `--audio-file <path>` plays a recording into each session
+  and `--open-menu` opens the menu, `--settings` the settings window, for screenshots. `--audio-file <path>` plays a recording into each session
   instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
   --print-session`.

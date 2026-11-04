@@ -24,7 +24,8 @@ final class SessionController {
 
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "session")
     @ObservationIgnored var onPhaseChange: ((RecorderPhase) -> Void)?
-    @ObservationIgnored var onFinish: ((Session) -> Void)?
+    /// A session that holds something, with the folder its files are in.
+    @ObservationIgnored var onFinish: ((Session, URL) -> Void)?
 
     @ObservationIgnored private let transcriber: any Transcriber
     @ObservationIgnored private let makeSource: () -> any AudioSource
@@ -176,9 +177,11 @@ final class SessionController {
         source = nil
         session.words = transcript.words + transcript.pending
         session.annotations = ledger.annotations
-        if !session.words.isEmpty || !session.annotations.isEmpty {
+        if !session.words.isEmpty || !session.annotations.isEmpty, let folder {
             lastSession = session
-            onFinish?(session)
+            onFinish?(session, folder.url)
+        } else if failure == nil {
+            post(notice: "Koe didn't hear anything, so nothing was copied.")
         }
         guard let failure, !(failure is CancellationError) else {
             phase = .idle

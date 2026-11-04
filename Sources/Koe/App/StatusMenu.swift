@@ -11,6 +11,8 @@ enum StatusMenu {
         var recordingClip: Bool
         /// The shortcuts another app already holds, which the menu points out.
         var takenHotKeys: Set<KeyCombo>
+        /// Past sessions, newest first, each copied again when clicked.
+        var recent: [HistoryEntry] = []
     }
 
     static func build(_ menu: NSMenu, state current: State, target: AppDelegate) {
@@ -50,6 +52,12 @@ enum StatusMenu {
         menu.addItem(clip)
         menu.addItem(.separator())
 
+        addRecent(current.recent, to: menu, target: target)
+
+        let settings = NSMenuItem(title: "Settings…", action: #selector(AppDelegate.openSettings), keyEquivalent: "")
+        settings.target = target
+        menu.addItem(settings)
+
         let setup = NSMenuItem(title: "Set up permissions…", action: #selector(AppDelegate.openSetup), keyEquivalent: "")
         setup.target = target
         menu.addItem(setup)
@@ -61,6 +69,29 @@ enum StatusMenu {
 
         let quit = NSMenuItem(title: "Quit Koe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
+        // macOS adds its own symbols to items it recognises, such as a gear on "Settings…"; Koe draws none.
+        if #available(macOS 27, *) {
+            for item in menu.items { item.preferredImageVisibility = .hidden }
+        }
+    }
+
+    /// Past sessions under a header; clicking one copies its bundle again.
+    private static func addRecent(_ recent: [HistoryEntry], to menu: NSMenu, target: AppDelegate) {
+        menu.addItem(.sectionHeader(title: "Recent sessions"))
+        if recent.isEmpty {
+            let none = NSMenuItem(title: "Sessions you finish show here.", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            menu.addItem(none)
+        }
+        for entry in recent {
+            let item = NSMenuItem(title: entry.title(), action: #selector(AppDelegate.copyRecent(_:)), keyEquivalent: "")
+            item.subtitle = entry.detail()
+            item.representedObject = entry.id
+            item.target = target
+            item.toolTip = "Copy this session again"
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
     }
 
     /// The shortcut is display only: a status item's menu never fires key equivalents; the hotkeys are global.

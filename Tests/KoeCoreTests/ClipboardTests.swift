@@ -1,0 +1,161 @@
+import Foundation
+import KoeCore
+import Testing
+
+private func asset(_ path: String, number: Int) -> BundleAsset {
+    BundleAsset(number: number, asset: Asset(url: URL(fileURLWithPath: path)), annotationID: UUID())
+}
+
+struct ClipboardPlanTests {
+    let bundle = ComposedBundle(
+        text: "Look [1] here [2].", html: "<p>Look [1] here [2].</p>",
+        assets: [asset("/s/screenshot-1.png", number: 1), asset("/s/clip-1.mov", number: 2)]
+    )
+
+    @Test func theTextComesFirstThenEachFileInMarkerOrder() {
+        let items = ClipboardPlan.items(for: bundle, copyFiles: true) { _ in true }
+        #expect(items == [
+            .text(plain: "Look [1] here [2].", html: "<p>Look [1] here [2].</p>"),
+            .file(URL(fileURLWithPath: "/s/screenshot-1.png")),
+            .file(URL(fileURLWithPath: "/s/clip-1.mov")),
+        ])
+    }
+
+    @Test func withoutCopyFilesOnlyTheTextGoesOn() {
+        let items = ClipboardPlan.items(for: bundle, copyFiles: false) { _ in true }
+        #expect(items == [.text(plain: bundle.text, html: bundle.html)])
+    }
+
+    @Test func aMissingFileIsLeftOut() {
+        let items = ClipboardPlan.items(for: bundle, copyFiles: true) { $0.lastPathComponent != "clip-1.mov" }
+        #expect(items.count == 2)
+        #expect(items.last == .file(URL(fileURLWithPath: "/s/screenshot-1.png")))
+    }
+
+    @Test func aFileNamedTwiceGoesOnOnce() {
+        var twice = bundle
+        twice.assets.append(asset("/s/screenshot-1.png", number: 3))
+        #expect(ClipboardPlan.items(for: twice, copyFiles: true) { _ in true }.count == 3)
+    }
+
+    @Test func anEmptyBundleCopiesNothing() {
+        let empty = ComposedBundle(text: "", html: "", assets: [])
+        #expect(ClipboardPlan.items(for: empty, copyFiles: true) { _ in true }.isEmpty)
+    }
+
+    @Test func theConfirmationCountsTheFiles() {
+        let text = ClipboardItem.text(plain: "a", html: "a")
+        let file = ClipboardItem.file(URL(fileURLWithPath: "/a.png"))
+        #expect(ClipboardPlan.confirmation(for: [text], pasted: false) == "Copied the transcript. Paste it anywhere.")
+        #expect(ClipboardPlan.confirmation(for: [text, file], pasted: false)
+            == "Copied the transcript and 1 file. Paste it anywhere.")
+        #expect(ClipboardPlan.confirmation(for: [text, file, file], pasted: true) == "Pasted the transcript and 2 files.")
+    }
+}
+
+struct KoeSettingsTests {
+    @Test func defaultsWhenNothingIsSet() {
+        let settings = KoeSettings(values: [:])
+        #expect(settings == KoeSettings())
+        #expect(settings.copyFiles && !settings.autoPaste && settings.theme == .system && settings.recentCount == 5)
+    }
+
+    @Test func roundTripsThroughItsValues() {
+        var settings = KoeSettings()
+        settings.copyFiles = false
+        settings.autoPaste = true
+        settings.theme = .dark
+        settings.recentCount = 10
+        #expect(KoeSettings(values: settings.values) == settings)
+    }
+
+    @Test func aMistypedValueFallsBackToTheDefault() {
+        let settings = KoeSettings(values: ["appearance": "sepia", "recentCount": 7, "autoPaste": "yes"])
+        #expect(settings == KoeSettings())
+    }
+
+    @Test func themeSharesTheAppearanceKey() {
+        #expect(KoeSettings(values: ["appearance": "light"]).theme == .light)
+    }
+}
+
+struct HistoryEntryTests {
+    let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return calendar
+    }()
+    let locale = Locale(identifier: "en_US")
+    /// 2026-11-04 18:15:00 UTC
+    let started = Date(timeIntervalSince1970: 1_793_816_100)
+
+    private func entry(_ text: String, annotations: Int = 0, at date: Date? = nil) -> HistoryEntry {
+        var session = Session(startedAt: date ?? started)
+        if !text.isEmpty { session.appendTranscript(text, start: 0, end: 5) }
+        for index in 0..<annotations { session.add(Annotation(time: Double(index), kind: .note, note: "n")) }
+        return HistoryEntry(session: session, folder: URL(fileURLWithPath: "/s"))
+    }
+
+    @Test func shortTextIsTheWholeTitle() {
+        #expect(entry("Look at the sidebar.").title() == "Look at the sidebar.")
+    }
+
+    @Test func longTextIsCutAtAWord() {
+        let title = entry("Look at the sidebar, the padding on this card is far too tight").title(limit: 24)
+        #expect(title == "Look at the sidebar…")
+    }
+
+    @Test func withoutWordsTheTitleCountsAttachments() {
+        #expect(entry("", annotations: 1).title() == "1 attachment")
+        #expect(entry("", annotations: 3).title() == "3 attachments")
+    }
+
+    @Test func detailSaysTodayYesterdayOrTheDate() {
+        let now = started.addingTimeInterval(3600)
+        #expect(entry("hi").detail(now: now, calendar: utc, locale: locale) == "Today at 6:15\u{202F}PM")
+        #expect(entry("hi", annotations: 2).detail(now: now.addingTimeInterval(86_400), calendar: utc, locale: locale)
+            == "Yesterday at 6:15\u{202F}PM · 2 attachments")
+        #expect(entry("hi", annotations: 1).detail(now: now.addingTimeInterval(5 * 86_400), calendar: utc, locale: locale)
+            == "Nov 4 at 6:15\u{202F}PM · 1 attachment")
+    }
+}
+
+struct SessionArchiveTests {
+    private func makeRoot() throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appending(path: "koe-archive-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    @Test func savedSessionsComeBackNewestFirst() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = SessionArchive(root: root)
+        for (offset, word) in ["first", "second", "third"].enumerated() {
+            var session = Session(startedAt: Date(timeIntervalSince1970: 1_000 + Double(offset) * 60))
+            session.appendTranscript(word, start: 0, end: 1)
+            session.add(Annotation(time: 0.5, kind: .note, note: "n"))
+            try archive.save(session, in: root.appending(path: "2026-11-04-00000\(offset)-AAAA"))
+        }
+        let recent = archive.recent(limit: 2)
+        #expect(recent.map { $0.session.words.map(\.text) } == [["third"], ["second"]])
+        #expect(recent.first?.session.annotations.first?.note == "n")
+        #expect(recent.first?.folder.lastPathComponent == "2026-11-04-000002-AAAA")
+    }
+
+    @Test func aFolderWithoutASessionIsSkipped() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appending(path: "2026-11-05-000000-BBBB"),
+                                                withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: root.appending(path: "2026-11-05-000000-BBBB/session.json"))
+        let archive = SessionArchive(root: root)
+        try archive.save(Session(words: [TimedWord("kept", start: 0, end: 1)]), in: root.appending(path: "2026-11-04-000000-AAAA"))
+        #expect(archive.recent(limit: 5).map { $0.session.words.first?.text } == ["kept"])
+    }
+
+    @Test func aMissingRootIsEmpty() {
+        let archive = SessionArchive(root: URL(fileURLWithPath: "/tmp/koe-missing-\(UUID().uuidString)"))
+        #expect(archive.recent(limit: 5).isEmpty)
+    }
+}

@@ -14,6 +14,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ensureSession: { [weak self] in self?.ensureSession() ?? false },
         presentSetup: { [weak self] in self?.setup.present() }
     )
+    private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
+    private lazy var settingsWindow = SettingsWindowController(
+        library: library, permissions: permissions, openSessions: { [weak self] in self?.showSessions() }
+    )
+    /// Sessions that ended but are still being saved and copied; the pill stays up for their confirmation.
+    private var copiesInFlight = 0
+    /// The sessions the menu listed when it last opened, so a click copies the one you saw.
+    private var listed: [HistoryEntry] = []
     private lazy var pill = PillController(sessions: sessions) { [weak self] urls in self?.tools.drop(urls) }
     /// The shortcuts another app already holds, which the menu points out.
     private var takenHotKeys: Set<KeyCombo> = []
@@ -33,10 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
 
         sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
-        sessions.onFinish = { session in
-            guard Launch.has("--print-session") else { return }
-            FileHandle.standardOutput.write(Data((BundleComposer().compose(session).text + "\n").utf8))
-        }
+        sessions.onFinish = { [weak self] session, folder in self?.sessionEnded(session, folder: folder) }
+        library.onSettingsChange = { [weak self] _ in self?.applyAppearance() }
         let hotKeys: [(KeyCombo, () -> Void)] = [
             (.toggleSession, { [weak self] in self?.toggleSession() }),
             (.screenshot, { [weak self] in self?.takeScreenshot() }),
@@ -58,15 +64,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Launch.has("--open-menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { item.button?.performClick(nil) }
         }
+        if Launch.has("--settings") { openSettings() }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         permissions.refresh()
+        listed = library.recent()
         StatusMenu.build(menu, state: StatusMenu.State(
             checklist: permissions.checklist, phase: sessions.phase, recordingClip: tools.isRecordingClip,
-            takenHotKeys: takenHotKeys
+            takenHotKeys: takenHotKeys, recent: listed
         ), target: self)
     }
 
@@ -119,8 +127,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Saves and copies the session, then shows what was copied in the pill for a moment.
+    private func sessionEnded(_ session: Session, folder: URL) {
+        copiesInFlight += 1
+        Task {
+            let message = await library.finished(session, folder: folder)
+            copiesInFlight -= 1
+            if Launch.has("--print-session") {
+                FileHandle.standardOutput.write(Data((BundleComposer().compose(session).text + "\n").utf8))
+            }
+            sessions.post(notice: message)
+            if !sessions.phase.isActive { lingerThenHide() }
+        }
+    }
+
+    @objc func copyRecent(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID, let entry = listed.first(where: { $0.id == id }) else { return }
+        let items = library.copy(entry.session)
+        guard !sessions.phase.isActive else { return }
+        sessions.post(notice: items.isEmpty ? "Nothing to copy." : ClipboardPlan.confirmation(for: items, pasted: false))
+        pill.show()
+        lingerThenHide()
+    }
+
+    private func lingerThenHide() {
+        pill.hide(after: .seconds(2.5)) { [weak self] in
+            guard let self else { return false }
+            return sessions.phase != .idle || copiesInFlight > 0
+        }
+    }
+
+    @objc func openSettings() { settingsWindow.present() }
+
+    private func showSessions() {
+        try? FileManager.default.createDirectory(at: library.root, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(library.root)
+    }
+
     private func phaseChanged(_ phase: RecorderPhase) {
-        if phase == .idle { pill.hide() } else { pill.show() }
+        if phase == .idle {
+            if copiesInFlight > 0 {
+                // The copy's confirmation hides the pill once it shows.
+            } else if sessions.notice != nil {
+                lingerThenHide()
+            } else {
+                pill.hide()
+            }
+        } else {
+            pill.show()
+        }
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.contentTintColor = Tokens.redText
@@ -129,13 +184,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// `defaults write studio.shinsa.koe appearance light|dark` (or `-appearance dark` at launch) pins a theme;
-    /// unset, Koe follows the system.
+    /// The theme from settings. `-appearance light|dark` at launch pins one too, as it shares the defaults key.
     private func applyAppearance() {
-        switch UserDefaults.standard.string(forKey: "appearance") {
-        case "light": NSApp.appearance = NSAppearance(named: .aqua)
-        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
-        default: NSApp.appearance = nil
+        switch library.settings.theme {
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        case .system: NSApp.appearance = nil
         }
     }
 

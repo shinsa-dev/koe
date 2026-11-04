@@ -5,6 +5,12 @@ public struct ComposedBundle: Sendable, Equatable {
     public var text: String
     public var html: String
     public var assets: [BundleAsset]
+
+    public init(text: String, html: String, assets: [BundleAsset]) {
+        self.text = text
+        self.html = html
+        self.assets = assets
+    }
 }
 
 /// A file in the bundle, numbered as its `[n]` marker in the text.
@@ -12,6 +18,12 @@ public struct BundleAsset: Sendable, Equatable {
     public var number: Int
     public var asset: Asset
     public var annotationID: UUID
+
+    public init(number: Int, asset: Asset, annotationID: UUID) {
+        self.number = number
+        self.asset = asset
+        self.annotationID = annotationID
+    }
 }
 
 /// Where an annotation lands in the transcript: in the gap before word `gap` (`words.count` is after the last).
@@ -189,10 +201,9 @@ private enum Piece {
         switch self {
         case .word(let text):
             return escape(text)
+        // No <img>: the files paste in as attachments, and a file:// image in a web editor shows broken.
         case .marker(let marker):
-            let label = "<b>\(escape(marker.label))</b>"
-            guard let asset = marker.annotation.asset, asset.kind == .image else { return label }
-            return label + " <img src=\"\(escape(asset.url.absoluteString))\" alt=\"\(escape(marker.label))\">"
+            return "<b>\(escape(marker.label))</b>"
         }
     }
 }

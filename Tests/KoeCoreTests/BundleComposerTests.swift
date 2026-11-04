@@ -145,15 +145,15 @@ struct BundleComposerTests {
         #expect(bundle.assets.isEmpty)
     }
 
-    @Test func htmlEscapesTextAndInlinesImages() {
+    @Test func htmlEscapesTextAndLeavesImagesToTheFiles() {
         let speech = words([("a<b", 0...0.3), ("&", 0.4...1.6)])
         let session = Session(words: speech, annotations: [
             shot("x", at: 0.35, note: "\"quoted\""),
             Annotation(time: 1.7, kind: .clip(Asset(url: URL(fileURLWithPath: "/tmp/koe/c.mov")))),
         ])
         let html = composer.compose(session).html
-        let image = "<img src=\"file:///tmp/koe/x.png\" alt=\"[1: &quot;quoted&quot;]\">"
-        #expect(html.hasPrefix("<p>a&lt;b <b>[1: &quot;quoted&quot;]</b> \(image) &amp; <b>[2]</b></p>"))
+        #expect(html.hasPrefix("<p>a&lt;b <b>[1: &quot;quoted&quot;]</b> &amp; <b>[2]</b></p>"))
+        #expect(!html.contains("<img"))
         #expect(html.contains("<li>[2] Video: <a href=\"file:///tmp/koe/c.mov\">/tmp/koe/c.mov</a></li>"))
     }
 }

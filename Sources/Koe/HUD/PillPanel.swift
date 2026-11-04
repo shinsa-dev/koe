@@ -46,6 +46,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 @MainActor
 final class PillController {
     private let panel: PillPanel
+    private var pendingHide: Task<Void, Never>?
 
     init(sessions: SessionController, onDrop: @escaping ([URL]) -> Void) {
         panel = PillPanel(rootView: PillView(sessions: sessions, onDrop: onDrop))
@@ -54,7 +55,11 @@ final class PillController {
     var isVisible: Bool { panel.isVisible }
 
     func show() {
-        guard !panel.isVisible else { return }
+        pendingHide?.cancel()
+        guard !panel.isVisible else {
+            panel.animator().alphaValue = 1
+            return
+        }
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let visible = screen?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: visible.midX - PillPanel.size.width / 2, y: visible.maxY - PillPanel.size.height))
@@ -67,7 +72,18 @@ final class PillController {
         }
     }
 
+    /// Leaves the pill up a moment so you can read what it says, unless `keep` says it is needed again by then.
+    func hide(after delay: Duration, unless keep: @escaping @MainActor () -> Bool) {
+        pendingHide?.cancel()
+        pendingHide = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, !keep() else { return }
+            self?.hide()
+        }
+    }
+
     func hide() {
+        pendingHide?.cancel()
         guard panel.isVisible else { return }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2

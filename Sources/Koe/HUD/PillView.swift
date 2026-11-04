@@ -72,7 +72,7 @@ struct PillView: View {
         switch phase {
         case .recording, .failed: .red
         case .preparing, .finishing: .amber
-        case .idle: .neutral
+        case .idle: sessions.notice == nil ? .neutral : .green
         }
     }
 
