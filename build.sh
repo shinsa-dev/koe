@@ -33,6 +33,14 @@ if [[ "${1:-}" == "--install" ]]; then
   echo "→ Installing to /Applications…"
   osascript -e 'quit app "Koe"' >/dev/null 2>&1 || true
   sleep 1
+  # A grant made for an ad-hoc build stays pinned to that build's hash: System Settings shows Koe as allowed, but no
+  # later build matches it, and toggling it keeps the old hash. Coming from such a build, clear Koe's grants once.
+  if [[ -d "/Applications/$APP" ]] && ! codesign -d -r- "/Applications/$APP" 2>&1 | grep -q "certificate leaf"; then
+    echo "→ Clearing permissions left by an ad-hoc build…"
+    for SERVICE in ScreenCapture Accessibility Microphone; do tccutil reset "$SERVICE" studio.shinsa.koe >/dev/null 2>&1 || true; done
+    defaults delete studio.shinsa.koe asked.screenRecording >/dev/null 2>&1 || true
+    defaults delete studio.shinsa.koe asked.accessibility >/dev/null 2>&1 || true
+  fi
   rm -rf "/Applications/$APP"
   cp -R "$APP" "/Applications/$APP"
   open "/Applications/$APP"

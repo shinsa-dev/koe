@@ -54,6 +54,7 @@ enum Palette {
     static let action = Color(nsColor: Tokens.primary4)
     static let actionText = Color(nsColor: Tokens.primaryText)
     static let onAction = Color(nsColor: Tokens.primaryForeground)
+    static let actionTint = Color(nsColor: Tokens.primaryA3)
     /// The web's shadows are pure black at an alpha (tokens.py skips them), so this is the one black Koe draws.
     static let shadow = Color(nsColor: NSColor(rgba: 0x000000FF))
     static let scrim = shadow.opacity(0.4)
