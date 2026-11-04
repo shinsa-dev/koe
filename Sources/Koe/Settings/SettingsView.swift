@@ -96,9 +96,7 @@ private struct PermissionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: permission.symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(status == .granted ? Tone.green.ink : Palette.icon2)
+            IconView(icon: permission.icon, size: .small, color: status == .granted ? Tone.green.ink : Palette.icon2)
                 .frame(width: 28, height: 28)
                 .background(status == .granted ? Tone.green.tint : Palette.press,
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -133,7 +131,7 @@ private struct PermissionRow: View {
         switch status {
         case .granted:
             HStack(spacing: 4) {
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
+                IconView(icon: .checkmark, size: .small, color: nil, weight: .bold)
                 Text("Allowed").font(Typography.label)
             }
             .foregroundStyle(Tone.green.ink)
@@ -196,11 +194,11 @@ extension Permission {
         }
     }
 
-    var symbol: String {
+    var icon: Icon {
         switch self {
-        case .microphone: "mic"
-        case .screenRecording: "rectangle.dashed.badge.record"
-        case .accessibility: "accessibility"
+        case .microphone: .microphone
+        case .screenRecording: .screenCapture
+        case .accessibility: .accessibility
         }
     }
 }

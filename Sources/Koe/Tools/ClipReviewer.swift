@@ -281,7 +281,7 @@ private struct Scrubber: View {
                     .fill(Palette.card)
                     .overlay(Circle().strokeBorder(Palette.action, lineWidth: 2))
                     .frame(width: 14, height: 14)
-                    .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+                    .shadow(color: Palette.shadow.opacity(0.12), radius: 1, y: 1)
                     .offset(x: width * fraction - 7)
             }
             .frame(height: 20)

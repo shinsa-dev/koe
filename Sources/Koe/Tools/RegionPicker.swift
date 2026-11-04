@@ -195,10 +195,10 @@ private struct Dim: View {
 
     var body: some View {
         Canvas { context, size in
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black.opacity(0.4)))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Palette.scrim))
             if let cutout {
                 context.blendMode = .destinationOut
-                context.fill(Path(cutout), with: .color(.black))
+                context.fill(Path(cutout), with: .color(Palette.shadow))
             }
         }
         .compositingGroup()

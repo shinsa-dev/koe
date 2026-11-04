@@ -16,11 +16,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
-        var symbol: String {
+        var icon: Icon {
             switch self {
-            case .general: "gearshape"
-            case .permissions: "hand.raised"
-            case .shortcuts: "command"
+            case .general: .settings
+            case .permissions: .permissions
+            case .shortcuts: .shortcuts
             }
         }
     }
@@ -55,7 +55,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             host.title = pane.title
             let item = NSTabViewItem(viewController: host)
             item.label = pane.title
-            item.image = NSImage(systemSymbolName: pane.symbol, accessibilityDescription: pane.title)
+            item.image = pane.icon.image(side: 16)
             tabs.addTabViewItem(item)
         }
     }

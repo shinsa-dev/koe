@@ -7,6 +7,11 @@ enum Icon: String, CaseIterable {
     case screenCapture = "rectangle.dashed.badge.record"
     case cursorClick = "cursorarrow.click.2"
     case check = "checkmark.circle.fill"
+    case checkmark = "checkmark"
+    case accessibility = "accessibility"
+    case settings = "gearshape"
+    case permissions = "hand.raised"
+    case shortcuts = "command"
     case stop = "stop.fill"
     case close = "xmark"
     case paperclip = "paperclip"
@@ -19,7 +24,7 @@ enum Icon: String, CaseIterable {
     case trash = "trash"
 
     enum Size: CGFloat {
-        case small = 12, medium = 14, large = 18
+        case tiny = 10, small = 12, medium = 14, large = 18
     }
 
     /// A template image at `side` points, for AppKit places such as the menu bar.
@@ -36,11 +41,12 @@ struct IconView: View {
     var size: Icon.Size = .small
     /// nil takes the surrounding foreground, as a glyph inside a button does.
     var color: Color? = Palette.icon2
+    var weight: Font.Weight = .medium
 
-    var body: some View {
-        Image(systemName: icon.rawValue)
-            .font(.system(size: size.rawValue, weight: .medium))
-            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.foreground))
+    @ViewBuilder var body: some View {
+        let glyph = Image(systemName: icon.rawValue)
+            .font(.system(size: size.rawValue, weight: weight))
             .accessibilityHidden(true)
+        if let color { glyph.foregroundStyle(color) } else { glyph }
     }
 }

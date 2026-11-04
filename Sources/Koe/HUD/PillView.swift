@@ -86,18 +86,16 @@ struct PillView: View {
         switch phase {
         case .preparing, .recording:
             Button(action: sessions.stop) {
-                Image(systemName: "stop.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+                IconView(icon: .stop, size: .tiny, color: Palette.onAction, weight: .bold)
                     .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color(nsColor: .systemRed)))
+                    .background(Circle().fill(Tone.red.solid))
             }
             .buttonStyle(.plain)
             .help("Stop (\(KeyCombo.toggleSession.displayName))")
             .accessibilityLabel("Stop")
         case .failed:
             Button(action: sessions.dismissFailure) {
-                Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)).frame(width: 24, height: 24)
+                IconView(icon: .close, size: .small, color: nil, weight: .semibold).frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Dismiss")
@@ -124,7 +122,7 @@ private struct Waveform: View {
                     let height = max(3, size.height * CGFloat(pow(value, 1.6)))
                     let rect = CGRect(x: CGFloat(index) * step + (step - width) / 2, y: (size.height - height) / 2,
                                       width: width, height: height)
-                    canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(.primary.opacity(0.85)))
+                    canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(Palette.fg4.opacity(0.85)))
                 }
             }
         }
@@ -158,15 +156,15 @@ private struct AttachmentCount: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "paperclip").font(.system(size: 11, weight: .medium))
+            IconView(icon: .paperclip, size: .small, color: nil)
             Text("\(count)")
                 .font(Typography.label.monospacedDigit())
                 .contentTransition(.numericText())
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.fg2)
         .padding(.horizontal, 8)
         .frame(height: 22)
-        .background(.quaternary, in: Capsule())
+        .background(Palette.press, in: Capsule())
         .animation(.snappy, value: count)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(count == 1 ? "1 attachment" : "\(count) attachments")

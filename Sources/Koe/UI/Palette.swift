@@ -11,6 +11,15 @@ extension NSColor {
         )
     }
 
+    /// A dynamic colour as it looks in the dark theme, for surfaces that stay dark whatever the theme.
+    var inDark: NSColor {
+        var resolved = self
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+            resolved = self.usingColorSpace(.sRGB) ?? self
+        }
+        return resolved
+    }
+
     static func token(light: UInt32, dark: UInt32) -> NSColor {
         NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -38,6 +47,11 @@ enum Palette {
     static let action = Color(nsColor: Tokens.primary4)
     static let actionText = Color(nsColor: Tokens.primaryText)
     static let onAction = Color(nsColor: Tokens.primaryForeground)
+    /// The web's shadows are pure black at an alpha (tokens.py skips them), so this is the one black Koe draws.
+    static let shadow = Color(nsColor: NSColor(rgba: 0x000000FF))
+    static let scrim = shadow.opacity(0.4)
+    static let hudCanvas = Color(nsColor: Tokens.background.inDark)
+    static let hudRing = Color(nsColor: Tokens.bgA3.inDark)
 }
 
 /// State colours only, never decoration: green done, amber waiting, red failed.
@@ -54,6 +68,16 @@ enum Tone {
     }
 
     var glyph: Color { self == .neutral ? Palette.icon2 : ink }
+
+    /// The full-strength fill, for a solid control such as the pill's stop button.
+    var solid: Color {
+        switch self {
+        case .neutral: Palette.fg2
+        case .green: Color(nsColor: Tokens.green4)
+        case .amber: Color(nsColor: Tokens.amber4)
+        case .red: Color(nsColor: Tokens.red4)
+        }
+    }
 
     var tint: Color {
         switch self {
@@ -73,12 +97,12 @@ struct HUDSurface: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
-            .environment(\.colorScheme, .dark)
-            .background { shape.fill(Color(nsColor: NSColor(rgba: 0x101012FF)).opacity(0.88)) }
-            .glassEffect(.regular.tint(.black.opacity(0.4)), in: shape)
-            .overlay(shape.strokeBorder(.white.opacity(0.09), lineWidth: 1))
-            .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+            .background { shape.fill(Palette.hudCanvas.opacity(0.88)) }
+            .glassEffect(.regular.tint(Palette.hudCanvas.opacity(0.4)), in: shape)
+            .overlay(shape.strokeBorder(Palette.hudRing, lineWidth: 1))
+            .shadow(color: Palette.shadow.opacity(0.25), radius: 14, y: 6)
             .tint(Palette.action)
+            .environment(\.colorScheme, .dark)
     }
 }
 
