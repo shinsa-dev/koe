@@ -14,6 +14,8 @@ final class ToolCoordinator {
     private let ensureSession: () -> Bool
     private let presentSetup: () -> Void
     private var overlay: [ToolPanel] = []
+    /// A screenshot's freeze is under way: its overlay isn't up yet, but a second press must not start another.
+    private var freezing = false
     private var notePanel: ToolPanel?
     private lazy var clips = ClipTool(sessions: sessions, pickRegion: { [weak self] preset, done in
         guard let self else { return done(nil) }
@@ -38,7 +40,7 @@ final class ToolCoordinator {
         self.presentSetup = presentSetup
     }
 
-    var isBusy: Bool { !overlay.isEmpty || notePanel != nil || clips.isBusy }
+    var isBusy: Bool { freezing || !overlay.isEmpty || notePanel != nil || clips.isBusy }
     var isRecordingClip: Bool { clips.isRecording }
 
     // MARK: Screenshot
@@ -51,16 +53,19 @@ final class ToolCoordinator {
             return
         }
         guard ensureSession(), let ticket = sessions.openTicket() else { return }
+        freezing = true
         Task { [self] in
             let freeze: Freeze
             do {
                 freeze = try await self.freeze()
             } catch {
+                freezing = false
                 Self.log.error("Freeze failed: \(error.localizedDescription, privacy: .public)")
                 sessions.post(notice: error.localizedDescription)
                 sessions.close(ticket, with: nil)
                 return
             }
+            freezing = false
             let picker = RegionPicker(freeze: freeze)
             if let preset { picker.preset(preset, note: note) }
             showOverlay(for: picker)
@@ -213,7 +218,7 @@ final class ToolCoordinator {
 
     /// Files dropped on the pill, copied into the session's folder so the bundle still has them if the originals move.
     func drop(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
+        guard !urls.isEmpty, ensureSession() else { return }
         for url in urls {
             guard let ticket = sessions.openTicket() else { return }
             guard let copy = try? sessions.fileURL(named: url.lastPathComponent) else {
