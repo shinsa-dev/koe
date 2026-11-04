@@ -7,6 +7,8 @@ behaviour it describes.
 ## Commands
 
 - `swift build` builds; `./build.sh` assembles `Koe.app`; `./build.sh --install` puts it in `/Applications`.
+- **After every change to the app, run `./build.sh --install`** before you hand over, so the human can always test
+  the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `swift scripts/icon.swift` redraws the
