@@ -83,3 +83,18 @@ struct AnnotationTests {
         #expect(decoded == session)
     }
 }
+
+struct JoiningRunTests {
+    @Test func aRunStartingMidWordContinuesTheLastWord() {
+        var words = [TimedWord("don", start: 0, end: 0.2)]
+        words.appendRun("'t go", start: 0.2, end: 0.6, joiningPrevious: true)
+        #expect(words.map(\.text) == ["don't", "go"])
+        #expect(words[0].end > 0.2)
+    }
+
+    @Test func aRunStartingWithSpaceStaysItsOwnWordEvenWhenJoining() {
+        var words = [TimedWord("look", start: 0, end: 0.2)]
+        words.appendRun(" here", start: 0.2, end: 0.5, joiningPrevious: true)
+        #expect(words.map(\.text) == ["look", "here"])
+    }
+}

@@ -8,6 +8,8 @@ enum Icon: String, CaseIterable {
     case screenCapture = "IconScreenCapture"
     case cursorClick = "IconCursorClick"
     case check = "IconCheckmark1"
+    case stop = "IconStop"
+    case close = "IconCrossSmall"
 
     /// The web's icon sizes: sm 14, md 16, lg 20 (globals.css → --icon-size-*).
     enum Size: CGFloat {
@@ -33,12 +35,13 @@ enum Icon: String, CaseIterable {
 struct IconView: View {
     let icon: Icon
     var size: Icon.Size = .small
-    var color: Color = Palette.icon2
+    /// nil takes the surrounding foreground, as a glyph inside a button does.
+    var color: Color? = Palette.icon2
 
     var body: some View {
         Image(nsImage: icon.image(side: size.rawValue))
             .renderingMode(.template)
-            .foregroundStyle(color)
+            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.foreground))
             .frame(width: size.rawValue, height: size.rawValue)
             .accessibilityHidden(true)
     }

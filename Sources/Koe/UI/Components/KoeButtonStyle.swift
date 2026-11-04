@@ -9,6 +9,8 @@ struct KoeButtonStyle: ButtonStyle {
     var variant: Variant = .primary
     var size: Size = .regular
     var fullWidth = false
+    /// The web's icon button: square, no padding, the glyph centred.
+    var iconOnly = false
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
@@ -17,8 +19,8 @@ struct KoeButtonStyle: ButtonStyle {
         configuration.label
             .font(size == .large ? Typography.rowTitle : Font(Typography.sans(13, .medium)))
             .foregroundStyle(foreground)
-            .padding(.horizontal, size == .large ? 12 : size == .regular ? 10 : 8)
-            .frame(height: height)
+            .padding(.horizontal, iconOnly ? 0 : size == .large ? 12 : size == .regular ? 10 : 8)
+            .frame(width: iconOnly ? height : nil, height: height)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .background {
                 fill(pressed: configuration.isPressed)
@@ -44,7 +46,7 @@ struct KoeButtonStyle: ButtonStyle {
         switch variant {
         case .primary: Palette.onAction
         case .outline: Palette.fg4
-        case .secondary: hovering && isEnabled ? Palette.fg4 : Palette.fg2
+        case .secondary: hovering && isEnabled ? Palette.fg4 : iconOnly ? Palette.icon2 : Palette.fg2
         }
     }
 
@@ -69,8 +71,9 @@ extension ButtonStyle where Self == KoeButtonStyle {
     static func koe(
         _ variant: KoeButtonStyle.Variant = .primary,
         size: KoeButtonStyle.Size = .regular,
-        fullWidth: Bool = false
+        fullWidth: Bool = false,
+        iconOnly: Bool = false
     ) -> KoeButtonStyle {
-        KoeButtonStyle(variant: variant, size: size, fullWidth: fullWidth)
+        KoeButtonStyle(variant: variant, size: size, fullWidth: fullWidth, iconOnly: iconOnly)
     }
 }

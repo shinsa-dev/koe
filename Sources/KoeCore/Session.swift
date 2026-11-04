@@ -136,15 +136,18 @@ public struct Session: Codable, Sendable, Equatable, Identifiable {
 extension [TimedWord] {
     /// Splits `text` on whitespace and shares the run's time range between the words by length.
     /// A token of punctuation alone ("," or ".") joins the word before it, even one from an earlier run.
-    public mutating func appendRun(_ text: String, start: AudioTime, end: AudioTime) {
+    /// With `joiningPrevious`, a run that starts mid-word ("'t" after "don") continues the last word.
+    public mutating func appendRun(_ text: String, start: AudioTime, end: AudioTime, joiningPrevious: Bool = false) {
         let tokens = text.split(whereSeparator: \.isWhitespace).map(String.init)
         let totalLength = tokens.reduce(0) { $0 + $1.count }
         guard totalLength > 0 else { return }
         let span = Swift.max(0, end - start)
+        let continuesWord = joiningPrevious && !(text.first?.isWhitespace ?? true)
         var cursor = start
-        for token in tokens {
+        for (index, token) in tokens.enumerated() {
             let tokenEnd = cursor + span * Double(token.count) / Double(totalLength)
-            if token.allSatisfy({ $0.isPunctuation }), var previous = last {
+            let glues = token.allSatisfy({ $0.isPunctuation }) || (index == 0 && continuesWord)
+            if glues, var previous = last {
                 previous.text += token
                 previous.end = Swift.max(previous.end, tokenEnd)
                 self[endIndex - 1] = previous

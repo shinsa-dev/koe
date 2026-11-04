@@ -9,9 +9,9 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-Phases 1 and 2 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
-screen recording and (optionally) Accessibility, and the session timeline and bundle composer in `KoeCore`.
-Transcription, the tools and the clipboard follow.
+Phases 1 to 3 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
+screen recording and (optionally) Accessibility, the session timeline and bundle composer in `KoeCore`, and live
+on-device transcription with the ⌥Space hotkey and the pill. The tools and the clipboard follow.
 
 ## Build
 
@@ -44,7 +44,10 @@ case, full sentences, no em dashes.
 
 ```
 Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the timeline), BundleComposer
-Sources/Koe/App/   main, AppDelegate, the status menu
+Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global shortcuts)
+Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
+Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
+Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen
 Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates), the setup window
 Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon, Components/
 Tests/KoeCoreTests Swift Testing
@@ -78,10 +81,27 @@ Attachments:
 - The footer lists every file with its path, for terminal agents that read files rather than pasted images. The
   HTML flavor is the same text with images inline.
 
+## Transcription
+
+- Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26), on device. It asks for volatile results, so the pill
+  shows a guess at once and replaces it when the result is final, and for audio time ranges, which time the words.
+- `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile
+  one usually doesn't, so its words share the result's range. A run without a leading space ("'t" after "don")
+  continues the word before it.
+- The session's clock is the audio the source has delivered (`AudioSource.currentTime`), not the wall clock, so an
+  annotation's time lines up with the words' times even when the model lags.
+- Stopping closes the source; the session ends once the model settles the last words. A press of the hotkey while
+  it finishes is ignored. A failure shows in the pill for six seconds.
+- The hotkey is Carbon's `RegisterEventHotKey`, which needs no Accessibility permission. When another app holds
+  ⌥Space, the menu says so and starting from the menu still works.
+
 ## Notes
 
 - Screen recording and Accessibility only report granted or not. Koe remembers whether it has asked
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so the row says so.
 - `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` opens the setup window at launch
-  and `--open-menu` opens the menu, for screenshots.
+  and `--open-menu` opens the menu, for screenshots. `--audio-file <path>` plays a recording into each session
+  instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
+  to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
+  --print-session`.
