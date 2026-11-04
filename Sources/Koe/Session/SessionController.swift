@@ -16,6 +16,11 @@ final class SessionController {
     }
     private(set) var transcript = LiveTranscript()
     private(set) var lastSession: Session?
+    /// How many screenshots, notes and files this session holds so far.
+    private(set) var annotationCount = 0
+    /// A short message the pill shows for a few seconds, such as a capture that failed.
+    private(set) var notice: String?
+    @ObservationIgnored private var noticeDismissal: Task<Void, Never>?
 
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "session")
     @ObservationIgnored var onPhaseChange: ((RecorderPhase) -> Void)?
@@ -25,14 +30,26 @@ final class SessionController {
     @ObservationIgnored private let makeSource: () -> any AudioSource
     @ObservationIgnored private var source: (any AudioSource)?
     @ObservationIgnored private var session = Session()
+    @ObservationIgnored private var ledger = AnnotationLedger()
+    @ObservationIgnored private var folder: SessionFolder?
+    @ObservationIgnored private var transcriptFailure: (any Error)?
     @ObservationIgnored private var dismissal: Task<Void, Never>?
 
     /// How long a failure stays in the pill before it goes away by itself.
     @ObservationIgnored var failureDisplay: Duration = .seconds(6)
 
-    init(transcriber: any Transcriber, makeSource: @escaping () -> any AudioSource) {
+    @ObservationIgnored private let sessionsRoot: URL
+
+    init(transcriber: any Transcriber, sessionsRoot: URL = SessionController.defaultRoot,
+         makeSource: @escaping () -> any AudioSource) {
         self.transcriber = transcriber
+        self.sessionsRoot = sessionsRoot
         self.makeSource = makeSource
+    }
+
+    /// `~/Library/Application Support/Koe/Sessions`: one folder per session for its screenshots and files.
+    static var defaultRoot: URL {
+        URL.applicationSupportDirectory.appending(path: "Koe/Sessions", directoryHint: .isDirectory)
     }
 
     /// Seconds into the session's audio, which every annotation is stamped with.
@@ -52,17 +69,56 @@ final class SessionController {
         let source = makeSource()
         self.source = source
         session = Session()
+        ledger = AnnotationLedger()
+        annotationCount = 0
+        transcriptFailure = nil
+        folder = SessionFolder(url: sessionsRoot.appending(
+            path: SessionFolder.name(startedAt: session.startedAt, id: session.id), directoryHint: .isDirectory
+        ))
         transcript = LiveTranscript()
         phase = .preparing
         let events = transcriber.transcribe(source)
         Task {
             do {
                 for try await event in events { handle(event) }
-                finish(failure: nil)
             } catch {
-                finish(failure: error)
+                transcriptFailure = error
             }
+            ledger.endTranscript()
+            if !ledger.isSettled { phase = .finishing }
+            settleIfDone()
         }
+    }
+
+    /// Stamps the moment a tool starts with the session's audio time. Nil when no session is running.
+    func openTicket() -> AnnotationLedger.Ticket? {
+        guard phase.isActive, !ledger.transcriptDone else { return nil }
+        return ledger.open(at: currentTime)
+    }
+
+    /// Hands back a tool's annotation, or nil when you cancelled it. A session that stopped meanwhile ends now.
+    func close(_ ticket: AnnotationLedger.Ticket, with annotation: Annotation?) {
+        guard ledger.close(ticket, with: annotation) else { return }
+        annotationCount = ledger.annotations.count
+        settleIfDone()
+    }
+
+    /// Where the session's next screenshot goes; the folder exists once this returns.
+    func screenshotURL() throws -> URL {
+        try reserveFile { $0.nextScreenshot() }
+    }
+
+    /// Where a dropped file is copied to, keeping its name.
+    func fileURL(named name: String) throws -> URL {
+        try reserveFile { $0.reserve(name) }
+    }
+
+    private func reserveFile(_ pick: (inout SessionFolder) -> URL) throws -> URL {
+        guard var folder else { throw CocoaError(.fileNoSuchFile) }
+        let url = pick(&folder)
+        self.folder = folder
+        try FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
+        return url
     }
 
     /// Closes the microphone; the session ends once the transcriber has settled the last words.
@@ -70,6 +126,16 @@ final class SessionController {
         guard phase.toggleIntent == .stop else { return }
         phase = .finishing
         source?.stop()
+    }
+
+    func post(notice: String) {
+        self.notice = notice
+        noticeDismissal?.cancel()
+        noticeDismissal = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            self?.notice = nil
+        }
     }
 
     func dismissFailure() {
@@ -86,9 +152,15 @@ final class SessionController {
         }
     }
 
+    private func settleIfDone() {
+        guard ledger.isSettled, phase.isActive else { return }
+        finish(failure: transcriptFailure)
+    }
+
     private func finish(failure: (any Error)?) {
         source = nil
         session.words = transcript.words + transcript.pending
+        session.annotations = ledger.annotations
         if !session.words.isEmpty || !session.annotations.isEmpty {
             lastSession = session
             onFinish?(session)

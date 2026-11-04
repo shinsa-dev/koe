@@ -9,8 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var sessions = SessionController(transcriber: AppleSpeechTranscriber()) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
-    private lazy var pill = PillController(sessions: sessions)
-    private var toggleHotKeyTaken = false
+    private lazy var tools = ToolCoordinator(
+        sessions: sessions, permissions: permissions,
+        ensureSession: { [weak self] in self?.ensureSession() ?? false },
+        presentSetup: { [weak self] in self?.setup.present() }
+    )
+    private lazy var pill = PillController(sessions: sessions) { [weak self] urls in self?.tools.drop(urls) }
+    /// The shortcuts another app already holds, which the menu points out.
+    private var takenHotKeys: Set<KeyCombo> = []
 
     /// `--audio-file <path>` plays a recording into each session instead of the microphone.
     private let audioFile: URL? = Launch.value(after: "--audio-file").map { URL(fileURLWithPath: $0) }
@@ -31,7 +37,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard Launch.has("--print-session") else { return }
             FileHandle.standardOutput.write(Data((BundleComposer().compose(session).text + "\n").utf8))
         }
-        toggleHotKeyTaken = HotKeys.shared.register(.toggleSession) { [weak self] in self?.toggleSession() } == nil
+        let hotKeys: [(KeyCombo, () -> Void)] = [
+            (.toggleSession, { [weak self] in self?.toggleSession() }),
+            (.screenshot, { [weak self] in self?.takeScreenshot() }),
+            (.note, { [weak self] in self?.addNote() }),
+        ]
+        for (combo, handler) in hotKeys where HotKeys.shared.register(combo, handler: handler) == nil {
+            takenHotKeys.insert(combo)
+        }
+        if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
+            tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
 
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
             setup.present()
@@ -41,12 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { item.button?.performClick(nil) }
         }
         if Launch.has("--start") { toggleSession() }
+        if let script = Launch.value(after: "--script") { play(script) }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         permissions.refresh()
         StatusMenu.build(menu, checklist: permissions.checklist, phase: sessions.phase,
-                         hotKeyTaken: toggleHotKeyTaken, target: self)
+                         takenHotKeys: takenHotKeys, target: self)
     }
 
     @objc func toggleSession() {
@@ -58,6 +75,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         sessions.toggle()
+    }
+
+    @objc func takeScreenshot() { tools.screenshot() }
+
+    @objc func addNote() { tools.note() }
+
+    /// Starts a session for a tool used while none runs, and says whether one is running now.
+    private func ensureSession() -> Bool {
+        if sessions.phase.toggleIntent == .start { toggleSession() }
+        return sessions.phase.isActive
+    }
+
+    /// `--script`: plays `ScriptedStep`s into the session at their audio times, for trying the tools hands-free.
+    private func play(_ script: String) {
+        let steps: [ScriptedStep]
+        do {
+            steps = try ScriptedStep.parse(script)
+        } catch {
+            FileHandle.standardError.write(Data("Bad --script: \(error)\n".utf8))
+            return
+        }
+        Task { [sessions, tools] in
+            for step in steps {
+                while sessions.phase.isActive, sessions.currentTime < step.time {
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+                guard sessions.phase.isActive else { return }
+                switch step.action {
+                case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
+                case .note(let text): tools.note(text: text, holds: step.holds)
+                case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
+                }
+            }
+        }
     }
 
     private func phaseChanged(_ phase: RecorderPhase) {

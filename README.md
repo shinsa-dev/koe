@@ -9,9 +9,10 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-Phases 1 to 3 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
-screen recording and (optionally) Accessibility, the session timeline and bundle composer in `KoeCore`, and live
-on-device transcription with the ⌥Space hotkey and the pill. The tools and the clipboard follow.
+Phases 1 to 4 of the first version: the app, its menu bar item, the setup window that asks for the microphone,
+screen recording and (optionally) Accessibility, the session timeline and bundle composer in `KoeCore`, live
+on-device transcription with the ⌥Space hotkey and the pill, and the screenshot, note and drop tools. The clip tool
+and the clipboard follow.
 
 ## Build
 
@@ -47,7 +48,8 @@ Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the ti
 Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global shortcuts)
 Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
-Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen
+Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen, and the drop target
+Sources/Koe/Tools/ ToolCoordinator, ScreenFreezer, RegionPicker (the frozen-screen overlay), NoteCard, ToolPanel
 Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates), the setup window
 Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon, Components/
 Tests/KoeCoreTests Swift Testing
@@ -95,6 +97,27 @@ Attachments:
 - The hotkey is Carbon's `RegisterEventHotKey`, which needs no Accessibility permission. When another app holds
   ⌥Space, the menu says so and starting from the menu still works.
 
+## Tools
+
+Every tool takes a ticket from `SessionController.openTicket()`, stamped with the session's audio time the moment
+you start it, so a screenshot lands at the word you were saying when you pressed the key, not when you finished
+dragging. A tool used while no session runs starts one. `AnnotationLedger` (`KoeCore`) holds the tickets: a session
+you stop while a tool is open ends once the tool hands back its annotation or you cancel it.
+
+- **Screenshot, ⌥⇧S.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
+  and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed: drag a
+  region, or click to take the window under the pointer. A note card opens under the region (above it when there is
+  no room). Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
+  the window you clicked, or the frontmost window under the region's centre.
+- **Note, ⌥⇧N.** A note card under the pill. A blank note adds nothing.
+- **Drop on the pill.** Each file is stamped when it lands and copied (an APFS clone) into the session's folder, so
+  the bundle keeps it if the original moves. The pill shows how many attachments the session holds.
+- Tool panels are non-activating: they take typing without bringing Koe to the front, so the app you were in keeps
+  focus. Esc is caught with a local key monitor, because a text field turns it into completion before the window
+  sees it.
+- A session's files live in `~/Library/Application Support/Koe/Sessions/<date-time-id>/` (`SessionFolder`), with
+  names that carry no spaces so a pasted path stays one word.
+
 ## Notes
 
 - Screen recording and Accessibility only report granted or not. Koe remembers whether it has asked
@@ -105,3 +128,6 @@ Attachments:
   instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
   --print-session`.
+- `--script "<steps>"` plays tools into the session at audio times (`ScriptedStep`): `1.5 shot 120,80,640,360 A
+  note; 3 note Compare with Finder; 4 drop /tmp/spec.pdf`; `shot!` and `note!` leave the tool open. `--backdrop
+  <png>` shows that image instead of capturing your screen, so captures of Koe never show what's on your screen.

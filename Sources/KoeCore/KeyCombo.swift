@@ -18,6 +18,10 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
 
     /// ⌥Space: starts and stops a session.
     public static let toggleSession = KeyCombo(keyCode: 49, modifiers: option)
+    /// ⌥⇧S: freezes the screen to take a screenshot of a region or a window.
+    public static let screenshot = KeyCombo(keyCode: 1, modifiers: option | shift)
+    /// ⌥⇧N: opens a field for a typed note.
+    public static let note = KeyCombo(keyCode: 45, modifiers: option | shift)
 
     /// How macOS writes it in menus: modifiers in the order ⌃⌥⇧⌘, then the key.
     public var displayName: String {

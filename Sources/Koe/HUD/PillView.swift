@@ -5,6 +5,9 @@ import SwiftUI
 /// a popup. A state dot, the session clock, the end of what you've said, and the button that stops it.
 struct PillView: View {
     let sessions: SessionController
+    /// Files dropped on the pill; they attach at the moment they land.
+    let onDrop: ([URL]) -> Void
+    @State private var dropTargeted = false
 
     var body: some View {
         let phase = sessions.phase
@@ -21,12 +24,15 @@ struct PillView: View {
             }
             Text(message(for: phase))
                 .font(Typography.body)
-                .foregroundStyle(sessions.transcript.isEmpty ? Palette.fg2 : Palette.fg4)
+                .foregroundStyle(sessions.transcript.isEmpty || showsHint ? Palette.fg2 : Palette.fg4)
                 .lineLimit(2)
                 .truncationMode(.head)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 380, alignment: .leading)
                 .animation(nil, value: sessions.transcript)
+            if sessions.annotationCount > 0 {
+                AttachmentCount(count: sessions.annotationCount)
+            }
             trailingButton(for: phase)
         }
         .padding(.leading, 8)
@@ -34,16 +40,25 @@ struct PillView: View {
         .padding(.vertical, 5)
         .frame(minHeight: 34)
         .background(Palette.card, in: shape)
-        .overlay(shape.strokeBorder(Palette.border, lineWidth: 1))
+        .overlay(shape.strokeBorder(dropTargeted ? Palette.action : Palette.border, lineWidth: dropTargeted ? 2 : 1))
         .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard sessions.phase.isActive else { return false }
+            onDrop(urls)
+            return true
+        } isTargeted: { dropTargeted = $0 }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Koe")
     }
 
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
 
+    private var showsHint: Bool { dropTargeted || sessions.notice != nil }
+
     private func message(for phase: RecorderPhase) -> String {
-        switch phase {
+        if dropTargeted { return "Drop to attach at this moment" }
+        if let notice = sessions.notice { return notice }
+        return switch phase {
         case .idle: ""
         case .preparing: "Getting ready…"
         case .failed(let reason): reason
@@ -81,6 +96,27 @@ struct PillView: View {
         case .idle, .finishing:
             Color.clear.frame(width: 4, height: 24)
         }
+    }
+}
+
+/// How many screenshots, notes and files the session holds, so you see each one land.
+private struct AttachmentCount: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            IconView(icon: .paperclip, size: .small, color: Palette.icon2)
+            Text("\(count)")
+                .font(Typography.label.monospacedDigit())
+                .foregroundStyle(Palette.fg3)
+                .contentTransition(.numericText())
+        }
+        .padding(.horizontal, 6)
+        .frame(height: 22)
+        .background(Palette.press, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .animation(.snappy, value: count)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(count == 1 ? "1 attachment" : "\(count) attachments")
     }
 }
 

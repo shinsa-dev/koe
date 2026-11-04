@@ -8,6 +8,8 @@ final class PillPanel: NSPanel {
     static let size = NSSize(width: 560, height: 110)
     /// Room above the pill inside the panel, which puts the pill this far under the menu bar.
     static let topInset: CGFloat = 8
+    /// How far under the top of the screen a note card opens: below a two-line pill.
+    static let noteTop: CGFloat = 76
 
     init<Content: View>(rootView: Content) {
         super.init(
@@ -45,8 +47,8 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 final class PillController {
     private let panel: PillPanel
 
-    init(sessions: SessionController) {
-        panel = PillPanel(rootView: PillView(sessions: sessions))
+    init(sessions: SessionController, onDrop: @escaping ([URL]) -> Void) {
+        panel = PillPanel(rootView: PillView(sessions: sessions, onDrop: onDrop))
     }
 
     var isVisible: Bool { panel.isVisible }
