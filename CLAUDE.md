@@ -16,11 +16,12 @@ behaviour it describes.
 
 ## Rules
 
-- **Native structure, Shinsa character.** Windows, menus and controls are the system's own (standard windows and
-  toolbars, SwiftUI switches, pickers and push buttons through `KoeButtonStyle`, SF Symbols through `Icon`). The
-  character is Shinsa's: ABC Areal through `Typography`, Shinsa's colours through `Palette`/`Tone` (`Tokens.swift`
-  is generated: change the web token and rerun `scripts/tokens.py`), its settings cards (`SettingsGroup`,
-  `SettingRow`) and its blue as the tint. Never raw RGB or system colours in views.
+- **Koe's own look, Shinsa's system.** Native windows and menus, but Koe draws its own content: the settings window
+  is a sidebar and a page in a full-size content view (no system toolbar), and controls are Shinsa's, drawn by Koe:
+  `KoeButtonStyle` (the web's `Button`), `KoeSwitchStyle` (the web's `Switch`), `SegmentedTabs` (the web's tabs),
+  `SettingsGroup`/`SettingRow` cards. Never system push buttons, switches or segmented controls. ABC Areal through
+  `Typography`, colours through `Palette`/`Tone` (`Tokens.swift` is generated: change the web token and rerun
+  `scripts/tokens.py`), SF Symbols through `Icon`. Never raw RGB or system colours in views.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
   notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu

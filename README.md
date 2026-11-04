@@ -31,16 +31,18 @@ redraws the placeholder icon, `Resources/Koe.icns`.
 
 ## Design
 
-Koe feels like part of macOS and reads like Shinsa. The structure is the system's: standard windows and toolbars,
-the system's switches, segmented controls and push buttons, SF Symbols, the standard menu bar. The character is
-Shinsa's: ABC Areal (`scripts/fonts.py` cuts it at the web's weights into `Resources/Fonts`), Shinsa's colours
+Koe is a native Mac app that draws its own content in Shinsa's system. Windows and menus are the system's; inside
+them Koe draws Shinsa's controls itself (`KoeButtonStyle`, `KoeSwitchStyle`, `SegmentedTabs`, the web's button,
+switch and tabs), with SF Symbols for glyphs. The rest is Shinsa's: ABC Areal (`scripts/fonts.py` cuts it at the web's weights into `Resources/Fonts`), Shinsa's colours
 (`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
-them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the tint on every control.
+them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the accent.
 Everything that floats over other apps (the pill, note cards, the region hint, the recording card, the clip review)
 is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a hairline ring (`floatingSurface`), dark
 whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
-- One window: Settings, with General, Permissions and Shortcuts in its toolbar. First launch opens it on Permissions.
+- One window: Settings, as Shinsa's desktop draws settings: a sidebar (General, Permissions with a dot while a
+  required permission is missing, Shortcuts) under the traffic lights, and the pane as a page with a title, a line
+  and its cards. No system toolbar. First launch opens it on Permissions.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
 - The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform

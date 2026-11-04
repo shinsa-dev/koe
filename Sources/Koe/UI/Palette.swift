@@ -20,6 +20,13 @@ extension NSColor {
         return resolved
     }
 
+    /// Picks between two token colours by theme; each resolves in the appearance being drawn.
+    static func token(light: NSColor, dark: NSColor) -> NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+        }
+    }
+
     static func token(light: UInt32, dark: UInt32) -> NSColor {
         NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -50,6 +57,12 @@ enum Palette {
     /// The web's shadows are pure black at an alpha (tokens.py skips them), so this is the one black Koe draws.
     static let shadow = Color(nsColor: NSColor(rgba: 0x000000FF))
     static let scrim = shadow.opacity(0.4)
+    static let sidebar = Color(nsColor: Tokens.sidebar)
+    static let ring = Color(nsColor: Tokens.bgA3)
+    /// The web's outline button and raised segment: the canvas in light, bg-4 lifted off it in dark.
+    static let control = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg3))
+    static let controlPressed = Color(nsColor: .token(light: Tokens.bg1, dark: Tokens.bg4))
+    static let segment = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg4))
     static let hudCanvas = Color(nsColor: Tokens.background.inDark)
     static let hudRing = Color(nsColor: Tokens.bgA3.inDark)
 }

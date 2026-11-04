@@ -1,23 +1,13 @@
 import KoeCore
 import SwiftUI
 
-/// The width every pane shares, so switching tabs only changes the height.
-private let paneWidth: CGFloat = 500
-
-/// A pane's page: Shinsa's canvas, its type and its blue on the system's own controls.
+/// A pane's groups, stacked as the web's settings page stacks them.
 private struct Pane<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) { content }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
-            .frame(width: paneWidth, alignment: .topLeading)
-            .font(Typography.body)
-            .foregroundStyle(Palette.fg4)
-            .tint(Palette.action)
-            .background(Palette.canvas)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -75,10 +65,7 @@ struct PermissionsPane: View {
     var body: some View {
         let checklist = center.checklist
         Pane {
-            SettingsGroup(
-                title: checklist.isReady ? "Koe is ready" : "Allow the microphone and screen recording to start",
-                description: "Koe hears you and sees your screen on this Mac only. Nothing you say or capture leaves it."
-            ) {
+            SettingsGroup(title: checklist.isReady ? "Koe is ready" : "Allow the microphone and screen recording to start") {
                 ForEach(Permission.allCases, id: \.self) { permission in
                     PermissionRow(permission: permission, status: checklist.status(of: permission),
                                   isNext: checklist.nextStep == permission, center: center)
@@ -142,7 +129,7 @@ private struct PermissionRow: View {
             if permission == .screenRecording {
                 Button("Reopen Koe") { center.relaunch() }.buttonStyle(.koe(.outline, size: .small))
             }
-            Button("Open Settings") { center.openSettings(for: permission) }
+            Button("Open System Settings") { center.openSettings(for: permission) }
                 .buttonStyle(.koe(.outline, size: .small))
         }
     }
@@ -158,7 +145,7 @@ struct ShortcutsPane: View {
 
     var body: some View {
         Pane {
-            SettingsGroup(title: "Shortcuts", description: "They work in every app. You can't change them yet.") {
+            SettingsGroup(title: "Global shortcuts") {
                 ForEach(Self.shortcuts, id: \.title) { shortcut in
                     SettingRow(title: shortcut.title) { Kbd(shortcut.combo.displayName) }
                 }
