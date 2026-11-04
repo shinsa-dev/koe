@@ -138,7 +138,7 @@ final class ToolCoordinator {
         let visible = screen?.visibleFrame ?? .zero
         let size = NSSize(width: NoteCard.width + 40, height: NoteCard.height + 40)
         let panel = ToolPanel(
-            frame: NSRect(x: visible.midX - size.width / 2, y: visible.maxY - PillPanel.noteTop - size.height,
+            frame: NSRect(x: visible.midX - size.width / 2, y: visible.minY + PillPanel.cardsAbove - 20,
                           width: size.width, height: size.height),
             level: .popUpMenu
         )

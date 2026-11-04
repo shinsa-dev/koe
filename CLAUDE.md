@@ -8,18 +8,22 @@ behaviour it describes.
 
 - `swift build` builds; `./build.sh` assembles `Koe.app`; `./build.sh --install` puts it in `/Applications`.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
-- `python3 scripts/tokens.py`, `python3 scripts/fonts.py` and `bun scripts/icons.ts` regenerate the design system
-  from `~/Developer/Projects/shinsa`. `--check` on tokens and icons fails on drift. Run `icons.ts` after naming a
-  new `"Icon…"` in Swift.
+- `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
+  `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `swift scripts/icon.swift` redraws the
+  placeholder `Resources/Koe.icns`.
 
 ## Rules
 
-- **Shinsa's UI system, everywhere.** Every colour through `Palette` or `Tone` (never system colours or raw RGB in
-  views), every font through `Typography`, every glyph through `Icon` (the web's icons, never SF Symbols), buttons
-  through `KoeButtonStyle`. `Tokens.swift` is generated: change the web token and rerun the script. When a screen
-  needs a component, port the web's (`packages/ui/src/components`, `apps/web/src`) or shinsa-ios's (`Shinsa/UI`)
-  rather than inventing one.
-- Copy is Shinsa's voice: sentence case (buttons and titles too), full sentences, no em dashes, American spelling.
+- **Native structure, Shinsa character.** Windows, menus and controls are the system's own (standard windows and
+  toolbars, SwiftUI switches, pickers and push buttons through `KoeButtonStyle`, SF Symbols through `Icon`). The
+  character is Shinsa's: ABC Areal through `Typography`, Shinsa's colours through `Palette`/`Tone` (`Tokens.swift`
+  is generated: change the web token and rerun `scripts/tokens.py`), its settings cards (`SettingsGroup`,
+  `SettingRow`) and its blue as the tint. Never raw RGB or system colours in views.
+- Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
+  notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme.
+- Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
+  bar) and back when it closes. Keep that when adding windows.
+- Copy: sentence case (buttons and titles too), full sentences, no em dashes, American spelling.
 - Logic that can live without AppKit goes in `KoeCore` and gets Swift Testing tests. `Koe` holds AppKit, SwiftUI
   and system frameworks.
 - Swift 6 language mode: UI types are `@MainActor`; anything crossing to audio or capture threads is `Sendable`.

@@ -10,6 +10,8 @@ struct Kbd: View {
 
     var body: some View {
         Text(key)
+            .lineLimit(1)
+            .fixedSize()
             .font(Font(Typography.sans(11, .medium)))
             .foregroundStyle(Palette.fg2)
             .padding(.horizontal, 4)

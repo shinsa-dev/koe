@@ -25,7 +25,7 @@ final class RecordingIndicator {
 
         // Room around the card for its shadow, which the panel would otherwise clip into a grey box.
         let inset: CGFloat = 16
-        let size = NSSize(width: 330, height: 34 + inset * 2)
+        let size = NSSize(width: 360, height: 34 + inset * 2)
         let visible = screen.visibleFrame
         let above = region.maxY + 8 + 34 <= visible.maxY
         let y = above ? region.maxY + 8 - inset : max(visible.minY, region.minY - 8 - size.height + inset)
@@ -80,22 +80,19 @@ private struct RecordingCard: View {
             }
             Spacer(minLength: 4)
             Button(action: stop) {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     IconView(icon: .stop, size: .small, color: nil)
                     Text("Stop")
-                    Kbd(KeyCombo.clip.displayName)
                 }
             }
             .buttonStyle(.koe(.outline, size: .small))
+            .help("Stop (\(KeyCombo.clip.displayName))")
+            Kbd(KeyCombo.clip.displayName)
         }
         .padding(.leading, 8)
         .padding(.trailing, 5)
         .frame(height: 34)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.card)
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
-        }
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
+        .floatingSurface(cornerRadius: 17)
         .fixedSize()
     }
 }

@@ -39,8 +39,9 @@ struct NoteCard: View {
         .padding(8)
         .frame(width: Self.width)
         // Swallows presses on the card, so they never reach the region picker behind it.
-        .background { shape.fill(Palette.card).shadow(color: .black.opacity(0.12), radius: 12, y: 4).onTapGesture {} }
-        .overlay(shape.strokeBorder(Palette.border, lineWidth: 1))
+        .contentShape(shape)
+        .onTapGesture {}
+        .floatingSurface(cornerRadius: 14)
         .onAppear { focused = true }
     }
 

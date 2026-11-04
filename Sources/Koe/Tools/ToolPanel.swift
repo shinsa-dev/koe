@@ -10,6 +10,8 @@ final class ToolPanel: NSPanel {
 
     init(frame: NSRect, level: NSWindow.Level) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        // Floating HUDs are dark like the notch, whatever the theme.
+        appearance = NSAppearance(named: .darkAqua)
         // Setting isFloatingPanel resets the level, so it goes first.
         isFloatingPanel = true
         self.level = level

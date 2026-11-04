@@ -56,6 +56,9 @@ final class SessionController {
     /// Seconds into the session's audio, which every annotation is stamped with.
     var currentTime: AudioTime { source?.currentTime ?? 0 }
 
+    /// How loud the microphone is right now, 0...1. Read by the pill's waveform on each frame.
+    var level: Float { source?.level ?? 0 }
+
     func toggle() {
         switch phase.toggleIntent {
         case .start: start()

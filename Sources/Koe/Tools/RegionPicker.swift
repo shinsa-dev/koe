@@ -250,11 +250,7 @@ private struct Hint: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 34)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Palette.card)
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
-        }
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
+        .floatingSurface(cornerRadius: 17)
         .allowsHitTesting(false)
     }
 }

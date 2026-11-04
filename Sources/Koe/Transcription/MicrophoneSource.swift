@@ -8,6 +8,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
     private let clock = AudioClock()
 
     var currentTime: AudioTime { clock.currentTime }
+    var level: Float { clock.level }
 
     func start(format: AVAudioFormat, deliver: @escaping @Sendable (AVAudioPCMBuffer) -> Void,
                finish: @escaping @Sendable () -> Void) throws {
@@ -19,7 +20,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
         let clock = clock
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
             guard !clock.isStopped, let converted = AudioConversion.convert(buffer, with: converter, to: format) else { return }
-            clock.count(converted.frameLength)
+            clock.count(converted)
             deliver(converted)
         }
         engine.prepare()

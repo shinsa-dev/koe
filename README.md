@@ -9,10 +9,10 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-The first version, end to end: the menu bar item, the setup window that asks for the microphone, screen recording
-and (optionally) Accessibility, live on-device transcription with the ⌥Space hotkey and the pill, the screenshot,
-note, drop and slow-motion clip tools, and the bundle on the clipboard when you stop, with recent sessions and
-settings in the menu.
+The first version, end to end: the menu bar item, a settings window whose Permissions pane asks for the
+microphone, screen recording and (optionally) Accessibility, on-device transcription with the ⌥Space hotkey and the
+pill with its waveform, the screenshot, note, drop and slow-motion clip tools, and the bundle on the clipboard when
+you stop, with recent sessions in the menu.
 
 ## Build
 
@@ -24,41 +24,46 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 swift test            # KoeCore's unit tests
 ```
 
-There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and ad-hoc signs the app.
+There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with
+`KOE_SIGN_IDENTITY` or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions
+across rebuilds; without one it signs ad hoc and the permissions reset on every build. `swift scripts/icon.swift`
+redraws the placeholder icon, `Resources/Koe.icns`.
 
 ## Design
 
-Koe looks and reads like Shinsa. Its design system is Shinsa's, generated rather than copied by hand:
+Koe feels like part of macOS and reads like Shinsa. The structure is the system's: standard windows and toolbars,
+the system's switches, segmented controls and push buttons, SF Symbols, the standard menu bar. The character is
+Shinsa's: ABC Areal (`scripts/fonts.py` cuts it at the web's weights into `Resources/Fonts`), Shinsa's colours
+(`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
+them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the tint on every control.
+Everything that floats over other apps (the pill, note cards, the region hint, the recording card, the clip review)
+is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a hairline ring (`floatingSurface`), dark
+whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
-- `scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `packages/ui/src/styles/globals.css`
-  (every colour, light and dark). `Palette` and `Tone` name them.
-- `scripts/fonts.py` cuts ABC Areal, the web's typeface, at the web's weights into `Resources/Fonts`, with the web's
-  -0.02em tracking baked in.
-- `bun scripts/icons.ts` renders every `"Icon…"` the Swift names into `Resources/Icons` with shinsa's own icon
-  pipeline. Koe never uses SF Symbols.
-
-They read `~/Developer/Projects/shinsa` (`SHINSA_REPO`, `SHINSA_SOURCE`). The components (`Card`, `Hero`,
-`KoeButtonStyle`, `SegmentedTabs`, `KoeSwitchStyle`, `SettingsGroup`, `SettingRow`) are the web's `SettingsCard`,
-`RemoteHero`, `Button`, default `Tabs`, `Switch`, `SettingsGroup` and `SettingRow`. Copy follows Shinsa's voice: sentence
-case, full sentences, no em dashes.
+- One window: Settings, with General, Permissions and Shortcuts in its toolbar. First launch opens it on Permissions.
+  While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
+  makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
+- The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform
+  of your voice (`AudioLevel`, `LevelHistory`), the clock, the attachment count and a stop button; words only show
+  for a notice ("Copied…"), a failure or a drop.
 
 ## Layout
 
 ```
-Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, Session (the timeline), BundleComposer,
+Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, AudioLevel, Session (the timeline), BundleComposer,
                    ClipboardPlan, SessionArchive and HistoryEntry, KoeSettings
-Sources/Koe/App/   main, AppDelegate, the status menu, HotKeys (Carbon global shortcuts), SessionLibrary
+Sources/Koe/App/   main, AppDelegate, the status menu, MainMenu, HotKeys (Carbon global shortcuts), SessionLibrary
 Sources/Koe/Clipboard/ BundleWriter: the bundle onto NSPasteboard, and ⌘V for you
-Sources/Koe/Settings/ The settings window
+Sources/Koe/Settings/ The window: General, Permissions and Shortcuts panes
 Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
-Sources/Koe/HUD/   The pill: a non-activating panel at the top of the screen, and the drop target
+Sources/Koe/HUD/   The pill: a non-activating panel at the bottom of the screen, its waveform, the drop target
 Sources/Koe/Tools/ ToolCoordinator, ScreenFreezer, RegionPicker (the frozen-screen overlay), NoteCard, ToolPanel;
                    ClipTool, ClipRecorder, RecordingIndicator, ClipMovie, ClipReviewer (the clip tool)
-Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates), the setup window
-Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon, Components/
+Sources/Koe/Setup/ PermissionCenter (reads and asks for what macOS gates, and reopens Koe)
+Sources/Koe/UI/    Tokens (generated), Palette, Typography, Icon (SF Symbols), Components/
 Tests/KoeCoreTests Swift Testing
-Resources/         Info.plist, Fonts/, Icons/ (generated)
+Resources/         Info.plist, Koe.icns, Fonts/ (generated)
 ```
 
 ## The bundle
@@ -110,8 +115,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 
 ## Transcription
 
-- Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26), on device. It asks for volatile results, so the pill
-  shows a guess at once and replaces it when the result is final, and for audio time ranges, which time the words.
+- Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26), on device. It asks for volatile results and for audio
+  time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile
   one usually doesn't, so its words share the result's range. A run without a leading space ("'t" after "don")
   continues the word before it.
@@ -134,7 +139,7 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   region, or click to take the window under the pointer. A note card opens under the region (above it when there is
   no room). Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
-- **Note, ⌥⇧N.** A note card under the pill. A blank note adds nothing.
+- **Note, ⌥⇧N.** A note card above the pill. A blank note adds nothing.
 - **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
   down. Pick a region as for a screenshot (the pick starts recording; there is no note card). `ClipRecorder` records
   it with ScreenCaptureKit's `SCRecordingOutput` at up to 60 fps, with the pointer and without Koe's windows, to
@@ -160,9 +165,11 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
 
 - Screen recording and Accessibility only report granted or not. Koe remembers whether it has asked
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
-  macOS only applies a new screen recording grant once the app is reopened, so the row says so.
-- `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` opens the setup window at launch
-  and `--open-menu` opens the menu, `--settings` the settings window, for screenshots. `--audio-file <path>` plays a recording into each session
+  macOS only applies a new screen recording grant once the app is reopened, so that row offers "Reopen Koe".
+  The window checks again every second while it is open, since System Settings sends no notice.
+- `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` opens the Permissions pane at launch,
+  `--settings` the General pane, `--pane general|permissions|shortcuts` any pane, and `--open-menu` the menu, for
+  screenshots. `--audio-file <path>` plays a recording into each session
   instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
   --print-session`.

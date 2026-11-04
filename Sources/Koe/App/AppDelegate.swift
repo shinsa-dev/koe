@@ -5,19 +5,23 @@ import KoeCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let permissions = PermissionCenter()
-    private lazy var setup = SetupWindowController(center: permissions)
     private lazy var sessions = SessionController(transcriber: AppleSpeechTranscriber()) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
     private lazy var tools = ToolCoordinator(
         sessions: sessions, permissions: permissions,
         ensureSession: { [weak self] in self?.ensureSession() ?? false },
-        presentSetup: { [weak self] in self?.setup.present() }
+        presentSetup: { [weak self] in self?.openSetup() }
     )
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
-    private lazy var settingsWindow = SettingsWindowController(
-        library: library, permissions: permissions, openSessions: { [weak self] in self?.showSessions() }
-    )
+    private lazy var settingsWindow: SettingsWindowController = {
+        let controller = SettingsWindowController(
+            library: library, permissions: permissions, openSessions: { [weak self] in self?.showSessions() }
+        )
+        // Back to a menu bar app once the window is gone.
+        controller.onClose = { NSApp.setActivationPolicy(.accessory) }
+        return controller
+    }()
     /// Sessions that ended but are still being saved and copied; the pill stays up for their confirmation.
     private var copiesInFlight = 0
     /// The sessions the menu listed when it last opened, so a click copies the one you saw.
@@ -32,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Typography.registerFonts()
         applyAppearance()
+        NSApp.mainMenu = MainMenu.build(target: self)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = Icon.microphone.image(side: 16)
         item.button?.setAccessibilityLabel("Koe")
@@ -58,13 +63,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tools.clipFile = Launch.value(after: "--clip-file").map { URL(fileURLWithPath: $0) }
 
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
-            setup.present()
+            openSetup()
         }
         // For screenshots: opens the menu as if clicked, since the status item can't be clicked by script.
         if Launch.has("--open-menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { item.button?.performClick(nil) }
         }
         if Launch.has("--settings") { openSettings() }
+        if let name = Launch.value(after: "--pane"),
+           let pane = SettingsWindowController.Pane.allCases.first(where: { "\($0)" == name }) { present(pane) }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
     }
@@ -82,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if sessions.phase.toggleIntent == .start, audioFile == nil {
             permissions.refresh()
             guard permissions.checklist.status(of: .microphone) == .granted else {
-                setup.present()
+                openSetup()
                 return
             }
         }
@@ -157,7 +164,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc func openSettings() { settingsWindow.present() }
+    @objc func openSettings() { present(.general) }
+
+    @objc func openSetup() { present(.permissions) }
+
+    /// A window open means Koe is an app you switch to: it joins the Dock and ⌘Tab until the window closes.
+    private func present(_ pane: SettingsWindowController.Pane) {
+        NSApp.setActivationPolicy(.regular)
+        settingsWindow.present(pane)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !settingsWindow.isOpen { openSettings() }
+        return true
+    }
 
     private func showSessions() {
         try? FileManager.default.createDirectory(at: library.root, withIntermediateDirectories: true)
@@ -192,8 +212,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .system: NSApp.appearance = nil
         }
     }
-
-    @objc func openSetup() { setup.present() }
 
     @objc func showAbout() {
         NSApp.activate()

@@ -5,11 +5,11 @@ import SwiftUI
 /// The panel is larger than the pill and clear around it: clicks there go through to the app below.
 @MainActor
 final class PillPanel: NSPanel {
-    static let size = NSSize(width: 560, height: 110)
-    /// Room above the pill inside the panel, which puts the pill this far under the menu bar.
-    static let topInset: CGFloat = 8
-    /// How far under the top of the screen a note card opens: below a two-line pill.
-    static let noteTop: CGFloat = 76
+    static let size = NSSize(width: 560, height: 80)
+    /// Room under the pill inside the panel, which puts the pill this far above the Dock or the screen's edge.
+    static let bottomInset: CGFloat = 14
+    /// How far above the bottom of the screen a note card or the clip review starts: just above the pill.
+    static let cardsAbove: CGFloat = 58
 
     init<Content: View>(rootView: Content) {
         super.init(
@@ -18,6 +18,8 @@ final class PillPanel: NSPanel {
             backing: .buffered,
             defer: true
         )
+        // Floating HUDs are dark like the notch, whatever the theme.
+        appearance = NSAppearance(named: .darkAqua)
         isFloatingPanel = true
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -28,8 +30,8 @@ final class PillPanel: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none
         let host = FirstClickHostingView(rootView: rootView
-            .padding(.top, Self.topInset)
-            .frame(width: Self.size.width, height: Self.size.height, alignment: .top))
+            .padding(.bottom, Self.bottomInset)
+            .frame(width: Self.size.width, height: Self.size.height, alignment: .bottom))
         contentView = host
     }
 
@@ -42,7 +44,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Shows the pill at the top centre of the screen you're working on, and hides it when the session ends.
+/// Shows the pill at the bottom centre of the screen you're working on, and hides it when the session ends.
 @MainActor
 final class PillController {
     private let panel: PillPanel
@@ -62,7 +64,7 @@ final class PillController {
         }
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let visible = screen?.visibleFrame {
-            panel.setFrameOrigin(NSPoint(x: visible.midX - PillPanel.size.width / 2, y: visible.maxY - PillPanel.size.height))
+            panel.setFrameOrigin(NSPoint(x: visible.midX - PillPanel.size.width / 2, y: visible.minY))
         }
         panel.alphaValue = 0
         panel.orderFrontRegardless()

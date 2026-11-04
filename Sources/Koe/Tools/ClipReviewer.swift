@@ -155,11 +155,7 @@ struct ClipReviewView: View {
         }
         .padding(16)
         .frame(width: Self.width)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.card)
-                .shadow(color: .black.opacity(0.16), radius: 20, y: 6)
-        }
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
+        .floatingSurface(cornerRadius: 18)
     }
 
     /// The clip fitted into the window's width and at most 340 pt tall.

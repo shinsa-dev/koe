@@ -64,3 +64,26 @@ enum Tone {
         }
     }
 }
+
+/// The surface of everything that floats over other apps: a dark HUD like the notch, whatever the theme. Shinsa's
+/// dark canvas over Liquid Glass, a hairline light ring and a soft shadow. Content inside reads the dark tokens.
+struct HUDSurface: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .environment(\.colorScheme, .dark)
+            .background { shape.fill(Color(nsColor: NSColor(rgba: 0x101012FF)).opacity(0.88)) }
+            .glassEffect(.regular.tint(.black.opacity(0.4)), in: shape)
+            .overlay(shape.strokeBorder(.white.opacity(0.09), lineWidth: 1))
+            .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+            .tint(Palette.action)
+    }
+}
+
+extension View {
+    func floatingSurface(cornerRadius: CGFloat) -> some View {
+        modifier(HUDSurface(cornerRadius: cornerRadius))
+    }
+}

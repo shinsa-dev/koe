@@ -13,6 +13,7 @@ final class FileSource: AudioSource, @unchecked Sendable {
     }
 
     var currentTime: AudioTime { clock.currentTime }
+    var level: Float { clock.level }
 
     func start(format: AVAudioFormat, deliver: @escaping @Sendable (AVAudioPCMBuffer) -> Void,
                finish: @escaping @Sendable () -> Void) throws {
@@ -26,7 +27,7 @@ final class FileSource: AudioSource, @unchecked Sendable {
                   let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk),
                   (try? file.read(into: buffer, frameCount: chunk)) != nil, buffer.frameLength > 0 {
                 if let converted = AudioConversion.convert(buffer, with: converter, to: format) {
-                    clock.count(converted.frameLength)
+                    clock.count(converted)
                     deliver(converted)
                 }
                 try? await Task.sleep(for: .milliseconds(100))

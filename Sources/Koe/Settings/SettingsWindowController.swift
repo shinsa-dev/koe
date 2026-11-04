@@ -1,51 +1,96 @@
 import AppKit
 import SwiftUI
 
-/// A titled window around `SettingsView`, drawn as the setup window is. While open it checks Accessibility each
-/// second, since flipping it in System Settings sends no notice.
+/// Koe's one window: a standard macOS settings window with General, Permissions and Shortcuts in its toolbar.
+/// First launch opens it on Permissions. While it is open Koe shows in the Dock and in ⌘Tab.
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    enum Pane: Int, CaseIterable {
+        case general, permissions, shortcuts
+
+        var title: String {
+            switch self {
+            case .general: "General"
+            case .permissions: "Permissions"
+            case .shortcuts: "Shortcuts"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .permissions: "hand.raised"
+            case .shortcuts: "command"
+            }
+        }
+    }
+
     private let permissions: PermissionCenter
+    private let tabs = NSTabViewController()
     private var poll: Timer?
+    private var placed = false
+    /// Called when the window closes, so the app can leave the Dock again.
+    var onClose: (() -> Void)?
 
     init(library: SessionLibrary, permissions: PermissionCenter, openSessions: @escaping () -> Void) {
         self.permissions = permissions
-        let window = NSWindow(
-            contentRect: .zero,
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: true
-        )
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
+        tabs.tabStyle = .toolbar
+        tabs.transitionOptions = [.allowUserInteraction]
+        let window = NSWindow(contentViewController: tabs)
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.toolbarStyle = .preference
         window.backgroundColor = Tokens.background
         window.isReleasedWhenClosed = false
-        window.title = "Koe settings"
         super.init(window: window)
         window.delegate = self
-        window.contentViewController = NSHostingController(rootView: SettingsView(
-            library: library, permissions: permissions, openSessions: openSessions
-        ))
-        window.center()
+
+        for pane in Pane.allCases {
+            let root: AnyView = switch pane {
+            case .general: AnyView(GeneralPane(library: library, permissions: permissions, openSessions: openSessions))
+            case .permissions: AnyView(PermissionsPane(center: permissions))
+            case .shortcuts: AnyView(ShortcutsPane())
+            }
+            let host = NSHostingController(rootView: root)
+            host.sizingOptions = [.preferredContentSize]
+            host.title = pane.title
+            let item = NSTabViewItem(viewController: host)
+            item.label = pane.title
+            item.image = NSImage(systemSymbolName: pane.symbol, accessibilityDescription: pane.title)
+            tabs.addTabViewItem(item)
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func present() {
+    var isOpen: Bool { window?.isVisible ?? false }
+
+    func present(_ pane: Pane? = nil) {
         permissions.refresh()
-        NSApp.activate()
-        showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
-        poll?.invalidate()
-        poll = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.permissions.refresh() }
+        if let pane { tabs.selectedTabViewItemIndex = pane.rawValue }
+        guard let window else { return }
+        if !placed {
+            window.layoutIfNeeded()
+            window.center()
+            placed = true
         }
+        showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        startPolling()
     }
 
     func windowWillClose(_ notification: Notification) {
         poll?.invalidate()
         poll = nil
+        onClose?()
+    }
+
+    /// System Settings sends no notice when a switch flips, so the window looks again every second while it is open.
+    private func startPolling() {
+        poll?.invalidate()
+        poll = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.permissions.refresh() }
+        }
     }
 }

@@ -51,6 +51,16 @@ final class PermissionCenter {
         }
     }
 
+    /// macOS applies a new screen recording grant only to a fresh process, so Koe opens a new copy of itself and quits.
+    func relaunch() {
+        let path = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 0.5; /usr/bin/open \"$0\"", path]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
+
     private func status(of permission: Permission) -> PermissionStatus {
         switch permission {
         case .microphone:

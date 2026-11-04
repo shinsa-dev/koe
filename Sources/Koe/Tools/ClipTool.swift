@@ -134,15 +134,15 @@ final class ClipTool {
         let reviewer = ClipReviewer(url: recording.url, info: info, sourceLabel: label)
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
-        let size = NSSize(width: ClipReviewView.width + 48, height: min(visible.height, 720))
+        let size = NSSize(width: ClipReviewView.width + 48, height: min(visible.height - PillPanel.cardsAbove, 720))
         let panel = ToolPanel(
-            frame: NSRect(x: visible.midX - size.width / 2, y: visible.maxY - PillPanel.noteTop - size.height,
+            frame: NSRect(x: visible.midX - size.width / 2, y: visible.minY + PillPanel.cardsAbove - 8,
                           width: size.width, height: size.height),
             level: .popUpMenu
         )
         panel.host(ClipReviewView(reviewer: reviewer)
-            .padding(.top, 8)
-            .frame(width: size.width, height: size.height, alignment: .top))
+            .padding(.bottom, 8)
+            .frame(width: size.width, height: size.height, alignment: .bottom))
         // Esc in a frame's note leaves the note; only Esc outside one discards the clip.
         panel.onCancel = { [weak panel] in
             if let panel, panel.firstResponder is NSText {

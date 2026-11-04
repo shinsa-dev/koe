@@ -12,6 +12,8 @@ protocol AudioSource: AnyObject, Sendable {
     func stop()
     /// Seconds of audio delivered so far: the time an annotation added now is stamped with.
     var currentTime: AudioTime { get }
+    /// How loud the last buffer was, 0...1, for the waveform.
+    var level: Float { get }
 }
 
 enum AudioSourceError: LocalizedError {
@@ -33,6 +35,7 @@ final class AudioClock: Sendable {
         var sampleRate: Double = 0
         var finish: (@Sendable () -> Void)?
         var stopped = false
+        var level: Float = 0
     }
 
     private let state = Mutex(State())
@@ -52,8 +55,26 @@ final class AudioClock: Sendable {
         return !stopped
     }
 
-    func count(_ frames: AVAudioFrameCount) {
-        state.withLock { $0.frames += AVAudioFramePosition(frames) }
+    var level: Float { state.withLock(\.level) }
+
+    /// Adds a delivered buffer to the clock and measures how loud it was.
+    func count(_ buffer: AVAudioPCMBuffer) {
+        let level = AudioLevel.normalized(rms: Self.rms(of: buffer))
+        state.withLock {
+            $0.frames += AVAudioFramePosition(buffer.frameLength)
+            $0.level = level
+        }
+    }
+
+    private static func rms(of buffer: AVAudioPCMBuffer) -> Float {
+        let count = Int(buffer.frameLength)
+        if let floats = buffer.floatChannelData {
+            return AudioLevel.rms(UnsafeBufferPointer(start: floats[0], count: count))
+        }
+        if let ints = buffer.int16ChannelData {
+            return AudioLevel.rms(UnsafeBufferPointer(start: ints[0], count: count).lazy.map { Float($0) / 32768 })
+        }
+        return 0
     }
 
     var isStopped: Bool { state.withLock(\.stopped) }
