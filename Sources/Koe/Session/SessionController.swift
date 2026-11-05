@@ -70,6 +70,9 @@ final class SessionController {
     func start() {
         guard !phase.isActive else { return }
         dismissal?.cancel()
+        // A new session goes straight to its waveform, whatever the last one left in the pill.
+        noticeDismissal?.cancel()
+        notice = nil
         let source = makeSource()
         self.source = source
         session = Session()

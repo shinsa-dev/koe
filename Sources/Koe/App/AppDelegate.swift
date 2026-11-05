@@ -143,8 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if Launch.has("--print-session") {
                 FileHandle.standardOutput.write(Data((BundleComposer().compose(session).text + "\n").utf8))
             }
+            // A session started meanwhile owns the pill: its waveform stays up and the copy says nothing.
+            guard !sessions.phase.isActive else { return }
             sessions.post(notice: message)
-            if !sessions.phase.isActive { lingerThenHide() }
+            lingerThenHide()
         }
     }
 

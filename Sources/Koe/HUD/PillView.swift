@@ -27,7 +27,7 @@ struct PillView: View {
                 .id(text)
                 .transition(PillSwap())
             } else {
-                Waveform(level: { sessions.level }, active: isRecording(phase))
+                Waveform(level: { sessions.level }, mode: waveMode(for: phase))
                     .transition(PillSwap())
             }
             if case .recording(let since) = phase, text == nil {
@@ -50,6 +50,8 @@ struct PillView: View {
         .padding(.leading, 14)
         .padding(.trailing, 8)
         .frame(height: 40)
+        // While the pill shrinks, what is leaving is cut at its edge instead of spilling past it.
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .floatingSurface(cornerRadius: 20)
         .overlay {
             if dropTargeted {
@@ -78,9 +80,7 @@ struct PillView: View {
         if dropTargeted { return "Drop to attach at this moment" }
         if let notice = sessions.notice { return notice }
         return switch phase {
-        case .idle, .recording: nil
-        case .preparing: "Getting ready…"
-        case .finishing: "Finishing…"
+        case .idle, .recording, .preparing, .finishing: nil
         case .failed(let reason): reason
         }
     }
@@ -95,9 +95,13 @@ struct PillView: View {
         }
     }
 
-    private func isRecording(_ phase: RecorderPhase) -> Bool {
-        if case .recording = phase { return true }
-        return false
+    /// Getting ready and finishing are waiting: the bars run a steady amber wave instead of a text.
+    private func waveMode(for phase: RecorderPhase) -> Waveform.Mode {
+        switch phase {
+        case .recording: .live
+        case .preparing, .finishing: .waiting
+        case .idle, .failed: .still
+        }
     }
 
     @ViewBuilder private func trailingButton(for phase: RecorderPhase) -> some View {
@@ -124,26 +128,35 @@ struct PillView: View {
 }
 
 /// Your voice as a row of rounded bars that scroll from right to left, sampled 30 times a second.
+/// While Koe gets ready or finishes, the same bars run a steady amber wave.
 private struct Waveform: View {
+    enum Mode { case live, waiting, still }
+
     static let bars = 22
     let level: () -> Float
-    let active: Bool
+    let mode: Mode
     @State private var meter = Meter(bars: Self.bars)
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !active)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: mode == .still)) { context in
             Canvas { canvas, size in
-                meter.advance(to: context.date, level: active ? level() : 0)
+                meter.advance(to: context.date, level: mode == .live ? level() : 0)
                 let step = size.width / CGFloat(Self.bars)
                 let width = max(2, step - 2)
-                for (index, value) in meter.history.bars.enumerated() {
-                    let height = max(3, size.height * CGFloat(pow(value, 1.6)))
+                let time = context.date.timeIntervalSinceReferenceDate
+                let color = mode == .waiting ? Tone.amber.solid : Palette.action
+                for index in 0..<Self.bars {
+                    let value = mode == .waiting
+                        ? WaitingWave.height(bar: index, at: time)
+                        : CGFloat(pow(meter.history.bars[index], 1.6))
+                    let height = max(3, size.height * value)
                     let rect = CGRect(x: CGFloat(index) * step + (step - width) / 2, y: (size.height - height) / 2,
                                       width: width, height: height)
-                    canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(Palette.action))
+                    canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(color))
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: mode)
         .frame(width: CGFloat(Self.bars) * 4, height: 22)
         .mask {
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.22),
@@ -151,6 +164,14 @@ private struct Waveform: View {
                            startPoint: .leading, endPoint: .trailing)
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// A wave that travels right to left at an even pace, between a fifth and three fifths of the bar height.
+enum WaitingWave {
+    static func height(bar: Int, at time: TimeInterval) -> CGFloat {
+        let phase = time * 2 * .pi * 0.9 + Double(bar) * 0.42
+        return CGFloat(0.4 + 0.2 * sin(phase))
     }
 }
 
