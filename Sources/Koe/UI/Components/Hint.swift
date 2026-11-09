@@ -33,7 +33,8 @@ struct HintBubble: View {
         }
         .lineLimit(1)
         .padding(.leading, 8)
-        .padding(.trailing, shortcut == nil ? 8 : 2)
+        // A key sits as far from the end as from the top and bottom.
+        .padding(.trailing, shortcut == nil ? 8 : 4)
         .padding(.vertical, shortcut == nil ? 4 : 2)
         .frame(minHeight: 24)
         .background(Palette.popover, in: shape)
@@ -147,7 +148,8 @@ final class HintCenter {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.level = .popUpMenu
+        // Above the pill, which floats over the tools' frozen screen.
+        panel.level = NSWindow.Level(rawValue: PillPanel.level.rawValue + 1)
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isReleasedWhenClosed = false

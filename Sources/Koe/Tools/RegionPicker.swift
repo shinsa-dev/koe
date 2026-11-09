@@ -1,17 +1,20 @@
 import KoeCore
 import SwiftUI
 
-/// What you picked on a frozen screen: a region in that screen's own space, the window it came from, and your note.
+/// What you picked on a frozen screen: a region in that screen's own space, the window it came from, and a note
+/// given by `--script` (in use, a note is what you say, heard by the pill).
 struct RegionChoice {
     let screen: FrozenScreen
     let region: CGRect
     let source: CaptureSource?
     let note: String
+    var voice: VoiceSpan?
     /// Where a comment was pinned, in the screen's own space.
     var pin: CGPoint?
 }
 
-/// The state of one screenshot: drag a region or click a window on any frozen screen, then write a note under it.
+/// The state of one screenshot: drag a region or click a window on any frozen screen. The pill says what to do and
+/// what the pointer is over; nothing is drawn around windows.
 @MainActor
 @Observable
 final class RegionPicker {
@@ -20,24 +23,28 @@ final class RegionPicker {
         case noting(screen: Int, region: CGRect)
     }
 
-    /// A screenshot asks for a note under the region; a comment pins the spot you click and asks for a note
-    /// beside it; a clip starts recording the moment you pick it.
+    /// A screenshot waits for you to attach it; a comment pins the spot you click and listens for what you say
+    /// about it; a clip starts recording the moment you pick it.
     enum Purpose { case screenshot, comment, clip }
 
     let freeze: Freeze
     let purpose: Purpose
     var stage: Stage = .choosing {
         didSet {
-            guard case .noting(let index, _) = stage, stage != oldValue else { return }
-            if purpose == .clip { submit() } else { onNoting?(index) }
+            guard stage != oldValue else { return }
+            guard case .noting = stage else { return onChoosing?() ?? () }
+            if purpose == .clip { submit() } else { onPicked?() }
         }
     }
-    /// Called with the screen whose note card opens, which must take the keyboard.
-    @ObservationIgnored var onNoting: ((Int) -> Void)?
+    /// Something was picked: the pill turns to attaching it.
+    @ObservationIgnored var onPicked: (() -> Void)?
+    /// You went back to picking, by dragging again after a pick.
+    @ObservationIgnored var onChoosing: (() -> Void)?
+    /// What the pointer is over while you pick, for the pill to name.
+    @ObservationIgnored var onHover: ((String?) -> Void)?
     /// The region being dragged, on the screen at `index`.
     private(set) var dragging: (index: Int, rect: CGRect)?
-    /// The window under the pointer while nothing is dragged, as a rect on the screen at `index`.
-    private(set) var hovered: (index: Int, rect: CGRect)?
+    private var hoveredLabel: String?
     var note = ""
     /// The spot a comment is about, on the screen being noted.
     private(set) var pin: CGPoint?
@@ -51,17 +58,19 @@ final class RegionPicker {
 
     func hover(at point: CGPoint?, on index: Int) {
         guard stage == .choosing, dragging == nil else { return }
-        guard let point, let window = freeze.windows.topmost(at: quartz(point, on: index)) else {
-            hovered = nil
-            return
-        }
-        hovered = (index, local(window.frame, on: index))
+        let label = point.flatMap { freeze.windows.topmost(at: quartz($0, on: index)) }.map { Self.label($0.source) }
+        guard label != hoveredLabel else { return }
+        hoveredLabel = label
+        onHover?(label)
+    }
+
+    static func label(_ source: CaptureSource) -> String {
+        [source.app, source.window].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     func drag(from start: CGPoint, to end: CGPoint, on index: Int) {
         if case .noting = stage { stage = .choosing }
         guard !ScreenGeometry.isClick(from: start, to: end) else { return }
-        hovered = nil
         dragging = (index, ScreenGeometry.selection(from: start, to: end).intersection(bounds(of: index)))
     }
 
@@ -87,7 +96,7 @@ final class RegionPicker {
         }
     }
 
-    /// For `--script`: a click at `point` on the first screen, then the note typed.
+    /// For `--script`: a click at `point` on the first screen, with its note.
     func preset(click point: CGPoint, note: String?) {
         release(from: point, to: point, on: 0)
         self.note = note ?? ""
@@ -101,13 +110,13 @@ final class RegionPicker {
 
     var sourceLabel: String? {
         guard case .noting(let index, let region) = stage, let source = source(for: region, on: index) else { return nil }
-        return [source.app, source.window].compactMap(\.self).joined(separator: " · ")
+        return Self.label(source)
     }
 
-    func submit() {
+    func submit(voice: VoiceSpan? = nil) {
         guard case .noting(let index, let region) = stage else { return }
         finish(RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index),
-                            note: note, pin: pin))
+                            note: note, voice: voice, pin: pin))
     }
 
     func cancel() {
@@ -159,31 +168,13 @@ struct RegionPickerView: View {
         ZStack(alignment: .topLeading) {
             Image(decorative: screen.image, scale: CGFloat(screen.image.width) / max(1, screen.frame.width))
                 .resizable()
-            Dim(cutout: highlight?.rect)
-            if let highlight {
-                Highlight(rect: highlight.rect, filled: highlight.filled)
-                if highlight.showsSize { SizeChip(rect: highlight.rect) }
+            if let rect = highlight?.rect { Dim(cutout: rect) }
+            if let highlight, highlight.showsSize {
+                Highlight(rect: highlight.rect)
+                SizeChip(rect: highlight.rect)
             }
-            if case .noting(let screenIndex, let region) = picker.stage, screenIndex == index {
-                let pin = picker.pin
-                // A comment's card sits right under its pin; a screenshot's under its region.
-                let anchor = pin.map { CGRect(x: $0.x - NoteCard.width / 2, y: $0.y - 8, width: NoteCard.width, height: 24) }
-                let origin = ScreenGeometry.cardOrigin(
-                    for: anchor ?? region, cardSize: CGSize(width: NoteCard.width, height: NoteCard.height),
-                    in: picker.bounds(of: index)
-                )
-                if let pin { Pin().position(pin) }
-                NoteCard(
-                    placeholder: pin == nil ? "Add a note for the agent (optional)" : "What should the agent know about this?",
-                    action: pin == nil ? "Attach" : "Comment", detail: picker.sourceLabel,
-                    text: Binding(get: { picker.note }, set: { picker.note = $0 }),
-                    submit: picker.submit, cancel: picker.cancel
-                )
-                .offset(x: origin.x, y: origin.y)
-            } else if picker.stage == .choosing, index == 0 {
-                Hint(purpose: picker.purpose)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 48)
+            if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
+                Pin().position(pin)
             }
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
@@ -206,7 +197,6 @@ struct RegionPickerView: View {
 
     private struct Mark {
         var rect: CGRect
-        var filled = false
         var showsSize = false
     }
 
@@ -215,7 +205,6 @@ struct RegionPickerView: View {
             return screenIndex == index ? Mark(rect: region) : nil
         }
         if let dragging = picker.dragging { return dragging.index == index ? Mark(rect: dragging.rect, showsSize: true) : nil }
-        if let hovered = picker.hovered, hovered.index == index { return Mark(rect: hovered.rect, filled: true) }
         return nil
     }
 }
@@ -252,11 +241,9 @@ private struct Pin: View {
 
 private struct Highlight: View {
     let rect: CGRect
-    let filled: Bool
 
     var body: some View {
         Rectangle()
-            .fill(filled ? Palette.action.opacity(0.08) : .clear)
             .overlay(Rectangle().strokeBorder(Palette.action, lineWidth: 2))
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
@@ -277,40 +264,5 @@ private struct SizeChip: View {
             .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
             .offset(x: rect.minX, y: max(4, rect.minY - 26))
             .allowsHitTesting(false)
-    }
-}
-
-private struct Hint: View {
-    let purpose: RegionPicker.Purpose
-
-    var body: some View {
-        HStack(spacing: 8) {
-            IconView(icon: icon, size: .small, color: Palette.icon2)
-            Text(text)
-                .font(Typography.body)
-                .foregroundStyle(Palette.fg4)
-            Kbd("Esc")
-            Text("cancels").font(Typography.meta).foregroundStyle(Palette.fg2)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 34)
-        .floatingSurface(cornerRadius: 17)
-        .allowsHitTesting(false)
-    }
-
-    private var icon: Icon {
-        switch purpose {
-        case .screenshot: .screenCapture
-        case .comment: .comment
-        case .clip: .video
-        }
-    }
-
-    private var text: String {
-        switch purpose {
-        case .screenshot: "Drag over a region, or click a window."
-        case .comment: "Click anything to comment on it."
-        case .clip: "Drag over the region to record, or click a window."
-        }
     }
 }

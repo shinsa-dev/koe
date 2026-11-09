@@ -3,8 +3,9 @@ import KoeCore
 import os
 import SwiftUI
 
-/// Runs the tools you use while talking: a screenshot of a region or window, a typed note, a clip of a region you
-/// review slowed down, and files dropped on the pill. Each is stamped with the session's audio time at the moment you
+/// Runs the tools you use while talking: a comment pinned on anything, a screenshot of a region or window, a clip of a
+/// region you review slowed down, and files dropped on the pill. The pill asks what to do while one is open, and a
+/// note is what you say, never typed. Each is stamped with the session's audio time at the moment you
 /// start it, and starts a session when none is running.
 @MainActor
 final class ToolCoordinator {
@@ -16,7 +17,8 @@ final class ToolCoordinator {
     private var overlay: [ToolPanel] = []
     /// A screenshot's freeze is under way: its overlay isn't up yet, but a second press must not start another.
     private var freezing = false
-    private var notePanel: ToolPanel?
+    /// What the pill asks while a tool is open.
+    let status = ToolStatus()
     private lazy var clips = ClipTool(sessions: sessions, pickRegion: { [weak self] preset, done in
         guard let self else { return done(nil) }
         pickClipRegion(preset: preset, done: done)
@@ -40,18 +42,18 @@ final class ToolCoordinator {
         self.presentSetup = presentSetup
     }
 
-    var isBusy: Bool { freezing || !overlay.isEmpty || notePanel != nil || clips.isBusy }
+    var isBusy: Bool { freezing || !overlay.isEmpty || clips.isBusy }
     var isRecordingClip: Bool { clips.isRecording }
 
     // MARK: Screenshot
 
     /// Freezes the screen to pin a comment on whatever you click: the window there, or the area around the spot,
-    /// with a pin on it and your note.
-    func comment(at spot: CGPoint? = nil, note: String? = nil, holds: Bool = true) {
-        screenshot(note: note, holds: holds, purpose: .comment, spot: spot)
+    /// with a pin on it. What you say next is the comment, until you add it.
+    func comment(at spot: CGPoint? = nil, note: String? = nil, talk: AudioTime? = nil, holds: Bool = true) {
+        screenshot(note: note, talk: talk, holds: holds, purpose: .comment, spot: spot)
     }
 
-    func screenshot(preset: CGRect? = nil, note: String? = nil, holds: Bool = true,
+    func screenshot(preset: CGRect? = nil, note: String? = nil, talk: AudioTime? = nil, holds: Bool = true,
                     purpose: RegionPicker.Purpose = .screenshot, spot: CGPoint? = nil) {
         guard !isBusy else { return }
         permissions.refresh()
@@ -74,17 +76,70 @@ final class ToolCoordinator {
             }
             freezing = false
             let picker = RegionPicker(freeze: freeze, purpose: purpose)
-            if let preset { picker.preset(preset, note: note) }
-            if let spot { picker.preset(click: spot, note: note) }
-            showOverlay(for: picker)
+            let voice = VoiceNote { [sessions] in sessions.currentTime }
+            prompt(picker, voice: voice)
             picker.onFinish = { [weak self] choice in
+                self?.status.clear()
                 self?.closeOverlay()
                 self?.save(choice, ticket: ticket)
             }
+            showOverlay(for: picker)
+            if let preset { picker.preset(preset, note: note) }
+            if let spot { picker.preset(click: spot, note: note) }
             if preset != nil || spot != nil, !holds {
-                try? await Task.sleep(for: .milliseconds(600))
-                picker.submit()
+                if let talk {
+                    if !voice.isListening { voice.begin() }
+                    try? await Task.sleep(for: .seconds(talk))
+                } else {
+                    try? await Task.sleep(for: .milliseconds(600))
+                }
+                picker.submit(voice: voice.span())
             }
+        }
+    }
+
+    /// Keeps the pill in step with the picker: what to do while picking, then attach, or listen for a comment.
+    private func prompt(_ picker: RegionPicker, voice: VoiceNote) {
+        let comment = picker.purpose == .comment
+        let picking = ToolPrompt(
+            stage: .picking, icon: comment ? .comment : .screenCapture,
+            title: comment ? "Click anything to comment on it" : "Drag over a region, or click a window",
+            detail: nil, confirm: comment ? "Add comment" : "Attach", canTalk: false
+        )
+        status.prompt = picking
+        status.onCancel = { picker.cancel() }
+        status.onConfirm = nil
+        status.onTalk = nil
+        picker.onHover = { [weak self] label in self?.status.prompt?.detail = label }
+        picker.onChoosing = { [weak self] in
+            voice.stop()
+            self?.status.prompt = picking
+            self?.status.onConfirm = nil
+        }
+        picker.onPicked = { [weak self] in
+            guard let self else { return }
+            status.onConfirm = { picker.submit(voice: voice.span()) }
+            status.onTalk = { [weak self] in
+                if voice.isListening { voice.stop() } else { voice.begin() }
+                self?.status.prompt?.stage = voice.isListening ? .listening : .confirming
+                self?.status.prompt?.title = Self.title(comment: comment, listening: voice.isListening)
+            }
+            // A comment is something said: it listens the moment you click.
+            if comment { voice.begin() }
+            status.prompt = ToolPrompt(
+                stage: voice.isListening ? .listening : .confirming, icon: comment ? .comment : .screenCapture,
+                title: Self.title(comment: comment, listening: voice.isListening), detail: picker.sourceLabel,
+                confirm: comment ? "Add comment" : "Attach"
+            )
+        }
+    }
+
+    private static func title(comment: Bool, listening: Bool) -> String {
+        switch (comment, listening) {
+        case (true, true): "Say your comment"
+        case (true, false): "Comment paused"
+        case (false, true): "Say what this is about"
+        case (false, false): "Attach this screenshot?"
         }
     }
 
@@ -98,13 +153,12 @@ final class ToolCoordinator {
             let panel = ToolPanel(frame: picker.freeze.screens[index].screen.frame, level: .screenSaver)
             panel.host(RegionPickerView(picker: picker, index: index))
             panel.onCancel = { picker.cancel() }
+            panel.onSubmit = { [weak self] in self?.status.onConfirm?() }
             return panel
         }
-        picker.onNoting = { [weak self] index in self?.overlay[safe: index]?.makeKey() }
         let underMouse = picker.freeze.screens.firstIndex { NSMouseInRect(NSEvent.mouseLocation, $0.screen.frame, false) } ?? 0
         for (index, panel) in overlay.enumerated() where index != underMouse { panel.orderFrontRegardless() }
         overlay[safe: underMouse]?.present()
-        if case .noting(let index, _) = picker.stage { overlay[safe: index]?.makeKey() }
     }
 
     private func closeOverlay() {
@@ -129,52 +183,16 @@ final class ToolCoordinator {
             .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
             .flatMap { PinMark.draw(on: cut, at: $0, radius: 6 * scale) } ?? cut
         let note = choice.note
+        let voice = choice.voice
         let source = choice.source
         Task {
             do {
                 try await Task.detached { try PNG.write(crop, to: url) }.value
-                sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)), note: note, source: source))
+                sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)),
+                                                        note: note, source: source, voice: voice))
             } catch {
                 sessions.post(notice: "Koe couldn't save the screenshot.")
                 sessions.close(ticket, with: nil)
-            }
-        }
-    }
-
-    // MARK: Note
-
-    func note(text: String? = nil, holds: Bool = true) {
-        guard !isBusy, ensureSession(), let ticket = sessions.openTicket() else { return }
-        let model = NoteModel(text: text ?? "")
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? .zero
-        let size = NSSize(width: NoteCard.width + 40, height: NoteCard.height + 40)
-        let panel = ToolPanel(
-            frame: NSRect(x: visible.midX - size.width / 2, y: visible.minY + PillPanel.cardsAbove - 20,
-                          width: size.width, height: size.height),
-            level: .popUpMenu
-        )
-        let finish: (Bool) -> Void = { [weak self] keep in
-            guard let self, notePanel != nil else { return }
-            notePanel?.close()
-            notePanel = nil
-            let annotation = keep ? Annotation(time: ticket.time, kind: .note, note: model.text) : nil
-            sessions.close(ticket, with: annotation?.trimmedNote == nil ? nil : annotation)
-        }
-        panel.host(NoteCard(
-            placeholder: "Write a note for the agent", action: "Add note",
-            text: Binding(get: { model.text }, set: { model.text = $0 }),
-            submit: { finish(true) }, cancel: { finish(false) }
-        )
-        .padding(.top, 8)
-        .frame(width: size.width, height: size.height, alignment: .top))
-        panel.onCancel = { finish(false) }
-        notePanel = panel
-        panel.present()
-        if text != nil, !holds {
-            Task {
-                try? await Task.sleep(for: .milliseconds(600))
-                finish(true)
             }
         }
     }
@@ -200,8 +218,8 @@ final class ToolCoordinator {
     /// The session is stopping: a clip still recording stops too, and goes on to its review.
     /// Closes every tool open on a session you discarded; what they would have added goes with it.
     func sessionCancelled() {
-        notePanel?.onCancel?()
         overlay.first?.onCancel?()
+        status.clear()
         closeOverlay()
         clips.discard()
     }
@@ -222,11 +240,17 @@ final class ToolCoordinator {
                 return
             }
             let picker = RegionPicker(freeze: freeze, purpose: .clip)
+            status.prompt = ToolPrompt(stage: .picking, icon: .video, title: "Drag over what to record, or click a window",
+                                       detail: nil, confirm: "Record", canTalk: false)
+            status.onCancel = { picker.cancel() }
+            picker.onHover = { [weak self] label in self?.status.prompt?.detail = label }
             picker.onFinish = { choice in
+                self.status.clear()
                 self.closeOverlay()
                 done(choice)
             }
             if let preset {
+                status.clear()
                 picker.preset(preset, note: nil)
             } else {
                 showOverlay(for: picker)
@@ -256,16 +280,6 @@ final class ToolCoordinator {
                 }
             }
         }
-    }
-}
-
-@MainActor
-@Observable
-private final class NoteModel {
-    var text: String
-
-    init(text: String) {
-        self.text = text
     }
 }
 

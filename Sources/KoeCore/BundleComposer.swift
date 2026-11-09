@@ -48,8 +48,8 @@ public struct BundleComposer: Sendable {
     public init() {}
 
     public func compose(_ session: Session) -> ComposedBundle {
-        let words = session.words
-        let ordered = session.annotations.enumerated()
+        let (words, annotations) = Self.splitVoiceNotes(session)
+        let ordered = annotations.enumerated()
             .filter { $0.element.asset != nil || $0.element.trimmedNote != nil }
             .map { (offset: $0.offset, annotation: $0.element, placement: placement(for: $0.element.time, in: words)) }
             .sorted { lhs, rhs in
@@ -75,7 +75,8 @@ public struct BundleComposer: Sendable {
             }
         }
 
-        let paragraphs = layout(words: words, markers: markers)
+        let spans = annotations.compactMap(\.voice)
+        let paragraphs = layout(words: words, markers: markers, spans: spans)
         let byID = Dictionary(uniqueKeysWithValues: session.annotations.map { ($0.id, $0) })
         let numbers = Dictionary(uniqueKeysWithValues: assets.map { ($0.annotationID, $0.number) })
         let footer = assets.map { item in
@@ -99,6 +100,25 @@ public struct BundleComposer: Sendable {
             html += "<p>Attachments:</p><ul>" + items.joined() + "</ul>"
         }
         return ComposedBundle(text: text, html: html, assets: assets)
+    }
+
+    /// Takes the words spoken in each attachment's voice span out of the transcript and makes them that attachment's
+    /// note, after any note it already had. A word in two spans goes to the later one.
+    public static func splitVoiceNotes(_ session: Session) -> (words: [TimedWord], annotations: [Annotation]) {
+        let spoken = session.annotations.enumerated().filter { $0.element.voice != nil }
+        guard !spoken.isEmpty else { return (session.words, session.annotations) }
+        var notes: [Int: [String]] = [:]
+        var kept: [TimedWord] = []
+        for word in session.words {
+            let owner = spoken.last { $0.element.voice?.contains(word) == true }
+            if let owner { notes[owner.offset, default: []].append(word.text) } else { kept.append(word) }
+        }
+        var annotations = session.annotations
+        for (index, words) in notes {
+            let said = words.joined(separator: " ")
+            annotations[index].note = [annotations[index].trimmedNote, said].compactMap(\.self).joined(separator: " ")
+        }
+        return (kept, annotations)
     }
 
     /// The gap nearest `time`: the distance to a gap is zero inside it, and a word's midpoint is a tie that goes to
@@ -136,17 +156,20 @@ public struct BundleComposer: Sendable {
         gap == words.count || (gap > 0 && words[gap - 1].endsSentence)
     }
 
-    private func breaksParagraph(at gap: Int, in words: [TimedWord]) -> Bool {
-        gap > 0 && gap < words.count && words[gap - 1].endsSentence
-            && words[gap].start - words[gap - 1].end >= paragraphPause
+    /// A long pause after a sentence starts a paragraph, unless you were talking about an attachment through it.
+    private func breaksParagraph(at gap: Int, in words: [TimedWord], spans: [VoiceSpan]) -> Bool {
+        guard gap > 0, gap < words.count, words[gap - 1].endsSentence,
+              words[gap].start - words[gap - 1].end >= paragraphPause else { return false }
+        return !spans.contains { $0.end > words[gap - 1].end && $0.start < words[gap].start }
     }
 
-    private func layout(words: [TimedWord], markers: [Int: (trailing: [Marker], leading: [Marker])]) -> [[Piece]] {
+    private func layout(words: [TimedWord], markers: [Int: (trailing: [Marker], leading: [Marker])],
+                        spans: [VoiceSpan]) -> [[Piece]] {
         var paragraphs: [[Piece]] = [[]]
         for gap in 0...words.count {
             let here = markers[gap]
             paragraphs[paragraphs.count - 1] += (here?.trailing ?? []).map(Piece.marker)
-            if breaksParagraph(at: gap, in: words) { paragraphs.append([]) }
+            if breaksParagraph(at: gap, in: words, spans: spans) { paragraphs.append([]) }
             paragraphs[paragraphs.count - 1] += (here?.leading ?? []).map(Piece.marker)
             if gap < words.count { paragraphs[paragraphs.count - 1].append(.word(words[gap].text)) }
         }

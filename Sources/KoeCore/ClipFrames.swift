@@ -85,16 +85,18 @@ public enum PlaybackSpeed: Double, CaseIterable, Sendable {
     }
 }
 
-/// A frame of a clip you picked, with what you wrote about it.
+/// A frame of a clip you picked, with when you spoke about it.
 public struct PickedFrame: Sendable, Equatable, Identifiable {
     public var index: Int
     public var time: AudioTime
     public var note: String
+    public var voice: VoiceSpan?
 
-    public init(index: Int, time: AudioTime, note: String = "") {
+    public init(index: Int, time: AudioTime, note: String = "", voice: VoiceSpan? = nil) {
         self.index = index
         self.time = time
         self.note = note
+        self.voice = voice
     }
 
     public var id: Int { index }
@@ -133,6 +135,12 @@ public struct ClipReview: Sendable, Equatable {
         picks[position].note = note
     }
 
+    /// When you spoke about frame `index`, which makes what you said there its note.
+    public mutating func setVoice(_ voice: VoiceSpan?, for index: Int) {
+        guard let position = picks.firstIndex(where: { $0.index == index }) else { return }
+        picks[position].voice = voice
+    }
+
     /// What the clip attaches as: the clip itself, then each picked frame as a screenshot. Each comes with how long
     /// after the tool started it was on screen, so a frame lands at the words you said while it showed.
     public func annotations(clip: Asset, frameAssets: [Int: Asset], recordingStart: AudioTime, note: String? = nil,
@@ -143,7 +151,7 @@ public struct ClipReview: Sendable, Equatable {
             guard let asset = frameAssets[pick.index] else { continue }
             let frame = Annotation(
                 time: 0, kind: .screenshot(asset), note: pick.note, source: source,
-                frame: ClipFrame(clipID: clipAnnotation.id, time: pick.time)
+                frame: ClipFrame(clipID: clipAnnotation.id, time: pick.time), voice: pick.voice
             )
             result.append((annotation: frame, after: recordingStart + pick.time))
         }

@@ -45,6 +45,14 @@ public struct AnnotationLedger: Sendable, Equatable {
         return true
     }
 
+    /// Takes an attachment back out, as when you remove it from the pill's list. False when it isn't there.
+    @discardableResult
+    public mutating func remove(_ id: UUID) -> Bool {
+        let before = annotations.count
+        annotations.removeAll { $0.id == id }
+        return annotations.count != before
+    }
+
     public mutating func endTranscript() {
         transcriptDone = true
     }

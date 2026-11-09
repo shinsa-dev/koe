@@ -12,7 +12,9 @@ behaviour it describes.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `scripts/icon.sh` renders
-  `Resources/Koe.svg` (Shinsa's tile and curved cut, with a blue dot) into `Resources/Koe.icns`.
+  `Resources/Koe.svg` (Shinsa's tile and curved cut, with a blue dot) into `Resources/Koe.icns`. `bun scripts/icons.ts`
+  renders every `"Icon…"` named in Swift with shinsa's own icon pipeline into `Resources/Icons` (`--check` on drift);
+  run it after naming a new icon.
 
 ## Rules
 
@@ -25,7 +27,12 @@ behaviour it describes.
   hints, never inside a button. No focus rings anywhere (`focusEffectDisabled`). Never system push buttons, switches
   or segmented controls. ABC Areal through
   `Typography`, colours through `Palette`/`Tone` (`Tokens.swift` is generated: change the web token and rerun
-  `scripts/tokens.py`), SF Symbols through `Icon`. Never raw RGB or system colours in views.
+  `scripts/tokens.py`), glyphs through `Icon`: the web's Central Icons, an SF Symbol only where Central has none.
+  Never raw RGB or system colours in views. Text draws without stem darkening (`AppleFontSmoothing` 0 in `main.swift`),
+  as the web's `antialiased` does.
+- **Nothing is typed.** A note on a comment, screenshot or frame is what you say while the pill listens (`VoiceSpan`);
+  the composer moves those words onto the attachment. Never add a text field to a tool. While a tool is open the
+  pill says what to do (`ToolStatus`/`ToolPrompt`); nothing is drawn on the frozen screen but your drag and pin.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
   notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu

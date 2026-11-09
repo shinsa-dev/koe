@@ -68,8 +68,9 @@ final class SessionController {
             onPhaseChange?(phase)
         }
     }
-    /// How many screenshots, notes and files this session holds so far.
-    private(set) var annotationCount = 0
+    /// What this session holds so far: comments, screenshots, clips and files, in the order you added them.
+    private(set) var attachments: [Annotation] = []
+    var annotationCount: Int { attachments.count }
     /// What the pill says for a few seconds instead of the waveform: a copy, a discard, a capture that failed.
     private(set) var notice: PillNotice?
     @ObservationIgnored private var noticeDismissal: Task<Void, Never>?
@@ -138,7 +139,7 @@ final class SessionController {
             return
         }
         self.take = take
-        annotationCount = 0
+        attachments = []
         phase = .recording
         saveDraft(take)
         let events = transcriber.transcribe(take.source)
@@ -183,7 +184,7 @@ final class SessionController {
         take.transcription?.cancel()
         try? FileManager.default.removeItem(at: take.folder.url)
         self.take = nil
-        annotationCount = 0
+        attachments = []
         // The notice goes up before the phase changes, so the pill stays to show it.
         post(PillNotice(kind: .neutral, title: "Recording thrown away", detail: "Nothing was copied or kept",
                         icon: .trash))
@@ -209,8 +210,19 @@ final class SessionController {
         annotationClosed(take)
     }
 
+    /// Takes an attachment out of the session, as from the pill's list, and deletes the file Koe kept for it.
+    func remove(_ id: UUID) {
+        guard let take, let annotation = take.ledger.annotations.first(where: { $0.id == id }),
+              take.ledger.remove(id) else { return }
+        if let url = annotation.asset?.url, url.path.hasPrefix(take.folder.url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        attachments = take.ledger.annotations
+        saveDraft(take)
+    }
+
     private func annotationClosed(_ take: Take) {
-        annotationCount = take.ledger.annotations.count
+        attachments = take.ledger.annotations
         saveDraft(take)
         deliverIfReady()
     }

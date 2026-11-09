@@ -11,7 +11,7 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 The first version, end to end: the menu bar item, a one-page settings window that asks for the microphone, screen
 recording and (optionally) Accessibility, on-device transcription with the ⌥Space hotkey and the pill with its
-waveform and tools, the comment, screenshot, note, drop and slow-motion clip tools, and the bundle on the clipboard when
+waveform and tools, the comment, screenshot, drop and slow-motion clip tools, and the bundle on the clipboard when
 you stop, with recent sessions in the menu.
 
 ## Build
@@ -36,7 +36,7 @@ them Koe draws Shinsa's controls itself (`KoeButtonStyle`, `KoeSwitchStyle`, `Se
 switch and tabs), with SF Symbols for glyphs. The rest is Shinsa's: ABC Areal (`scripts/fonts.py` cuts it at the web's weights into `Resources/Fonts`), Shinsa's colours
 (`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
 them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the accent.
-Everything that floats over other apps (the pill, note cards, the region hint, the recording card, the clip review)
+Everything that floats over other apps (the pill, the attachment list, the recording card, the clip review)
 is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a hairline ring (`floatingSurface`), dark
 whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
@@ -45,7 +45,7 @@ whatever the theme. Copy is sentence case, full sentences, no em dashes.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
 - The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform
-  of your voice (`AudioLevel`, `LevelHistory`) with the tools on its left (comment, screenshot, clip, note: each a
+  of your voice (`AudioLevel`, `LevelHistory`) with the tools on its left (comment, screenshot, clip, then the attachment count: each a
   button, so you never need the shortcuts), the clock (audio time, so it stops while paused, digits rolling with
   `.numericText()`), the attachment count, and pause, discard (red) and finish (blue). Pressing a button deflates the
   background behind its glyph by Shinsa's press inset (1 pt across, 0.5 pt down), the same at any size. When a
@@ -158,20 +158,25 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
 
 - **Screenshot, ⌥⇧S.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
   and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed: drag a
-  region, or click to take the window under the pointer. A note card opens under the region (above it when there is
-  no room). Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
+  region, or click to take the window under the pointer. Nothing is drawn around windows: the pill names what the
+  pointer is over. Once picked, the pill asks to attach it; its microphone button first hears what you say about it
+  (a `VoiceSpan`), and those words become the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
-- **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything and write what the agent
-  should know about it in a card under the spot. The screenshot is the window you clicked (or 640 × 400 around the
-  spot when there is none) with a blue pin where you clicked (`PinMark`, `KoeCore`), and your comment as its note.
-- **Note, ⌥⇧N.** A note card above the pill. A blank note adds nothing.
+- **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
+  what you say until you click its check is the comment. The screenshot is the window you clicked (or 640 × 400
+  around the spot when there is none) with a blue pin where you clicked (`PinMark`, `KoeCore`).
+- **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
+  of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
+  you spent talking about an attachment never breaks a paragraph.
+- **The list.** The paperclip count beside the tools opens what the session holds (`AttachmentList`), to check each
+  one and take any out (`SessionController.remove`).
 - **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
-  down. Pick a region as for a screenshot (the pick starts recording; there is no note card). `ClipRecorder` records
+  down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` records
   it with ScreenCaptureKit's `SCRecordingOutput` at up to 60 fps, with the pointer and without Koe's windows, to
   `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
   stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 0.25× (`PlaybackSpeed`): play
-  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame, each with an
-  optional note. Return attaches, Esc discards (in a note, Esc only leaves the note).
+  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
+  "Talk about this frame": what you say until you click it again is that frame's note. Return attaches, Esc discards.
 - A screen recording only stores a frame when something changed, so `ClipMovie` reads the clip's real frame times
   (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
   pulled with zero tolerance, so the image you pick is the one you saw.
@@ -199,8 +204,8 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start
   --print-session`.
 - `--script "<steps>"` plays tools into the session at audio times (`ScriptedStep`): `1.5 shot 120,80,640,360 A
-  note; 3 note Compare with Finder; 4 drop /tmp/spec.pdf; 6 clip 120,80,640,360 2 0.4,1.1` (records 2 s and picks
-  the frames 0.4 s and 1.1 s in); `shot!`, `note!` and `clip!` leave the tool open. `--backdrop <png>` shows that
+  note; 3 pin 400,300 talk 2; 4 drop /tmp/spec.pdf; 6 clip 120,80,640,360 2 0.4,1.1` (records 2 s and picks
+  the frames 0.4 s and 1.1 s in); `shot!`, `pin!` and `clip!` leave the tool open. `--backdrop <png>` shows that
   image instead of capturing your screen, so captures of Koe never show what's on your screen, and `--clip-file
   <mov>` stands in for every recorded clip (a scripted one still shows the recording outline for its length). A
   script needs a session, so pair it with `--start`.

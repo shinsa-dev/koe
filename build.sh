@@ -16,6 +16,7 @@ cp "$BIN" "$APP/Contents/MacOS/Koe"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/Koe.icns "$APP/Contents/Resources/Koe.icns"
 cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
+cp -R Resources/Icons "$APP/Contents/Resources/Icons"
 
 # macOS ties the microphone, screen recording and Accessibility grants to the signature. An ad-hoc signature
 # changes with every build, so System Settings would keep showing Koe as allowed while the new build is not.

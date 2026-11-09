@@ -17,12 +17,17 @@ final class ClipReviewer {
         didSet { if playing { player.rate = Float(speed.rawValue) } }
     }
     private(set) var thumbnails: [Int: CGImage] = [:]
+    /// The frame whose spoken note is being heard now.
+    private(set) var talking: Int?
+    @ObservationIgnored private var talkStart: AudioTime = 0
+    @ObservationIgnored private let now: () -> AudioTime
     @ObservationIgnored let player: AVPlayer
     @ObservationIgnored var onFinish: ((Bool) -> Void)?
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
 
-    init(url: URL, info: ClipMovie.Info, sourceLabel: String?) {
+    init(url: URL, info: ClipMovie.Info, sourceLabel: String?, now: @escaping () -> AudioTime) {
+        self.now = now
         self.url = url
         self.info = info
         self.sourceLabel = sourceLabel
@@ -86,15 +91,25 @@ final class ClipReviewer {
     }
 
     func unpick(_ index: Int) {
+        if talking == index { talking = nil }
         review.unpick(index)
         thumbnails[index] = nil
     }
 
-    func note(for index: Int) -> Binding<String> {
-        Binding(
-            get: { self.review.picks.first { $0.index == index }?.note ?? "" },
-            set: { self.review.setNote($0, for: index) }
-        )
+    /// Starts hearing what you say about frame `index`, or stops when it is the one being heard. Starting another
+    /// frame's note ends the last one; talking about it again replaces what you said before.
+    func toggleTalk(_ index: Int) {
+        let was = talking
+        stopTalking()
+        guard was != index else { return }
+        talking = index
+        talkStart = now()
+    }
+
+    private func stopTalking() {
+        guard let index = talking else { return }
+        review.setVoice(VoiceSpan(start: talkStart, end: now()), for: index)
+        talking = nil
     }
 
     /// For `--script`: picks the frames on screen at these times into the clip.
@@ -110,6 +125,7 @@ final class ClipReviewer {
     }
 
     func finish(attach: Bool) {
+        stopTalking()
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
@@ -135,7 +151,7 @@ final class ClipReviewer {
 }
 
 /// The window a clip opens in once it stops: the clip slowed down, a scrubber with the picked frames marked on it,
-/// the frames you picked with a note each, and attach or discard.
+/// the frames you picked, each with what you said about it, and attach or discard.
 struct ClipReviewView: View {
     static let width: CGFloat = 640
     let reviewer: ClipReviewer
@@ -186,7 +202,12 @@ struct ClipReviewView: View {
     private var transport: some View {
         HStack(spacing: 4) {
             Button(action: reviewer.togglePlay) {
-                IconView(icon: reviewer.playing ? .pause : .play, size: .medium, color: nil)
+                ZStack {
+                    IconView(icon: reviewer.playing ? .pause : .play, size: .medium, color: nil)
+                        .id(reviewer.playing)
+                        .transition(GlyphSwap())
+                }
+                .animation(GlyphSwap.animation, value: reviewer.playing)
             }
             .buttonStyle(.koe(.outline, iconOnly: true))
             .hint(reviewer.playing ? "Pause" : "Play", shortcut: "Space")
@@ -222,26 +243,45 @@ struct ClipReviewView: View {
             ScrollView {
                 VStack(spacing: 6) {
                     ForEach(reviewer.review.picks) { pick in
-                        PickedFrameRow(pick: pick, thumbnail: reviewer.thumbnails[pick.index],
-                                       note: reviewer.note(for: pick.index),
-                                       show: { reviewer.pause(); reviewer.show(pick.index) },
-                                       remove: { reviewer.unpick(pick.index) })
+                        row(for: pick)
+                            .transition(GlyphSwap())
                     }
                 }
             }
             .frame(maxHeight: 150)
             .fixedSize(horizontal: false, vertical: true)
         }
+        .animation(.spring(duration: 0.35, bounce: 0.2), value: reviewer.review.picks.map(\.index))
+    }
+
+    private func row(for pick: PickedFrame) -> PickedFrameRow {
+        let index = pick.index
+        return PickedFrameRow(
+            pick: pick, thumbnail: reviewer.thumbnails[index], talking: reviewer.talking == index,
+            talk: { reviewer.toggleTalk(index) },
+            show: { reviewer.pause(); reviewer.show(index) },
+            remove: { reviewer.unpick(index) }
+        )
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
             Button(action: reviewer.pickCurrent) {
+                let picked = reviewer.review.isPicked(reviewer.current)
                 HStack(spacing: 6) {
-                    IconView(icon: .add, size: .small, color: nil)
-                    Text(reviewer.review.isPicked(reviewer.current) ? "Frame picked" : "Pick this frame")
+                    ZStack {
+                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil)
+                            .id(picked)
+                            .transition(GlyphSwap())
+                    }
+                    ZStack {
+                        Text(picked ? "Frame picked" : "Pick this frame")
+                            .id(picked)
+                            .transition(GlyphSwap())
+                    }
                 }
                 .padding(.leading, -2)
+                .animation(GlyphSwap.animation, value: picked)
             }
             .buttonStyle(.koe(.outline))
             .hint("Pick this frame", shortcut: "P")
@@ -294,42 +334,6 @@ private struct Scrubber: View {
         .accessibilityValue(String(format: "%.2f seconds", reviewer.frames.time(of: reviewer.current)))
         .accessibilityAdjustableAction { direction in
             reviewer.step(by: direction == .increment ? 1 : -1)
-        }
-    }
-}
-
-private struct PickedFrameRow: View {
-    let pick: PickedFrame
-    let thumbnail: CGImage?
-    @Binding var note: String
-    let show: () -> Void
-    let remove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button(action: show) {
-                Group {
-                    if let thumbnail {
-                        Image(decorative: thumbnail, scale: 1).resizable().scaledToFill()
-                    } else {
-                        Palette.well
-                    }
-                }
-                .frame(width: 56, height: 34)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .hint("Show this frame")
-            Text(String(format: "%.2f s", pick.time))
-                .font(Typography.meta.monospacedDigit())
-                .foregroundStyle(Palette.fg2)
-                .frame(width: 52, alignment: .leading)
-            TextInput(placeholder: "Add a note for this frame (optional)", text: $note, size: .small)
-            Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.bare, size: .small, iconOnly: true))
-                .hint("Remove this frame")
-                .accessibilityLabel("Remove frame at \(String(format: "%.2f", pick.time)) seconds")
         }
     }
 }

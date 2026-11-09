@@ -28,12 +28,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var copiesInFlight = 0
     /// The sessions the menu listed when it last opened, so a click copies the one you saw.
     private var listed: [HistoryEntry] = []
-    private lazy var pill = PillController(sessions: sessions, tools: PillTools(
+    private lazy var pill: PillController = PillController(sessions: sessions, tools: PillTools(
+        status: tools.status,
         comment: { [weak self] in self?.addComment() },
         screenshot: { [weak self] in self?.takeScreenshot() },
-        note: { [weak self] in self?.addNote() },
         clip: { [weak self] in self?.recordClip() },
-        drop: { [weak self] urls in self?.tools.drop(urls) }
+        drop: { [weak self] urls in self?.tools.drop(urls) },
+        attachments: { [weak self] in self?.pill.toggleAttachments() }
     ))
     /// The shortcuts another app already holds, which the menu points out.
     private var takenHotKeys: Set<KeyCombo> = []
@@ -63,7 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (.toggleSession, { [weak self] in self?.toggleSession() }),
             (.comment, { [weak self] in self?.addComment() }),
             (.screenshot, { [weak self] in self?.takeScreenshot() }),
-            (.note, { [weak self] in self?.addNote() }),
             (.clip, { [weak self] in self?.recordClip() }),
         ]
         for (combo, handler) in hotKeys where HotKeys.shared.register(combo, handler: handler) == nil {
@@ -110,8 +110,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func takeScreenshot() { tools.screenshot() }
 
-    @objc func addNote() { tools.note() }
-
     @objc func recordClip() { tools.clip() }
 
     /// Starts a session for a tool used while none runs, and says whether one is running now.
@@ -142,9 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func run(_ step: ScriptedStep) async {
         switch step.action {
-        case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
-        case .comment(let spot, let note): tools.comment(at: spot, note: note, holds: step.holds)
-        case .note(let text): tools.note(text: text, holds: step.holds)
+        case .screenshot(let rect, let note, let talk): tools.screenshot(preset: rect, note: note, talk: talk, holds: step.holds)
+        case .comment(let spot, let note, let talk): tools.comment(at: spot, note: note, talk: talk, holds: step.holds)
         case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
         case .clip(let rect, let seconds, let picks):
             tools.clip(preset: ClipScript(region: rect, seconds: seconds, picks: picks, holds: step.holds))

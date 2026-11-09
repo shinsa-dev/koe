@@ -34,16 +34,13 @@ enum StatusMenu {
         menu.addItem(toggle)
         let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment, takenHotKeys, target)
         let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, takenHotKeys, target)
-        let note = item("Add a note", #selector(AppDelegate.addNote), .note, takenHotKeys, target)
         let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip,
                         takenHotKeys, target)
         comment.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         screenshot.isEnabled = phase.toggleIntent != .ignore && !recordingClip
-        note.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         clip.isEnabled = phase.toggleIntent != .ignore || recordingClip
         menu.addItem(comment)
         menu.addItem(screenshot)
-        menu.addItem(note)
         menu.addItem(clip)
         menu.addItem(.separator())
 
@@ -121,7 +118,7 @@ enum StatusMenu {
     /// Says which shortcuts another app holds, so you use those tools from the menu or the pill instead.
     private static func addTakenNotice(_ takenHotKeys: Set<KeyCombo>, to menu: NSMenu) {
         guard !takenHotKeys.isEmpty else { return }
-        let names = [KeyCombo.toggleSession, .comment, .screenshot, .note, .clip].filter(takenHotKeys.contains).map(\.displayName)
+        let names = [KeyCombo.toggleSession, .comment, .screenshot, .clip].filter(takenHotKeys.contains).map(\.displayName)
         let taken = NSMenuItem(title: "Another app uses \(names.joined(separator: ", ")), so use them from here.",
                                action: nil, keyEquivalent: "")
         taken.isEnabled = false

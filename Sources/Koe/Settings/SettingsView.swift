@@ -64,7 +64,6 @@ struct SettingsPage: View {
         ("Comment on something", .comment),
         ("Take a screenshot", .screenshot),
         ("Record a clip", .clip),
-        ("Add a note", .note),
     ]
 
     private func binding<Value>(_ path: WritableKeyPath<KoeSettings, Value>) -> Binding<Value> {

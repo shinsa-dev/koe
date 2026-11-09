@@ -1,16 +1,17 @@
 import KoeCore
 import SwiftUI
 
-/// The pill at the bottom of the screen while you talk: a glass capsule with a live waveform of your voice, the
-/// session clock, how many attachments it holds, and pause, discard and finish. When a session ends it shows what
-/// happened, in the same capsule, until it fades.
+/// The pill at the bottom of the screen while you talk: a glass capsule with the tools and what you've attached on
+/// the left, a live waveform of your voice and the session clock, then discard, pause and finish. While a tool is
+/// open it says what to do instead, and when a session ends it shows what happened, in the same capsule.
 struct PillView: View {
     let sessions: SessionController
     let tools: PillTools
     @State private var dropTargeted = false
 
     var body: some View {
-        let content = PillContent(phase: sessions.phase, notice: sessions.notice, dropTargeted: dropTargeted)
+        let content = PillContent(phase: sessions.phase, notice: sessions.notice, prompt: tools.status.prompt,
+                                  dropTargeted: dropTargeted)
         PillBody(content: content, sessions: sessions, tools: tools)
             .floatingSurface(cornerRadius: 20)
             .overlay {
@@ -38,20 +39,25 @@ struct PillView: View {
 
 /// What the pill's tools do. Files dropped on the pill attach at the moment they land.
 struct PillTools {
+    let status: ToolStatus
     let comment: () -> Void
     let screenshot: () -> Void
-    let note: () -> Void
     let clip: () -> Void
     let drop: ([URL]) -> Void
+    /// Opens or closes the list of what the session holds.
+    let attachments: () -> Void
 }
 
 /// What the pill shows: the session's controls, or a notice in their place.
 private enum PillContent: Equatable {
     case session(RecorderPhase)
+    case prompt(ToolPrompt, paused: Bool)
     case notice(PillNotice)
 
-    init(phase: RecorderPhase, notice: PillNotice?, dropTargeted: Bool) {
-        if dropTargeted {
+    init(phase: RecorderPhase, notice: PillNotice?, prompt: ToolPrompt?, dropTargeted: Bool) {
+        if let prompt, phase.isOpen {
+            self = .prompt(prompt, paused: phase == .paused)
+        } else if dropTargeted {
             self = .notice(PillNotice(kind: .neutral, title: "Drop to attach", detail: "At this moment in what you say",
                                       icon: .paperclip))
         } else if case .failed(let reason) = phase {
@@ -72,6 +78,7 @@ private enum PillContent: Equatable {
     var kind: String {
         switch self {
         case .session: "session"
+        case .prompt(let prompt, _): "prompt:\(prompt.stage)"
         case .notice(let notice): "notice:\(notice.title)"
         }
     }
@@ -88,6 +95,10 @@ private struct PillBody: View {
             switch content {
             case .session(let phase):
                 SessionControls(phase: phase, sessions: sessions, tools: tools)
+                    .transition(PillSwap())
+            case .prompt(let prompt, let paused):
+                PromptView(prompt: prompt, paused: paused, sessions: sessions, status: tools.status)
+                    .id(prompt.stage)
                     .transition(PillSwap())
             case .notice(let notice):
                 NoticeView(notice: notice, sessions: sessions)
@@ -117,8 +128,11 @@ private struct SessionControls: View {
                            action: tools.comment)
                 PillButton(icon: .screenshot, tone: .tool, label: "Take a screenshot", shortcut: KeyCombo.screenshot.displayName,
                            action: tools.screenshot)
-                PillButton(icon: .clip, tone: .tool, label: "Record a clip", shortcut: KeyCombo.clip.displayName, action: tools.clip)
-                PillButton(icon: .note, tone: .tool, label: "Add a note", shortcut: KeyCombo.note.displayName, action: tools.note)
+                PillButton(icon: .video, tone: .tool, label: "Record a clip", shortcut: KeyCombo.clip.displayName, action: tools.clip)
+                if sessions.annotationCount > 0 {
+                    AttachmentCount(count: sessions.annotationCount, action: tools.attachments)
+                        .transition(PillSwap())
+                }
             }
             .disabled(!phase.isOpen)
             Divider()
@@ -127,23 +141,15 @@ private struct SessionControls: View {
             Waveform(level: { sessions.level }, live: phase == .recording)
                 .opacity(paused ? 0.35 : 1)
             SessionClock(sessions: sessions, paused: paused)
-            if sessions.annotationCount > 0 {
-                AttachmentCount(count: sessions.annotationCount)
-                    .transition(PillSwap())
-            }
             HStack(spacing: 4) {
                 PillButton(icon: .close, tone: .destructive, label: "Discard", action: sessions.cancel)
                 PillButton(icon: paused ? .play : .pause, tone: .neutral,
                            label: paused ? "Resume" : "Pause", action: paused ? sessions.resume : sessions.pause)
-                    .contentTransition(.symbolEffect(.replace.byLayer, options: .speed(2.5)))
-                    // Quick on its own, whatever pace the rest of the pill moves at.
-                    .animation(.snappy(duration: 0.14), value: paused)
                 PillButton(icon: .checkmark, tone: .action,
                            label: "Finish and copy", shortcut: KeyCombo.toggleSession.displayName, action: sessions.finish)
             }
             .disabled(!phase.isOpen)
         }
-        .animation(.spring(duration: 0.3, bounce: 0.2), value: paused)
     }
 
 }
@@ -168,7 +174,7 @@ private struct SessionClock: View {
 }
 
 /// A round glyph button. Pressing it deflates the circle behind the glyph, as Shinsa's buttons do.
-private struct PillButton: View {
+struct PillButton: View {
     enum Tone { case tool, neutral, destructive, action }
 
     let icon: Icon
@@ -179,7 +185,13 @@ private struct PillButton: View {
 
     var body: some View {
         Button(action: action) {
-            IconView(icon: icon, size: .tiny, color: glyph, weight: .bold)
+            // A new glyph swaps in on its own quick spring, whatever pace the rest of the pill moves at.
+            ZStack {
+                IconView(icon: icon, size: .small, color: glyph)
+                    .id(icon)
+                    .transition(GlyphSwap())
+            }
+            .animation(GlyphSwap.animation, value: icon)
         }
         .buttonStyle(PressDownStyle(fill: fill))
         .hint(label, shortcut: shortcut)
@@ -205,26 +217,29 @@ private struct PillButton: View {
     }
 }
 
-private typealias KoeTone = Tone
+typealias KoeTone = Tone
 
-private struct PressDownStyle: ButtonStyle {
+struct PressDownStyle: ButtonStyle {
     let fill: Color
+    /// nil fits the label, as for the attachment count.
+    var width: CGFloat? = 24
 
     func makeBody(configuration: Configuration) -> some View {
-        PressDown(configuration: configuration, fill: fill)
+        PressDown(configuration: configuration, fill: fill, width: width)
     }
 }
 
 private struct PressDown: View {
     let configuration: ButtonStyleConfiguration
     let fill: Color
+    let width: CGFloat?
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     var body: some View {
         let pressed = configuration.isPressed && isEnabled
         configuration.label
-            .frame(width: 24, height: 24)
+            .frame(width: width, height: 24)
             .background {
                 // Shinsa's press: the background pulls in by the same inset at any size (`--press-inset-x` 1 px,
                 // `--press-inset-y` 0.5 px), so a small button barely moves and a large one moves just as little.
@@ -235,7 +250,7 @@ private struct PressDown: View {
                     .padding(.vertical, pressed ? 0.5 : 0)
                     .animation(.spring(duration: 0.2, bounce: 0.3), value: pressed)
             }
-            .contentShape(Circle())
+            .contentShape(Capsule())
             .opacity(isEnabled ? 1 : 0.4)
             .onHover { hovering = $0 }
     }
@@ -250,7 +265,7 @@ private struct NoticeView: View {
         HStack(spacing: 10) {
             ZStack {
                 Circle().fill(tone.tint)
-                IconView(icon: icon, size: .tiny, color: tone.glyph, weight: .bold)
+                IconView(icon: icon, size: .small, color: tone.glyph)
             }
             .frame(width: 24, height: 24)
             // The two lines sit at the font's own line height, no gap between them.
@@ -295,81 +310,33 @@ private struct NoticeView: View {
     }
 }
 
-/// Your voice as a row of rounded bars in Shinsa's blue that scroll from right to left, sampled 30 times a second,
-/// fading out at both ends. Paused, the bars hold still.
-private struct Waveform: View {
-    static let bars = 22
-    let level: () -> Float
-    let live: Bool
-    @State private var meter = Meter(bars: Self.bars)
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !live)) { context in
-            Canvas { canvas, size in
-                meter.advance(to: context.date, level: live ? level() : 0)
-                let step = size.width / CGFloat(Self.bars)
-                let width = max(2, step - 2)
-                for (index, value) in meter.history.bars.enumerated() {
-                    let height = max(3, size.height * CGFloat(pow(value, 1.6)))
-                    let rect = CGRect(x: CGFloat(index) * step + (step - width) / 2, y: (size.height - height) / 2,
-                                      width: width, height: height)
-                    canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(Palette.action))
-                }
-            }
-        }
-        .frame(width: CGFloat(Self.bars) * 4, height: 22)
-        .mask {
-            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.22),
-                                   .init(color: .black, location: 0.78), .init(color: .clear, location: 1)],
-                           startPoint: .leading, endPoint: .trailing)
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-/// Smooths the raw level, rising fast and falling slowly as a level meter does, and keeps the bars' history.
-/// A reference type so the canvas can advance it on each frame without re-rendering the view.
-private final class Meter {
-    private(set) var history: LevelHistory
-    private var smoothed: Float = 0
-    private var last: Date?
-
-    init(bars: Int) {
-        history = LevelHistory(count: bars)
-    }
-
-    func advance(to date: Date, level: Float) {
-        if let last, date.timeIntervalSince(last) < 1.0 / 32 { return }
-        last = date
-        smoothed = level > smoothed ? level : smoothed * 0.55 + level * 0.45
-        history.push(smoothed)
-    }
-}
-
-/// How many screenshots, notes and files the session holds, so you see each one land.
+/// How many comments, screenshots, clips and files the session holds, so you see each one land. Clicking it lists
+/// them, to look at or take one out.
 private struct AttachmentCount: View {
     let count: Int
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 3) {
-            IconView(icon: .paperclip, size: .small, color: nil)
-            Text("\(count)")
-                .font(Typography.label.monospacedDigit())
-                .contentTransition(.numericText())
+        Button(action: action) {
+            HStack(spacing: 3) {
+                IconView(icon: .paperclip, size: .small, color: nil)
+                Text("\(count)")
+                    .font(Typography.label.monospacedDigit())
+                    .contentTransition(.numericText())
+            }
+            .foregroundStyle(Palette.fg3)
+            .padding(.horizontal, 6)
         }
-        .foregroundStyle(Palette.fg2)
-        .padding(.horizontal, 8)
-        .frame(height: 22)
-        .background(Palette.press, in: Capsule())
+        .buttonStyle(PressDownStyle(fill: .clear, width: nil))
         .animation(.snappy, value: count)
-        .accessibilityElement(children: .ignore)
+        .hint("What you've attached")
         .accessibilityLabel(count == 1 ? "1 attachment" : "\(count) attachments")
     }
 }
 
 /// How the pill's pieces come and go: they shrink, blur and fade out while the new ones grow in, so a change
 /// reads as one smooth morph rather than a cut.
-private struct PillSwap: Transition {
+struct PillSwap: Transition {
     func body(content: Content, phase: TransitionPhase) -> some View {
         content
             .scaleEffect(phase.isIdentity ? 1 : 0.82)

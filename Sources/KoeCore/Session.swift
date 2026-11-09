@@ -78,6 +78,24 @@ public struct ClipFrame: Codable, Sendable, Equatable {
     }
 }
 
+/// A stretch of the session's audio you spoke about one attachment: the words said in it become its note
+/// instead of running on in the transcript.
+public struct VoiceSpan: Codable, Sendable, Equatable {
+    public var start: AudioTime
+    public var end: AudioTime
+
+    public init(start: AudioTime, end: AudioTime) {
+        self.start = max(0, start)
+        self.end = max(self.start, end)
+    }
+
+    /// A word belongs to the span when its middle falls inside it.
+    public func contains(_ word: TimedWord) -> Bool {
+        let middle = (word.start + word.end) / 2
+        return middle >= start && middle <= end
+    }
+}
+
 /// Something you added while talking, stamped with the audio time at the moment you started it.
 public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public enum Kind: Codable, Sendable, Equatable {
@@ -95,15 +113,18 @@ public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public var source: CaptureSource?
     /// For a frame picked out of a clip: which clip, and when in it.
     public var frame: ClipFrame?
+    /// When you spoke about this attachment alone; what you said there is its note.
+    public var voice: VoiceSpan?
 
     public init(id: UUID = UUID(), time: AudioTime, kind: Kind, note: String? = nil, source: CaptureSource? = nil,
-                frame: ClipFrame? = nil) {
+                frame: ClipFrame? = nil, voice: VoiceSpan? = nil) {
         self.id = id
         self.time = max(0, time)
         self.kind = kind
         self.note = note
         self.source = source
         self.frame = frame
+        self.voice = voice
     }
 
     public var asset: Asset? {

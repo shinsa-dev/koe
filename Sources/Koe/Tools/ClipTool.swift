@@ -146,7 +146,7 @@ final class ClipTool {
 
     private func review(_ recording: Recording, info: ClipMovie.Info) {
         let label = recording.source.map { [$0.app, $0.window].compactMap(\.self).joined(separator: " · ") }
-        let reviewer = ClipReviewer(url: recording.url, info: info, sourceLabel: label)
+        let reviewer = ClipReviewer(url: recording.url, info: info, sourceLabel: label) { [sessions] in sessions.currentTime }
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
         let size = NSSize(width: ClipReviewView.width + 48, height: min(visible.height - PillPanel.cardsAbove, 720))
@@ -158,14 +158,7 @@ final class ClipTool {
         panel.host(ClipReviewView(reviewer: reviewer)
             .padding(.bottom, 8)
             .frame(width: size.width, height: size.height, alignment: .bottom))
-        // Esc in a frame's note leaves the note; only Esc outside one discards the clip.
-        panel.onCancel = { [weak panel] in
-            if let panel, panel.firstResponder is NSText {
-                panel.makeFirstResponder(nil)
-            } else {
-                reviewer.finish(attach: false)
-            }
-        }
+        panel.onCancel = { reviewer.finish(attach: false) }
         reviewer.onFinish = { [weak self] attach in
             self?.closeReview()
             if attach {
@@ -177,7 +170,7 @@ final class ClipTool {
         }
         reviewPanel = panel
         reviewKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak reviewer, weak panel] event in
-            guard let reviewer, event.window === panel, !(panel?.firstResponder is NSText) else { return event }
+            guard let reviewer, event.window === panel else { return event }
             return Self.handle(event, in: reviewer) ? nil : event
         }
         panel.present()

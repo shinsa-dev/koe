@@ -21,7 +21,8 @@ final class PillPanel: NSPanel {
         // Floating HUDs are dark like the notch, whatever the theme.
         appearance = NSAppearance(named: .darkAqua)
         isFloatingPanel = true
-        level = .statusBar
+        // Above the frozen screen the tools put up, since the pill says what to do while it shows.
+        level = Self.level
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isOpaque = false
         backgroundColor = .clear
@@ -35,6 +36,8 @@ final class PillPanel: NSPanel {
             .focusEffectDisabled())
         contentView = host
     }
+
+    static let level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -52,11 +55,46 @@ final class PillController {
     private var pendingHide: Task<Void, Never>?
 
     private let presence = PillPresence()
+    private let sessions: SessionController
+    private var list: ToolPanel?
+    private var listWatch: Task<Void, Never>?
 
     init(sessions: SessionController, tools: PillTools) {
+        self.sessions = sessions
         panel = PillPanel(rootView: PillEntrance(presence: presence) {
             PillView(sessions: sessions, tools: tools)
         })
+    }
+
+    /// Opens the list of what the session holds just above the pill, or closes it.
+    func toggleAttachments() {
+        if list != nil { return closeAttachments() }
+        guard !sessions.attachments.isEmpty else { return }
+        let size = NSSize(width: AttachmentList.width + 40, height: 360)
+        let frame = panel.frame
+        let list = ToolPanel(frame: NSRect(x: frame.midX - size.width / 2, y: frame.minY + PillPanel.cardsAbove - 20,
+                                           width: size.width, height: size.height), level: PillPanel.level)
+        list.host(AttachmentList(sessions: sessions, close: { [weak self] in self?.closeAttachments() })
+            .padding(.bottom, 20)
+            .frame(width: size.width, height: size.height, alignment: .bottom))
+        list.onCancel = { [weak self] in self?.closeAttachments() }
+        list.orderFrontRegardless()
+        self.list = list
+        // It closes once the session has nothing left to list, or the session ends.
+        listWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard let self else { return }
+                if sessions.attachments.isEmpty || !sessions.phase.isOpen { closeAttachments() }
+            }
+        }
+    }
+
+    func closeAttachments() {
+        listWatch?.cancel()
+        listWatch = nil
+        list?.close()
+        list = nil
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -85,6 +123,7 @@ final class PillController {
     }
 
     func hide() {
+        closeAttachments()
         pendingHide?.cancel()
         guard panel.isVisible, presence.shown else { return }
         withAnimation(PillPresence.exit) { presence.shown = false } completion: { [panel, presence] in
