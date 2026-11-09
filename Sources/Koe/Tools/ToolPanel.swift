@@ -29,7 +29,8 @@ final class ToolPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func host<Content: View>(_ view: Content) {
-        contentView = FirstMouseHostingView(rootView: view)
+        // Koe draws its own states, as the web does; the system's keyboard focus ring never shows.
+        contentView = FirstMouseHostingView(rootView: view.focusEffectDisabled())
     }
 
     func present() {

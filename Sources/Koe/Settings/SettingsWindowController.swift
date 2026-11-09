@@ -26,7 +26,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsRoot(
             library: library, permissions: permissions, openSessions: openSessions
-        ))
+        ).focusEffectDisabled())
         super.init(window: window)
         window.delegate = self
     }

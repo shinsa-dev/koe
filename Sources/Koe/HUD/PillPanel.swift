@@ -31,7 +31,8 @@ final class PillPanel: NSPanel {
         animationBehavior = .none
         let host = FirstClickHostingView(rootView: rootView
             .padding(.bottom, Self.bottomInset)
-            .frame(width: Self.size.width, height: Self.size.height, alignment: .bottom))
+            .frame(width: Self.size.width, height: Self.size.height, alignment: .bottom)
+            .focusEffectDisabled())
         contentView = host
     }
 
