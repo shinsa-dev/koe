@@ -23,12 +23,15 @@ struct PillView: View {
             } animation: { scale in
                 scale > 1 ? .spring(duration: 0.18, bounce: 0) : .spring(duration: 0.4, bounce: 0.35)
             }
-            .animation(.spring(duration: 0.45, bounce: 0.2), value: content)
-            .animation(.spring(duration: 0.35, bounce: 0.2), value: sessions.annotationCount > 0)
             .dropDestination(for: URL.self) { urls, _ in
                 onDrop(urls)
                 return true
             } isTargeted: { dropTargeted = $0 }
+            // The pill is centred inside the animation's scope, so a change of width moves both edges together
+            // instead of the left edge jumping while the right one springs.
+            .frame(maxWidth: .infinity)
+            .animation(.spring(duration: 0.45, bounce: 0.2), value: content)
+            .animation(.spring(duration: 0.35, bounce: 0.2), value: sessions.annotationCount > 0)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Koe")
     }
@@ -71,7 +74,8 @@ private struct PillBody: View {
     let sessions: SessionController
 
     var body: some View {
-        HStack(spacing: 10) {
+        // Stacked, not side by side: what leaves and what arrives share the centre while the pill resizes.
+        ZStack {
             switch content {
             case .session(let phase):
                 SessionControls(phase: phase, sessions: sessions)
