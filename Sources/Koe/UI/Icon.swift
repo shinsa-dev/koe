@@ -22,6 +22,8 @@ enum Icon: String, CaseIterable {
     case next = "chevron.right"
     case add = "plus"
     case trash = "trash"
+    case warning = "exclamationmark"
+    case muted = "mic.slash"
 
     enum Size: CGFloat {
         case tiny = 10, small = 12, medium = 14, large = 18

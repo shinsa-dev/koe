@@ -43,13 +43,13 @@ struct ClipboardPlanTests {
         #expect(ClipboardPlan.items(for: empty, copyFiles: true) { _ in true }.isEmpty)
     }
 
-    @Test func theConfirmationCountsTheFiles() {
+    @Test func theSummaryCountsWordsAndFiles() {
         let text = ClipboardItem.text(plain: "a", html: "a")
         let file = ClipboardItem.file(URL(fileURLWithPath: "/a.png"))
-        #expect(ClipboardPlan.confirmation(for: [text], pasted: false) == "Copied the transcript. Paste it anywhere.")
-        #expect(ClipboardPlan.confirmation(for: [text, file], pasted: false)
-            == "Copied the transcript and 1 file. Paste it anywhere.")
-        #expect(ClipboardPlan.confirmation(for: [text, file, file], pasted: true) == "Pasted the transcript and 2 files.")
+        #expect(ClipboardPlan.summary(for: [text], words: 1, pasted: false) == ("Copied", "1 word"))
+        #expect(ClipboardPlan.summary(for: [text, file], words: 42, pasted: false) == ("Copied", "42 words and 1 file"))
+        #expect(ClipboardPlan.summary(for: [text, file, file], words: 0, pasted: true) == ("Pasted", "2 files"))
+        #expect(ClipboardPlan.summary(for: [text], words: 0, pasted: false) == ("Copied", "The transcript"))
     }
 }
 
@@ -152,6 +152,38 @@ struct SessionArchiveTests {
         let archive = SessionArchive(root: root)
         try archive.save(Session(words: [TimedWord("kept", start: 0, end: 1)]), in: root.appending(path: "2026-11-04-000000-AAAA"))
         #expect(archive.recent(limit: 5).map { $0.session.words.first?.text } == ["kept"])
+    }
+
+    @Test func aFolderWithAudioButNoSessionIsUnfinished() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = SessionArchive(root: root)
+        let crashed = root.appending(path: "2026-11-09-100000-CCCC")
+        try FileManager.default.createDirectory(at: crashed, withIntermediateDirectories: true)
+        try Data([0]).write(to: crashed.appending(path: SessionArchive.audioName))
+        try archive.saveDraft(Session(annotations: [Annotation(time: 2, kind: .note, note: "kept")]), in: crashed)
+        let bare = root.appending(path: "2026-11-09-110000-DDDD")
+        try FileManager.default.createDirectory(at: bare, withIntermediateDirectories: true)
+        try Data([0]).write(to: bare.appending(path: SessionArchive.audioName))
+        let done = root.appending(path: "2026-11-09-120000-EEEE")
+        try FileManager.default.createDirectory(at: done, withIntermediateDirectories: true)
+        try Data([0]).write(to: done.appending(path: SessionArchive.audioName))
+        try archive.save(Session(), in: done)
+
+        let unfinished = archive.unfinished()
+        #expect(unfinished.map(\.folder.lastPathComponent) == ["2026-11-09-100000-CCCC", "2026-11-09-110000-DDDD"])
+        #expect(unfinished.first?.draft?.annotations.first?.note == "kept")
+        #expect(unfinished.last?.draft == nil)
+    }
+
+    @Test func savingASessionRemovesItsDraft() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = SessionArchive(root: root)
+        let folder = root.appending(path: "2026-11-09-100000-CCCC")
+        try archive.saveDraft(Session(), in: folder)
+        try archive.save(Session(), in: folder)
+        #expect(!FileManager.default.fileExists(atPath: folder.appending(path: SessionArchive.draftName).path))
     }
 
     @Test func aMissingRootIsEmpty() {

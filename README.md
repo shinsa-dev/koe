@@ -46,8 +46,27 @@ whatever the theme. Copy is sentence case, full sentences, no em dashes.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
 - The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform
-  of your voice (`AudioLevel`, `LevelHistory`), the clock, the attachment count and a stop button; words only show
-  for a notice ("Copied…"), a failure or a drop.
+  of your voice (`AudioLevel`, `LevelHistory`), the clock (audio time, so it stops while paused, digits rolling with
+  `.numericText()`), the attachment count, and pause, discard (red) and finish (blue). Pressing a button deflates the
+  circle behind its glyph. When a session ends the same capsule shows a badge, a title and one line ("Copied",
+  "42 words and 2 files"; "Discarded"; "Nothing heard"), then fades.
+
+## Recording is instant and never lost
+
+- **No waiting states.** The hotkey opens the microphone at once and the pill is recording straight away.
+  `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
+  the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
+  assets, format) is worked out at launch and kept.
+- **Finishing copies at once** (`Delivery`): the words heard so far, the model's latest guess included, go on the
+  clipboard the moment you finish. When the last words settle a moment later, the session is saved again and the
+  clipboard is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Koe waits only for a
+  tool you still have open, or when the model has not produced a single word yet.
+- **Nothing is lost.** The audio is on disk as it is recorded (CAF stays readable when Koe is killed mid-write) and
+  `draft.json` lists the attachments so far. At launch, a folder with audio and no `session.json` is a recording Koe
+  never finished: it is transcribed from the file and saved to Recent sessions (`SessionArchive.unfinished`,
+  `SessionLibrary.recover`). A model that fails mid-session leaves the recording running and attaches the audio.
+  A new input device (AirPods connecting) restarts the tap instead of ending the session. Discard is the one way a
+  recording goes: it deletes the session's folder.
 
 ## Layout
 

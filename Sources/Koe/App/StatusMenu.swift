@@ -109,8 +109,8 @@ enum StatusMenu {
     private static func stateLine(checklist: SetupChecklist, phase: RecorderPhase) -> String {
         switch phase {
         case .recording: "Koe is listening"
-        case .preparing: "Koe is getting ready"
-        case .finishing: "Koe is finishing"
+        case .paused: "Koe is paused"
+        case .finishing: "Koe is copying"
         case .idle, .failed: checklist.isReady ? "Koe is ready" : "Koe needs permissions"
         }
     }
@@ -118,8 +118,8 @@ enum StatusMenu {
     private static func toggleTitle(_ phase: RecorderPhase) -> String {
         switch phase.toggleIntent {
         case .start: "Start dictation"
-        case .stop: "Stop dictation"
-        case .ignore: "Finishing…"
+        case .stop: "Finish and copy"
+        case .ignore: "Copying…"
         }
     }
 }

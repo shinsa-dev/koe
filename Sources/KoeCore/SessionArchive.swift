@@ -4,6 +4,10 @@ import Foundation
 /// can copy it again later, after a relaunch too.
 public struct SessionArchive: Sendable {
     public static let fileName = "session.json"
+    /// The session so far, written each time an attachment lands, so a crash keeps them with the audio.
+    public static let draftName = "draft.json"
+    /// The session's audio, written as it is recorded. CAF stays readable even when Koe is killed mid-write.
+    public static let audioName = "audio.caf"
     public let root: URL
 
     public init(root: URL) {
@@ -12,10 +16,42 @@ public struct SessionArchive: Sendable {
 
     public func save(_ session: Session, in folder: URL) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Self.encoder.encode(session).write(to: folder.appending(path: Self.fileName), options: .atomic)
+        try? FileManager.default.removeItem(at: folder.appending(path: Self.draftName))
+    }
+
+    public func saveDraft(_ session: Session, in folder: URL) throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Self.encoder.encode(session).write(to: folder.appending(path: Self.draftName), options: .atomic)
+    }
+
+    /// Sessions whose audio was recorded but that never finished, because Koe quit or crashed while recording:
+    /// a folder with `audio.caf` and no `session.json`. Each comes with its draft when one was written.
+    public func unfinished() -> [(folder: URL, draft: Session?)] {
+        let manager = FileManager.default
+        let folders = (try? manager.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles
+        )) ?? []
+        return folders.sorted { $0.lastPathComponent < $1.lastPathComponent }.compactMap { folder in
+            guard manager.fileExists(atPath: folder.appending(path: Self.audioName).path),
+                  !manager.fileExists(atPath: folder.appending(path: Self.fileName).path) else { return nil }
+            let draft = (try? Data(contentsOf: folder.appending(path: Self.draftName)))
+                .flatMap { try? Self.decoder.decode(Session.self, from: $0) }
+            return (folder, draft)
+        }
+    }
+
+    private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        try encoder.encode(session).write(to: folder.appending(path: Self.fileName), options: .atomic)
+        return encoder
+    }
+
+    private static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 
     /// The newest sessions first, at most `limit`. A folder without a readable `session.json` is skipped.
@@ -23,8 +59,7 @@ public struct SessionArchive: Sendable {
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles
         )) ?? []
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = Self.decoder
         var entries: [HistoryEntry] = []
         for folder in folders.sorted(by: { $0.lastPathComponent > $1.lastPathComponent }) {
             guard entries.count < limit else { break }

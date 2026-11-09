@@ -101,9 +101,9 @@ struct RecorderPhaseTests {
         #expect(RecorderPhase.failed("No microphone").toggleIntent == .start)
     }
 
-    @Test func theHotkeyStopsWhilePreparingOrRecording() {
-        #expect(RecorderPhase.preparing.toggleIntent == .stop)
-        #expect(RecorderPhase.recording(since: Date()).toggleIntent == .stop)
+    @Test func theHotkeyFinishesWhileRecordingOrPaused() {
+        #expect(RecorderPhase.recording.toggleIntent == .stop)
+        #expect(RecorderPhase.paused.toggleIntent == .stop)
     }
 
     @Test func theHotkeyWaitsWhileASessionFinishes() {
@@ -111,11 +111,37 @@ struct RecorderPhaseTests {
     }
 
     @Test func activeCoversEveryPhaseWithASession() {
-        #expect(RecorderPhase.preparing.isActive)
-        #expect(RecorderPhase.recording(since: Date()).isActive)
+        #expect(RecorderPhase.recording.isActive)
+        #expect(RecorderPhase.paused.isActive)
         #expect(RecorderPhase.finishing.isActive)
         #expect(!RecorderPhase.idle.isActive)
         #expect(!RecorderPhase.failed("x").isActive)
+    }
+
+    @Test func onlyRecordingAndPausedAreOpen() {
+        #expect(RecorderPhase.recording.isOpen)
+        #expect(RecorderPhase.paused.isOpen)
+        #expect(!RecorderPhase.finishing.isOpen)
+        #expect(!RecorderPhase.idle.isOpen)
+    }
+}
+
+struct DeliveryTests {
+    @Test func copiesAtOnceWithTheWordsHeardSoFar() {
+        #expect(Delivery.decide(openTools: 0, hasWords: true, transcriptDone: false) == .deliver(final: false))
+    }
+
+    @Test func aSettledTranscriptIsFinal() {
+        #expect(Delivery.decide(openTools: 0, hasWords: true, transcriptDone: true) == .deliver(final: true))
+        #expect(Delivery.decide(openTools: 0, hasWords: false, transcriptDone: true) == .deliver(final: true))
+    }
+
+    @Test func waitsForAToolStillOpen() {
+        #expect(Delivery.decide(openTools: 1, hasWords: true, transcriptDone: true) == .wait)
+    }
+
+    @Test func waitsWhenTheModelHasNoWordYetButIsStillWorking() {
+        #expect(Delivery.decide(openTools: 0, hasWords: false, transcriptDone: false) == .wait)
     }
 }
 

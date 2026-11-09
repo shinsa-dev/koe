@@ -25,6 +25,10 @@ struct AppleSpeechTranscriber: Transcriber {
         }
     }
 
+    func prewarm() async {
+        _ = try? await SpeechSetup.shared.prepare(locale)
+    }
+
     func transcribe(_ source: any AudioSource) -> AsyncThrowingStream<TranscriberEvent, any Error> {
         let locale = locale
         return AsyncThrowingStream { continuation in
@@ -33,7 +37,7 @@ struct AppleSpeechTranscriber: Transcriber {
                     try await Self.run(source: source, locale: locale, events: continuation)
                     continuation.finish()
                 } catch {
-                    source.stop()
+                    source.detach()
                     continuation.finish(throwing: error)
                 }
             }
@@ -41,29 +45,33 @@ struct AppleSpeechTranscriber: Transcriber {
         }
     }
 
+    func transcribe(file: URL) async throws -> [TimedWord] {
+        let prepared = try await SpeechSetup.shared.prepare(locale)
+        let module = SpeechSetup.module(for: prepared.locale)
+        let analyzer = SpeechAnalyzer(modules: [module])
+        let audio = try AVAudioFile(forReading: file)
+        let results = Task {
+            var transcript = LiveTranscript()
+            for try await result in module.results { transcript.apply(TranscriptUpdate(result)) }
+            return transcript.words + transcript.pending
+        }
+        if let end = try await analyzer.analyzeSequence(from: audio) {
+            try await analyzer.finalizeAndFinish(through: end)
+        } else {
+            await analyzer.cancelAndFinishNow()
+        }
+        return try await results.value
+    }
+
     private static func run(
         source: any AudioSource,
         locale: Locale,
         events: AsyncThrowingStream<TranscriberEvent, any Error>.Continuation
     ) async throws {
-        guard SpeechTranscriber.isAvailable else { throw Failure.unavailable }
-        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw Failure.unsupportedLanguage(locale)
-        }
-        let module = SpeechTranscriber(
-            locale: supported,
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults],
-            attributeOptions: [.audioTimeRange]
-        )
-        if let install = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
-            try await install.downloadAndInstall()
-        }
-        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module]) else {
-            throw Failure.noAudioFormat
-        }
+        let prepared = try await SpeechSetup.shared.prepare(locale)
+        let module = SpeechSetup.module(for: prepared.locale)
         let analyzer = SpeechAnalyzer(modules: [module])
-        try await analyzer.prepareToAnalyze(in: format)
+        try await analyzer.prepareToAnalyze(in: prepared.format)
 
         let (input, feed) = AsyncStream.makeStream(of: AnalyzerInput.self)
         let results = Task {
@@ -71,7 +79,7 @@ struct AppleSpeechTranscriber: Transcriber {
                 events.yield(.update(TranscriptUpdate(result)))
             }
         }
-        try source.start(format: format, deliver: { feed.yield(AnalyzerInput(buffer: $0)) }, finish: { feed.finish() })
+        source.attach(format: prepared.format, deliver: { feed.yield(AnalyzerInput(buffer: $0)) }, finish: { feed.finish() })
         events.yield(.listening)
         if let end = try await analyzer.analyzeSequence(input) {
             try await analyzer.finalizeAndFinish(through: end)
@@ -79,6 +87,42 @@ struct AppleSpeechTranscriber: Transcriber {
             await analyzer.cancelAndFinishNow()
         }
         try await results.value
+    }
+}
+
+/// What every session needs from the model before audio can flow: the supported locale, the installed assets and the
+/// audio format. Worked out once, at launch, and kept, so starting a session costs only the analyzer itself.
+actor SpeechSetup {
+    static let shared = SpeechSetup()
+
+    struct Prepared: @unchecked Sendable {
+        let locale: Locale
+        let format: AVAudioFormat
+    }
+
+    private var cache: [String: Prepared] = [:]
+
+    static func module(for locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults],
+                          attributeOptions: [.audioTimeRange])
+    }
+
+    func prepare(_ locale: Locale) async throws -> Prepared {
+        if let cached = cache[locale.identifier] { return cached }
+        guard SpeechTranscriber.isAvailable else { throw AppleSpeechTranscriber.Failure.unavailable }
+        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
+            throw AppleSpeechTranscriber.Failure.unsupportedLanguage(locale)
+        }
+        let module = Self.module(for: supported)
+        if let install = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
+            try await install.downloadAndInstall()
+        }
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module]) else {
+            throw AppleSpeechTranscriber.Failure.noAudioFormat
+        }
+        let prepared = Prepared(locale: supported, format: format)
+        cache[locale.identifier] = prepared
+        return prepared
     }
 }
 

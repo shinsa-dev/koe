@@ -127,6 +127,21 @@ final class ClipTool {
         }
     }
 
+    /// Drops the clip in progress, recording or in review, when its session was discarded.
+    func discard() {
+        if let recording {
+            recording.autoStop?.cancel()
+            recording.indicator?.close()
+            self.recording = nil
+            Task {
+                try? await recording.recorder?.stop()
+                try? FileManager.default.removeItem(at: recording.url)
+            }
+        }
+        closeReview()
+        busy = false
+    }
+
     // MARK: Review
 
     private func review(_ recording: Recording, info: ClipMovie.Info) {

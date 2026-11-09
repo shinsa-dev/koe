@@ -1,7 +1,8 @@
+import Foundation
 import KoeCore
 
 enum TranscriberEvent: Sendable, Equatable {
-    /// The model is loaded and audio is flowing: the session has started.
+    /// The model is attached and catching up on the audio recorded so far.
     case listening
     case update(TranscriptUpdate)
 }
@@ -9,6 +10,11 @@ enum TranscriberEvent: Sendable, Equatable {
 /// Turns a source's audio into timed text. Apple's on-device model is the one Koe ships; WhisperKit or Parakeet
 /// would plug in here.
 protocol Transcriber: Sendable {
-    /// Events until the source finishes and every word is settled. Stopping the source ends the stream.
+    /// Gets the model ready ahead of the first session, so a session's audio reaches it at once.
+    func prewarm() async
+    /// Events until the source finishes and every word is settled. The source is already recording; stopping it ends
+    /// the stream. A failure ends the stream and leaves the recording running.
     func transcribe(_ source: any AudioSource) -> AsyncThrowingStream<TranscriberEvent, any Error>
+    /// The words of a whole recording, as fast as the model reads it: how a recording Koe never finished is recovered.
+    func transcribe(file: URL) async throws -> [TimedWord]
 }

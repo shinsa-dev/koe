@@ -2,8 +2,60 @@ import Foundation
 import KoeCore
 import os
 
-/// Runs one dictation session at a time: opens the source, feeds the transcriber, keeps the live transcript, and
-/// hands the finished session on when you stop.
+/// What the pill says when it has something to say instead of the waveform.
+struct PillNotice: Equatable {
+    enum Kind { case success, neutral, failure }
+
+    var kind: Kind
+    var title: String
+    var detail: String?
+    /// The glyph in the notice's badge; each kind has its own when none is given.
+    var icon: Icon?
+}
+
+/// One recording: its audio source, the transcript as it settles, the tools still open on it and its folder.
+/// It outlives the session in the pill: once copied it keeps transcribing until the last words settle.
+@MainActor
+private final class Take {
+    var session = Session()
+    var transcript = LiveTranscript()
+    var ledger = AnnotationLedger()
+    var folder: SessionFolder
+    let source: any AudioSource
+    var transcription: Task<Void, Never>?
+    var transcriptDone = false
+    var failure: (any Error)?
+    var delivered: Session?
+    var cancelled = false
+
+    init(source: any AudioSource, root: URL) {
+        self.source = source
+        folder = SessionFolder(url: root.appending(
+            path: SessionFolder.name(startedAt: session.startedAt, id: session.id), directoryHint: .isDirectory
+        ))
+    }
+
+    var audioURL: URL { folder.url.appending(path: SessionArchive.audioName) }
+
+    /// The session as it stands: every word heard so far, the model's latest guess included. When the model failed
+    /// and heard nothing, the recording itself is attached so nothing you said is lost.
+    func snapshot() -> Session {
+        var session = session
+        session.words = transcript.words + transcript.pending
+        session.annotations = ledger.annotations
+        if failure != nil, session.words.isEmpty {
+            session.annotations.append(Annotation(
+                time: 0, kind: .file(Asset(url: audioURL, kind: .file)),
+                note: "Koe couldn't transcribe this, so the recording is attached."
+            ))
+        }
+        return session
+    }
+}
+
+/// Runs one dictation session at a time. Recording starts the moment you ask: the microphone opens at once and the
+/// model catches up on what it missed. Finishing copies at once with what has been heard, and refines the copy when
+/// the last words settle.
 @MainActor
 @Observable
 final class SessionController {
@@ -14,55 +66,52 @@ final class SessionController {
             onPhaseChange?(phase)
         }
     }
-    private(set) var transcript = LiveTranscript()
-    private(set) var lastSession: Session?
     /// How many screenshots, notes and files this session holds so far.
     private(set) var annotationCount = 0
-    /// A short message the pill shows for a few seconds, such as a capture that failed.
-    private(set) var notice: String?
+    /// What the pill says for a few seconds instead of the waveform: a copy, a discard, a capture that failed.
+    private(set) var notice: PillNotice?
     @ObservationIgnored private var noticeDismissal: Task<Void, Never>?
 
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "session")
     @ObservationIgnored var onPhaseChange: ((RecorderPhase) -> Void)?
-    /// A session that holds something, with the folder its files are in.
+    /// A session copied at once, with the folder its files are in.
     @ObservationIgnored var onFinish: ((Session, URL) -> Void)?
+    /// The same session once its last words settled, when they differ from what was copied.
+    @ObservationIgnored var onRefine: ((Session, URL) -> Void)?
+    /// A session you discarded, so its open tools close.
+    @ObservationIgnored var onCancel: (() -> Void)?
 
     @ObservationIgnored private let transcriber: any Transcriber
     @ObservationIgnored private let makeSource: () -> any AudioSource
-    @ObservationIgnored private var source: (any AudioSource)?
-    @ObservationIgnored private var session = Session()
-    @ObservationIgnored private var ledger = AnnotationLedger()
-    @ObservationIgnored private var folder: SessionFolder?
-    @ObservationIgnored private var transcriptFailure: (any Error)?
+    @ObservationIgnored private var take: Take?
+    @ObservationIgnored private let archive: SessionArchive
     @ObservationIgnored private var dismissal: Task<Void, Never>?
 
     /// How long a failure stays in the pill before it goes away by itself.
     @ObservationIgnored var failureDisplay: Duration = .seconds(6)
 
-    @ObservationIgnored private let sessionsRoot: URL
-
     init(transcriber: any Transcriber, sessionsRoot: URL = SessionController.defaultRoot,
          makeSource: @escaping () -> any AudioSource) {
         self.transcriber = transcriber
-        self.sessionsRoot = sessionsRoot
+        archive = SessionArchive(root: sessionsRoot)
         self.makeSource = makeSource
     }
 
-    /// `~/Library/Application Support/Koe/Sessions`: one folder per session for its screenshots and files.
+    /// `~/Library/Application Support/Koe/Sessions`: one folder per session for its audio, screenshots and files.
     static var defaultRoot: URL {
         URL.applicationSupportDirectory.appending(path: "Koe/Sessions", directoryHint: .isDirectory)
     }
 
-    /// Seconds into the session's audio, which every annotation is stamped with.
-    var currentTime: AudioTime { source?.currentTime ?? 0 }
+    /// Seconds of the session's audio, pauses left out: what the clock shows and every annotation is stamped with.
+    var currentTime: AudioTime { take?.source.currentTime ?? 0 }
 
     /// How loud the microphone is right now, 0...1. Read by the pill's waveform on each frame.
-    var level: Float { source?.level ?? 0 }
+    var level: Float { phase == .recording ? take?.source.level ?? 0 : 0 }
 
     func toggle() {
         switch phase.toggleIntent {
         case .start: start()
-        case .stop: stop()
+        case .stop: finish()
         case .ignore: break
         }
     }
@@ -73,48 +122,90 @@ final class SessionController {
         // A new session goes straight to its waveform, whatever the last one left in the pill.
         noticeDismissal?.cancel()
         notice = nil
-        let source = makeSource()
-        self.source = source
-        session = Session()
-        ledger = AnnotationLedger()
+        let take = Take(source: makeSource(), root: archive.root)
+        do {
+            try FileManager.default.createDirectory(at: take.folder.url, withIntermediateDirectories: true)
+            try take.source.start(recordingTo: take.audioURL)
+        } catch {
+            try? FileManager.default.removeItem(at: take.folder.url)
+            fail(error)
+            return
+        }
+        self.take = take
         annotationCount = 0
-        transcriptFailure = nil
-        folder = SessionFolder(url: sessionsRoot.appending(
-            path: SessionFolder.name(startedAt: session.startedAt, id: session.id), directoryHint: .isDirectory
-        ))
-        transcript = LiveTranscript()
-        phase = .preparing
-        let events = transcriber.transcribe(source)
-        Task {
+        phase = .recording
+        saveDraft(take)
+        let events = transcriber.transcribe(take.source)
+        take.transcription = Task { [weak self] in
+            var failure: (any Error)?
             do {
-                for try await event in events { handle(event) }
+                for try await event in events {
+                    if case .update(let update) = event { take.transcript.apply(update) }
+                }
             } catch {
-                transcriptFailure = error
+                failure = error
             }
-            ledger.endTranscript()
-            if !ledger.isSettled { phase = .finishing }
-            settleIfDone()
+            self?.transcriptEnded(take, failure: failure)
         }
     }
 
-    /// Stamps the moment a tool starts with the session's audio time. Nil when no session is running.
-    func openTicket() -> AnnotationLedger.Ticket? {
-        guard phase.isActive, !ledger.transcriptDone else { return nil }
-        return ledger.open(at: currentTime)
+    func pause() {
+        guard phase == .recording, let take else { return }
+        take.source.pause()
+        phase = .paused
     }
 
-    /// Hands back a tool's annotation, or nil when you cancelled it. A session that stopped meanwhile ends now.
+    func resume() {
+        guard phase == .paused, let take else { return }
+        take.source.resume()
+        phase = .recording
+    }
+
+    /// Stops recording and copies. Waits only for a tool still open, or for the very first words.
+    func finish() {
+        guard phase.isOpen, let take else { return }
+        phase = .finishing
+        take.source.stop()
+        deliverIfReady()
+    }
+
+    /// Stops recording and throws the session away: nothing is copied and its folder goes.
+    func cancel() {
+        guard phase.isActive, let take else { return }
+        take.cancelled = true
+        take.source.stop()
+        take.transcription?.cancel()
+        try? FileManager.default.removeItem(at: take.folder.url)
+        self.take = nil
+        annotationCount = 0
+        // The notice goes up before the phase changes, so the pill stays to show it.
+        post(PillNotice(kind: .neutral, title: "Discarded", detail: "Nothing was copied", icon: .trash))
+        onCancel?()
+        phase = .idle
+    }
+
+    /// Stamps the moment a tool starts with the session's audio time. Nil when no session is open.
+    func openTicket() -> AnnotationLedger.Ticket? {
+        guard phase.isOpen, let take else { return nil }
+        return take.ledger.open(at: currentTime)
+    }
+
+    /// Hands back a tool's annotation, or nil when you cancelled it. A session that stopped meanwhile is copied now.
     func close(_ ticket: AnnotationLedger.Ticket, with annotation: Annotation?) {
-        guard ledger.close(ticket, with: annotation) else { return }
-        annotationCount = ledger.annotations.count
-        settleIfDone()
+        guard let take, take.ledger.close(ticket, with: annotation) else { return }
+        annotationClosed(take)
     }
 
     /// Hands back a clip and the frames picked from it, each stamped some seconds after the ticket's time.
     func close(_ ticket: AnnotationLedger.Ticket, with annotations: [(annotation: Annotation, after: AudioTime)]) {
-        guard ledger.close(ticket, with: annotations) else { return }
-        annotationCount = ledger.annotations.count
-        settleIfDone()
+        guard let take, take.ledger.close(ticket, with: annotations) else { return }
+        annotationClosed(take)
+    }
+
+    private func annotationClosed(_ take: Take) {
+        annotationCount = take.ledger.annotations.count
+        saveDraft(take)
+        deliverIfReady()
     }
 
     func clipURL() throws -> URL {
@@ -136,21 +227,17 @@ final class SessionController {
     }
 
     private func reserveFile(_ pick: (inout SessionFolder) -> URL) throws -> URL {
-        guard var folder else { throw CocoaError(.fileNoSuchFile) }
-        let url = pick(&folder)
-        self.folder = folder
-        try FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
+        guard let take else { throw CocoaError(.fileNoSuchFile) }
+        let url = pick(&take.folder)
+        try FileManager.default.createDirectory(at: take.folder.url, withIntermediateDirectories: true)
         return url
     }
 
-    /// Closes the microphone; the session ends once the transcriber has settled the last words.
-    func stop() {
-        guard phase.toggleIntent == .stop else { return }
-        phase = .finishing
-        source?.stop()
+    func post(notice: String) {
+        post(PillNotice(kind: .neutral, title: notice))
     }
 
-    func post(notice: String) {
+    func post(_ notice: PillNotice) {
         self.notice = notice
         noticeDismissal?.cancel()
         noticeDismissal = Task { [weak self] in
@@ -165,35 +252,57 @@ final class SessionController {
         if case .failed = phase { phase = .idle }
     }
 
-    private func handle(_ event: TranscriberEvent) {
-        switch event {
-        case .listening:
-            if phase == .preparing { phase = .recording(since: Date()) }
-        case .update(let update):
-            transcript.apply(update)
+    private func transcriptEnded(_ take: Take, failure: (any Error)?) {
+        take.transcriptDone = true
+        if let failure, !(failure is CancellationError) {
+            take.failure = failure
+            Self.log.error("Transcription stopped: \(failure.localizedDescription, privacy: .public)")
         }
-    }
-
-    private func settleIfDone() {
-        guard ledger.isSettled, phase.isActive else { return }
-        finish(failure: transcriptFailure)
-    }
-
-    private func finish(failure: (any Error)?) {
-        source = nil
-        session.words = transcript.words + transcript.pending
-        session.annotations = ledger.annotations
-        if !session.words.isEmpty || !session.annotations.isEmpty, let folder {
-            lastSession = session
-            onFinish?(session, folder.url)
-        } else if failure == nil {
-            post(notice: "Koe didn't hear anything, so nothing was copied.")
-        }
-        guard let failure, !(failure is CancellationError) else {
-            phase = .idle
+        guard !take.cancelled else { return }
+        if let delivered = take.delivered {
+            let settled = take.snapshot()
+            if settled.words != delivered.words || settled.annotations != delivered.annotations {
+                onRefine?(settled, take.folder.url)
+            }
             return
         }
-        phase = .failed(failure.localizedDescription)
+        guard take === self.take else { return }
+        if phase.isOpen {
+            // The audio ended by itself (a played file ran out): that finishes the session. A model that failed
+            // leaves the recording running; the audio is attached when you finish.
+            if take.failure == nil { finish() }
+        } else {
+            deliverIfReady()
+        }
+    }
+
+    private func deliverIfReady() {
+        guard phase == .finishing, let take else { return }
+        let decision = Delivery.decide(openTools: take.ledger.openCount, hasWords: !take.transcript.isEmpty,
+                                       transcriptDone: take.transcriptDone)
+        guard case .deliver = decision else { return }
+        let session = take.snapshot()
+        self.take = nil
+        if session.words.isEmpty, session.annotations.isEmpty {
+            take.transcription?.cancel()
+            try? FileManager.default.removeItem(at: take.folder.url)
+            post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
+        } else {
+            take.delivered = session
+            onFinish?(session, take.folder.url)
+        }
+        phase = .idle
+    }
+
+    private func saveDraft(_ take: Take) {
+        var draft = take.session
+        draft.annotations = take.ledger.annotations
+        try? archive.saveDraft(draft, in: take.folder.url)
+    }
+
+    private func fail(_ error: any Error) {
+        Self.log.error("Could not start: \(error.localizedDescription, privacy: .public)")
+        phase = .failed(error.localizedDescription)
         let display = failureDisplay
         dismissal = Task { [weak self] in
             try? await Task.sleep(for: display)

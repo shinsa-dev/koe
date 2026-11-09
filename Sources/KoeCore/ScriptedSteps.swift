@@ -4,7 +4,8 @@ import Foundation
 /// Steps `--script` plays into a session at given audio times, so the tools can be tried and captured without
 /// hands: `1.5 shot 120,80,640,360 The padding is off; 3 note Compare with Finder; 4 drop /tmp/spec.pdf`.
 /// `6 clip 120,80,640,360 2 0.4,1.1` records that region for 2 s and picks the frames on screen 0.4 s and 1.1 s in.
-/// `shot!`, `note!` and `clip!` open the tool and leave it open.
+/// `shot!`, `note!` and `clip!` open the tool and leave it open. `2 pause 3` pauses for 3 s of wall time and resumes;
+/// `4 finish` and `4 cancel` finish or discard the session.
 public struct ScriptedStep: Sendable, Equatable {
     public enum Action: Sendable, Equatable {
         /// A region in the screen's own space (points from its top-left), and the note typed for it.
@@ -13,6 +14,9 @@ public struct ScriptedStep: Sendable, Equatable {
         case drop(String)
         /// A region to record for `seconds`, and the times into the clip whose frames to pick.
         case clip(CGRect, seconds: AudioTime, picks: [AudioTime])
+        case pause(seconds: TimeInterval)
+        case finish
+        case cancel
     }
 
     public var time: AudioTime
@@ -62,7 +66,18 @@ public struct ScriptedStep: Sendable, Equatable {
         case "drop":
             return rest.map(Action.drop)
         default:
-            return nil
+            return control(kind, rest)
+        }
+    }
+
+    private static func control(_ kind: String, _ rest: String?) -> Action? {
+        switch kind {
+        case "pause":
+            guard let seconds = rest.flatMap({ TimeInterval($0) }), seconds > 0 else { return nil }
+            return .pause(seconds: seconds)
+        case "finish": return .finish
+        case "cancel": return .cancel
+        default: return nil
         }
     }
 

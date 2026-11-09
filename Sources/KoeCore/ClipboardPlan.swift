@@ -25,14 +25,13 @@ public enum ClipboardPlan {
         return items
     }
 
-    /// What the pill says once the bundle is on the clipboard.
-    public static func confirmation(for items: [ClipboardItem], pasted: Bool) -> String {
+    /// What the pill shows once the bundle is on the clipboard: "Copied" or "Pasted", then what it held.
+    public static func summary(for items: [ClipboardItem], words: Int, pasted: Bool) -> (title: String, detail: String) {
         let files = items.filter { if case .file = $0 { true } else { false } }.count
-        let what = switch files {
-        case 0: "the transcript"
-        case 1: "the transcript and 1 file"
-        default: "the transcript and \(files) files"
-        }
-        return pasted ? "Pasted \(what)." : "Copied \(what). Paste it anywhere."
+        var parts: [String] = []
+        if words > 0 { parts.append(words == 1 ? "1 word" : "\(words) words") }
+        if files > 0 { parts.append(files == 1 ? "1 file" : "\(files) files") }
+        let detail = parts.isEmpty ? "The transcript" : parts.joined(separator: " and ")
+        return (pasted ? "Pasted" : "Copied", detail)
     }
 }

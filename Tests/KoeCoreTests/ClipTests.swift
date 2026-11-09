@@ -204,6 +204,15 @@ struct ClipFilesTests {
 }
 
 struct ClipScriptTests {
+    @Test func parsesPauseFinishAndCancel() throws {
+        #expect(try ScriptedStep.parse("1 pause 2.5; 4 finish; 5 cancel") == [
+            ScriptedStep(time: 1, action: .pause(seconds: 2.5)),
+            ScriptedStep(time: 4, action: .finish),
+            ScriptedStep(time: 5, action: .cancel),
+        ])
+        #expect(throws: ScriptedStep.ParseError.self) { try ScriptedStep.parse("1 pause") }
+    }
+
     @Test func parsesAClipWithPicks() throws {
         let steps = try ScriptedStep.parse("6 clip! 120,80,640,360 2 0.4,1.1; 2 clip 0,0,10,10 1.5")
         #expect(steps == [

@@ -5,7 +5,8 @@ import KoeCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let permissions = PermissionCenter()
-    private lazy var sessions = SessionController(transcriber: AppleSpeechTranscriber()) { [audioFile] in
+    private let transcriber = AppleSpeechTranscriber()
+    private lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
     private lazy var tools = ToolCoordinator(
@@ -47,6 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
         sessions.onFinish = { [weak self] session, folder in self?.sessionEnded(session, folder: folder) }
+        sessions.onRefine = { [weak self] session, folder in self?.library.refined(session, folder: folder) }
+        sessions.onCancel = { [weak self] in
+            self?.tools.sessionCancelled()
+            self?.lingerThenHide()
+        }
+        recoverUnfinished()
         library.onSettingsChange = { [weak self] _ in self?.applyAppearance() }
         let hotKeys: [(KeyCombo, () -> Void)] = [
             (.toggleSession, { [weak self] in self?.toggleSession() }),
@@ -117,20 +124,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             FileHandle.standardError.write(Data("Bad --script: \(error)\n".utf8))
             return
         }
-        Task { [sessions, tools] in
+        Task { [sessions] in
             for step in steps {
                 while sessions.phase.isActive, sessions.currentTime < step.time {
                     try? await Task.sleep(for: .milliseconds(50))
                 }
                 guard sessions.phase.isActive else { return }
-                switch step.action {
-                case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
-                case .note(let text): tools.note(text: text, holds: step.holds)
-                case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
-                case .clip(let rect, let seconds, let picks):
-                    tools.clip(preset: ClipScript(region: rect, seconds: seconds, picks: picks, holds: step.holds))
-                }
+                await run(step)
             }
+        }
+    }
+
+    private func run(_ step: ScriptedStep) async {
+        switch step.action {
+        case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
+        case .note(let text): tools.note(text: text, holds: step.holds)
+        case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
+        case .clip(let rect, let seconds, let picks):
+            tools.clip(preset: ClipScript(region: rect, seconds: seconds, picks: picks, holds: step.holds))
+        case .pause(let seconds):
+            sessions.pause()
+            try? await Task.sleep(for: .seconds(seconds))
+            sessions.resume()
+        case .finish: sessions.finish()
+        case .cancel: sessions.cancel()
+        }
+    }
+
+    /// Readies the speech model so the first session's audio reaches it at once, then finishes any recording a crash
+    /// or quit left behind.
+    private func recoverUnfinished() {
+        let unfinished = library.unfinished()
+        Task { [transcriber, library, sessions, pill] in
+            await transcriber.prewarm()
+            let recovered = await library.recover(unfinished, using: transcriber)
+            guard recovered > 0, !sessions.phase.isActive else { return }
+            sessions.post(PillNotice(
+                kind: .success, title: "Recovered",
+                detail: recovered == 1 ? "A recording is in Recent sessions" : "\(recovered) recordings are in Recent sessions"
+            ))
+            pill.show()
+            pill.hide(after: .seconds(4)) { sessions.phase != .idle }
         }
     }
 
@@ -145,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             // A session started meanwhile owns the pill: its waveform stays up and the copy says nothing.
             guard !sessions.phase.isActive else { return }
-            sessions.post(notice: message)
+            sessions.post(message)
             lingerThenHide()
         }
     }
@@ -154,7 +188,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let id = sender.representedObject as? UUID, let entry = listed.first(where: { $0.id == id }) else { return }
         let items = library.copy(entry.session)
         guard !sessions.phase.isActive else { return }
-        sessions.post(notice: items.isEmpty ? "Nothing to copy." : ClipboardPlan.confirmation(for: items, pasted: false))
+        if items.isEmpty {
+            sessions.post(PillNotice(kind: .neutral, title: "Nothing to copy"))
+        } else {
+            let summary = ClipboardPlan.summary(for: items, words: entry.session.words.count, pasted: false)
+            sessions.post(PillNotice(kind: .success, title: summary.title, detail: summary.detail))
+        }
         pill.show()
         lingerThenHide()
     }

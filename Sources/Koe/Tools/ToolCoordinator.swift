@@ -186,6 +186,14 @@ final class ToolCoordinator {
     }
 
     /// The session is stopping: a clip still recording stops too, and goes on to its review.
+    /// Closes every tool open on a session you discarded; what they would have added goes with it.
+    func sessionCancelled() {
+        notePanel?.onCancel?()
+        overlay.first?.onCancel?()
+        closeOverlay()
+        clips.discard()
+    }
+
     func sessionStopping() {
         if clips.isRecording { clips.stopRecording() }
     }
