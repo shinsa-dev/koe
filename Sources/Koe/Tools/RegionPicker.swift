@@ -7,6 +7,8 @@ struct RegionChoice {
     let region: CGRect
     let source: CaptureSource?
     let note: String
+    /// Where a comment was pinned, in the screen's own space.
+    var pin: CGPoint?
 }
 
 /// The state of one screenshot: drag a region or click a window on any frozen screen, then write a note under it.
@@ -18,8 +20,9 @@ final class RegionPicker {
         case noting(screen: Int, region: CGRect)
     }
 
-    /// A screenshot asks for a note under the region; a clip starts recording the moment you pick it.
-    enum Purpose { case screenshot, clip }
+    /// A screenshot asks for a note under the region; a comment pins the spot you click and asks for a note
+    /// beside it; a clip starts recording the moment you pick it.
+    enum Purpose { case screenshot, comment, clip }
 
     let freeze: Freeze
     let purpose: Purpose
@@ -36,6 +39,8 @@ final class RegionPicker {
     /// The window under the pointer while nothing is dragged, as a rect on the screen at `index`.
     private(set) var hovered: (index: Int, rect: CGRect)?
     var note = ""
+    /// The spot a comment is about, on the screen being noted.
+    private(set) var pin: CGPoint?
     private var picked: WindowInfo?
     @ObservationIgnored var onFinish: ((RegionChoice?) -> Void)?
 
@@ -63,15 +68,29 @@ final class RegionPicker {
     func release(from start: CGPoint, to end: CGPoint, on index: Int) {
         defer { dragging = nil }
         if ScreenGeometry.isClick(from: start, to: end) {
-            guard let window = freeze.windows.topmost(at: quartz(end, on: index)) else { return }
-            let rect = local(window.frame, on: index)
-            guard !rect.isEmpty else { return }
+            let window = freeze.windows.topmost(at: quartz(end, on: index))
+            let rect = window.map { local($0.frame, on: index) } ?? .zero
+            if purpose == .comment {
+                // A comment works anywhere: on a window it shows that window, elsewhere the area around the spot.
+                pin = end
+                picked = rect.isEmpty ? nil : window
+                stage = .noting(screen: index, region: rect.isEmpty ? around(end, on: index) : rect)
+                return
+            }
+            guard let window, !rect.isEmpty else { return }
             picked = window
             stage = .noting(screen: index, region: rect)
         } else if let dragging, dragging.rect.width >= 2, dragging.rect.height >= 2 {
             picked = nil
+            pin = nil
             stage = .noting(screen: index, region: dragging.rect)
         }
+    }
+
+    /// For `--script`: a click at `point` on the first screen, then the note typed.
+    func preset(click point: CGPoint, note: String?) {
+        release(from: point, to: point, on: 0)
+        self.note = note ?? ""
     }
 
     /// For `--script`: a region on the first screen, as if dragged.
@@ -87,7 +106,8 @@ final class RegionPicker {
 
     func submit() {
         guard case .noting(let index, let region) = stage else { return }
-        finish(RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index), note: note))
+        finish(RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index),
+                            note: note, pin: pin))
     }
 
     func cancel() {
@@ -105,6 +125,10 @@ final class RegionPicker {
         let origin = freeze.screens[index].frame.origin
         if let window = freeze.windows.source(of: region.offsetBy(dx: origin.x, dy: origin.y)) { return window.source }
         return freeze.frontApp.map { CaptureSource(app: $0) }
+    }
+
+    private func around(_ point: CGPoint, on index: Int) -> CGRect {
+        CGRect(x: point.x - 320, y: point.y - 200, width: 640, height: 400).intersection(bounds(of: index))
     }
 
     func bounds(of index: Int) -> CGRect {
@@ -141,11 +165,17 @@ struct RegionPickerView: View {
                 if highlight.showsSize { SizeChip(rect: highlight.rect) }
             }
             if case .noting(let screenIndex, let region) = picker.stage, screenIndex == index {
+                let pin = picker.pin
+                // A comment's card sits right under its pin; a screenshot's under its region.
+                let anchor = pin.map { CGRect(x: $0.x - NoteCard.width / 2, y: $0.y - 8, width: NoteCard.width, height: 24) }
                 let origin = ScreenGeometry.cardOrigin(
-                    for: region, cardSize: CGSize(width: NoteCard.width, height: NoteCard.height), in: picker.bounds(of: index)
+                    for: anchor ?? region, cardSize: CGSize(width: NoteCard.width, height: NoteCard.height),
+                    in: picker.bounds(of: index)
                 )
+                if let pin { Pin().position(pin) }
                 NoteCard(
-                    placeholder: "Add a note for the agent (optional)", action: "Attach", detail: picker.sourceLabel,
+                    placeholder: pin == nil ? "Add a note for the agent (optional)" : "What should the agent know about this?",
+                    action: pin == nil ? "Attach" : "Comment", detail: picker.sourceLabel,
                     text: Binding(get: { picker.note }, set: { picker.note = $0 }),
                     submit: picker.submit, cancel: picker.cancel
                 )
@@ -206,6 +236,20 @@ private struct Dim: View {
     }
 }
 
+/// Where a comment points, drawn as it will appear in the screenshot.
+private struct Pin: View {
+    var body: some View {
+        Circle()
+            .fill(Palette.action)
+            .padding(3)
+            .background(Circle().fill(Palette.onAction))
+            .frame(width: 20, height: 20)
+            .shadow(color: Palette.shadow.opacity(0.35), radius: 3, y: 1)
+            .transition(.scale.combined(with: .opacity))
+            .allowsHitTesting(false)
+    }
+}
+
 private struct Highlight: View {
     let rect: CGRect
     let filled: Bool
@@ -241,8 +285,8 @@ private struct Hint: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            IconView(icon: purpose == .clip ? .video : .screenCapture, size: .small, color: Palette.icon2)
-            Text(purpose == .clip ? "Drag over the region to record, or click a window." : "Drag over a region, or click a window.")
+            IconView(icon: icon, size: .small, color: Palette.icon2)
+            Text(text)
                 .font(Typography.body)
                 .foregroundStyle(Palette.fg4)
             Kbd("Esc")
@@ -252,5 +296,21 @@ private struct Hint: View {
         .frame(height: 34)
         .floatingSurface(cornerRadius: 17)
         .allowsHitTesting(false)
+    }
+
+    private var icon: Icon {
+        switch purpose {
+        case .screenshot: .screenCapture
+        case .comment: .comment
+        case .clip: .video
+        }
+    }
+
+    private var text: String {
+        switch purpose {
+        case .screenshot: "Drag over a region, or click a window."
+        case .comment: "Click anything to comment on it."
+        case .clip: "Drag over the region to record, or click a window."
+        }
     }
 }

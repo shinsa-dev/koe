@@ -48,7 +48,9 @@ private struct KoeButton: View {
                     .clipShape(shape)
                     .overlay { if variant == .outline { shape.strokeBorder(Palette.ring, lineWidth: 0.5) } }
                     .shadow(color: variant == .secondary ? .clear : Palette.shadow.opacity(0.08), radius: 1, y: 0.5)
-                    .padding(pressed ? 1 : 0)
+                    // Shinsa's press inset (`--press-inset-x` 1 px, `--press-inset-y` 0.5 px), the same at any size.
+                    .padding(.horizontal, pressed ? 1 : 0)
+                    .padding(.vertical, pressed ? 0.5 : 0)
             }
             .contentShape(shape)
             .opacity(isEnabled ? 1 : 0.45)

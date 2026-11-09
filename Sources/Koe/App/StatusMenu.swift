@@ -26,27 +26,22 @@ enum StatusMenu {
         let state = NSMenuItem(title: stateLine(checklist: checklist, phase: phase), action: nil, keyEquivalent: "")
         state.isEnabled = false
         menu.addItem(state)
-        if !takenHotKeys.isEmpty {
-            let names = [KeyCombo.toggleSession, .screenshot, .note, .clip].filter(takenHotKeys.contains).map(\.displayName)
-            let taken = NSMenuItem(
-                title: "Another app uses \(names.joined(separator: ", ")), so use them from here.",
-                action: nil, keyEquivalent: ""
-            )
-            taken.isEnabled = false
-            menu.addItem(taken)
-        }
+        addTakenNotice(takenHotKeys, to: menu)
         menu.addItem(.separator())
 
         let toggle = item(toggleTitle(phase), #selector(AppDelegate.toggleSession), .toggleSession, takenHotKeys, target)
         toggle.isEnabled = phase.toggleIntent != .ignore
         menu.addItem(toggle)
+        let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment, takenHotKeys, target)
         let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, takenHotKeys, target)
         let note = item("Add a note", #selector(AppDelegate.addNote), .note, takenHotKeys, target)
         let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip,
                         takenHotKeys, target)
+        comment.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         screenshot.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         note.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         clip.isEnabled = phase.toggleIntent != .ignore || recordingClip
+        menu.addItem(comment)
         menu.addItem(screenshot)
         menu.addItem(note)
         menu.addItem(clip)
@@ -121,6 +116,16 @@ enum StatusMenu {
         case .stop: "Finish and copy"
         case .ignore: "Copying…"
         }
+    }
+
+    /// Says which shortcuts another app holds, so you use those tools from the menu or the pill instead.
+    private static func addTakenNotice(_ takenHotKeys: Set<KeyCombo>, to menu: NSMenu) {
+        guard !takenHotKeys.isEmpty else { return }
+        let names = [KeyCombo.toggleSession, .comment, .screenshot, .note, .clip].filter(takenHotKeys.contains).map(\.displayName)
+        let taken = NSMenuItem(title: "Another app uses \(names.joined(separator: ", ")), so use them from here.",
+                               action: nil, keyEquivalent: "")
+        taken.isEnabled = false
+        menu.addItem(taken)
     }
 }
 

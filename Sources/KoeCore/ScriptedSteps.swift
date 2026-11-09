@@ -4,12 +4,15 @@ import Foundation
 /// Steps `--script` plays into a session at given audio times, so the tools can be tried and captured without
 /// hands: `1.5 shot 120,80,640,360 The padding is off; 3 note Compare with Finder; 4 drop /tmp/spec.pdf`.
 /// `6 clip 120,80,640,360 2 0.4,1.1` records that region for 2 s and picks the frames on screen 0.4 s and 1.1 s in.
-/// `shot!`, `note!` and `clip!` open the tool and leave it open. `2 pause 3` pauses for 3 s of wall time and resumes;
+/// `2 pin 400,300 Too tight` comments on the spot at 400,300 as if clicked.
+/// `shot!`, `pin!`, `note!` and `clip!` open the tool and leave it open. `2 pause 3` pauses for 3 s of wall time and resumes;
 /// `4 finish` and `4 cancel` finish or discard the session.
 public struct ScriptedStep: Sendable, Equatable {
     public enum Action: Sendable, Equatable {
         /// A region in the screen's own space (points from its top-left), and the note typed for it.
         case screenshot(CGRect, note: String?)
+        /// A spot in the screen's own space, as if clicked with the comment tool, and the comment typed for it.
+        case comment(CGPoint, note: String?)
         case note(String)
         case drop(String)
         /// A region to record for `seconds`, and the times into the clip whose frames to pick.
@@ -55,6 +58,11 @@ public struct ScriptedStep: Sendable, Equatable {
             let pieces = rest?.split(separator: " ", maxSplits: 1).map(String.init) ?? []
             guard let rect = pieces.first.flatMap(rect) else { return nil }
             return .screenshot(rect, note: pieces.count > 1 ? pieces[1] : nil)
+        case "pin":
+            let pieces = rest?.split(separator: " ", maxSplits: 1).map(String.init) ?? []
+            let numbers = pieces.first?.split(separator: ",").compactMap { Double($0) } ?? []
+            guard numbers.count == 2 else { return nil }
+            return .comment(CGPoint(x: numbers[0], y: numbers[1]), note: pieces.count > 1 ? pieces[1] : nil)
         case "clip":
             let pieces = rest?.split(separator: " ").map(String.init) ?? []
             guard pieces.count >= 2, pieces.count <= 3, let rect = rect(pieces[0]),

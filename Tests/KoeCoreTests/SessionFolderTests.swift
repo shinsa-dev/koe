@@ -110,13 +110,19 @@ struct ScriptedStepTests {
         ])
     }
 
+    @Test func aPinCommentsOnASpot() throws {
+        let steps = try ScriptedStep.parse("2 pin 400,300 Too tight; 3 pin! 10,20")
+        #expect(steps[0].action == .comment(CGPoint(x: 400, y: 300), note: "Too tight"))
+        #expect(steps[1].action == .comment(CGPoint(x: 10, y: 20), note: nil) && steps[1].holds)
+    }
+
     @Test func aBangHoldsTheToolOpen() throws {
         let steps = try ScriptedStep.parse("2 shot! 0,0,10,10; 3 note! hi")
         #expect(steps.map(\.holds) == [true, true])
         #expect(steps[0].action == .screenshot(CGRect(x: 0, y: 0, width: 10, height: 10), note: nil))
     }
 
-    @Test(arguments: ["x note hi", "1 shot 1,2,3", "1 shot 0,0,0,10", "1 note", "1 wave hi", "-1 note hi"])
+    @Test(arguments: ["x note hi", "1 shot 1,2,3", "1 pin 4", "1 pin", "1 shot 0,0,0,10", "1 note", "1 wave hi", "-1 note hi"])
     func rejectsABadStep(_ script: String) {
         #expect(throws: ScriptedStep.ParseError.self) { try ScriptedStep.parse(script) }
     }

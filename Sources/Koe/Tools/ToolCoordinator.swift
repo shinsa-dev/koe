@@ -45,7 +45,14 @@ final class ToolCoordinator {
 
     // MARK: Screenshot
 
-    func screenshot(preset: CGRect? = nil, note: String? = nil, holds: Bool = true) {
+    /// Freezes the screen to pin a comment on whatever you click: the window there, or the area around the spot,
+    /// with a pin on it and your note.
+    func comment(at spot: CGPoint? = nil, note: String? = nil, holds: Bool = true) {
+        screenshot(note: note, holds: holds, purpose: .comment, spot: spot)
+    }
+
+    func screenshot(preset: CGRect? = nil, note: String? = nil, holds: Bool = true,
+                    purpose: RegionPicker.Purpose = .screenshot, spot: CGPoint? = nil) {
         guard !isBusy else { return }
         permissions.refresh()
         guard backdrop != nil || permissions.checklist.status(of: .screenRecording) == .granted else {
@@ -66,14 +73,15 @@ final class ToolCoordinator {
                 return
             }
             freezing = false
-            let picker = RegionPicker(freeze: freeze)
+            let picker = RegionPicker(freeze: freeze, purpose: purpose)
             if let preset { picker.preset(preset, note: note) }
+            if let spot { picker.preset(click: spot, note: note) }
             showOverlay(for: picker)
             picker.onFinish = { [weak self] choice in
                 self?.closeOverlay()
                 self?.save(choice, ticket: ticket)
             }
-            if preset != nil, !holds {
+            if preset != nil || spot != nil, !holds {
                 try? await Task.sleep(for: .milliseconds(600))
                 picker.submit()
             }
@@ -110,12 +118,16 @@ final class ToolCoordinator {
                   of: choice.region, screenSize: choice.screen.frame.size,
                   imageSize: CGSize(width: choice.screen.image.width, height: choice.screen.image.height)
               ),
-              let crop = choice.screen.image.cropping(to: pixels),
+              let cut = choice.screen.image.cropping(to: pixels),
               let url = try? sessions.screenshotURL()
         else {
             sessions.close(ticket, with: nil)
             return
         }
+        let scale = CGFloat(choice.screen.image.width) / max(1, choice.screen.frame.width)
+        let crop = choice.pin
+            .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
+            .flatMap { PinMark.draw(on: cut, at: $0, radius: 6 * scale) } ?? cut
         let note = choice.note
         let source = choice.source
         Task {

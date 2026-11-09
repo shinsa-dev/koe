@@ -11,13 +11,13 @@ behaviour it describes.
   the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
-  `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `swift scripts/icon.swift` redraws the
-  placeholder `Resources/Koe.icns`.
+  `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `scripts/icon.sh` renders
+  `Resources/Koe.svg` (Shinsa's tile and curved cut, with a blue dot) into `Resources/Koe.icns`.
 
 ## Rules
 
 - **Koe's own look, Shinsa's system.** Native windows and menus, but Koe draws its own content: the settings window
-  is a sidebar and a page in a full-size content view (no system toolbar), and controls are Shinsa's, drawn by Koe:
+  is one page of cards in a full-size content view (no tabs, no sidebar, no system toolbar), and controls are Shinsa's, drawn by Koe:
   `KoeButtonStyle` (the web's `Button`), `KoeSwitchStyle` (the web's `Switch`), `SegmentedTabs` (the web's tabs),
   `SettingsGroup`/`SettingRow` cards. Never system push buttons, switches or segmented controls. ABC Areal through
   `Typography`, colours through `Palette`/`Tone` (`Tokens.swift` is generated: change the web token and rerun

@@ -1,53 +1,71 @@
 import KoeCore
 import SwiftUI
 
-/// A pane's groups, stacked as the web's settings page stacks them.
-private struct Pane<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) { content }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-}
-
-struct GeneralPane: View {
+/// Koe's settings on one page, top to bottom: permissions, what happens when you stop, the shortcuts, and the rest.
+struct SettingsPage: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
     let openSessions: () -> Void
 
     var body: some View {
-        let canPaste = permissions.checklist.status(of: .accessibility) == .granted
-        Pane {
-            SettingsGroup(
-                title: "When you stop",
-                description: "Koe always copies the transcript, with a marker where each attachment goes."
-            ) {
-                SettingRow(title: "Copy files with the text",
-                           detail: "Screenshots, clips and files paste in as attachments.") {
-                    Toggle("Copy files with the text", isOn: binding(\.copyFiles)).toggleStyle(.koe)
+        let checklist = permissions.checklist
+        let canPaste = checklist.status(of: .accessibility) == .granted
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: -1) {
+                    Text("Koe").font(Typography.pageTitle).foregroundStyle(Palette.fg4)
+                    Text("Talk, point and paste. Everything stays on this Mac.")
+                        .font(Typography.body)
+                        .foregroundStyle(Palette.fg2)
+                }
+            }
+            SettingsGroup(title: checklist.isReady ? "Permissions" : "Allow the microphone and screen recording to start") {
+                ForEach(Permission.allCases, id: \.self) { permission in
+                    PermissionRow(permission: permission, status: checklist.status(of: permission),
+                                  isNext: checklist.nextStep == permission, center: permissions)
+                }
+            }
+            SettingsGroup(title: "When you stop") {
+                SettingRow(title: "Copy attachments with the text",
+                           detail: "Screenshots, clips and files paste in after your words.") {
+                    Toggle("Copy attachments with the text", isOn: binding(\.copyFiles)).toggleStyle(.koe)
                 }
                 SettingRow(title: "Paste for you", detail: canPaste
-                    ? "Presses ⌘V in the app you're in once the bundle is copied."
-                    : "Needs Accessibility, which you can allow in Permissions.") {
+                    ? "Presses ⌘V in the app you're in."
+                    : "Needs Accessibility, above.") {
                     Toggle("Paste for you", isOn: binding(\.autoPaste)).toggleStyle(.koe).disabled(!canPaste)
                 }
             }
-            SettingsGroup(title: "Appearance") {
+            SettingsGroup(title: "Shortcuts") {
+                ForEach(Self.shortcuts, id: \.title) { shortcut in
+                    SettingRow(title: shortcut.title) { Kbd(shortcut.combo.displayName) }
+                }
+            }
+            SettingsGroup(title: "General") {
                 SettingRow(title: "Theme") {
                     SegmentedTabs(items: ThemeChoice.allCases.map { ($0, $0.label) }, selection: binding(\.theme))
                 }
-            }
-            SettingsGroup(title: "Sessions") {
                 SettingRow(title: "Recent sessions in the menu") {
                     SegmentedTabs(items: KoeSettings.recentChoices.map { ($0, "\($0)") }, selection: binding(\.recentCount))
                 }
-                SettingRow(title: "Saved on this Mac", detail: displayPath(library.root)) {
+                SettingRow(title: "Sessions", detail: displayPath(library.root)) {
                     Button("Show in Finder", action: openSessions).buttonStyle(.koe(.outline, size: .small))
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
+
+    private static let shortcuts: [(title: String, combo: KeyCombo)] = [
+        ("Start or finish dictation", .toggleSession),
+        ("Comment on something", .comment),
+        ("Take a screenshot", .screenshot),
+        ("Record a clip", .clip),
+        ("Add a note", .note),
+    ]
 
     private func binding<Value>(_ path: WritableKeyPath<KoeSettings, Value>) -> Binding<Value> {
         Binding(get: { library.settings[keyPath: path] }, set: { value in library.update { $0[keyPath: path] = value } })
@@ -56,22 +74,6 @@ struct GeneralPane: View {
     private func displayPath(_ url: URL) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return url.path.hasPrefix(home) ? "~" + url.path.dropFirst(home.count) : url.path
-    }
-}
-
-struct PermissionsPane: View {
-    let center: PermissionCenter
-
-    var body: some View {
-        let checklist = center.checklist
-        Pane {
-            SettingsGroup(title: checklist.isReady ? "Koe is ready" : "Allow the microphone and screen recording to start") {
-                ForEach(Permission.allCases, id: \.self) { permission in
-                    PermissionRow(permission: permission, status: checklist.status(of: permission),
-                                  isNext: checklist.nextStep == permission, center: center)
-                }
-            }
-        }
     }
 }
 
@@ -131,25 +133,6 @@ private struct PermissionRow: View {
             }
             Button("Open System Settings") { center.openSettings(for: permission) }
                 .buttonStyle(.koe(.outline, size: .small))
-        }
-    }
-}
-
-struct ShortcutsPane: View {
-    private static let shortcuts: [(title: String, combo: KeyCombo)] = [
-        ("Start or stop dictation", .toggleSession),
-        ("Take a screenshot", .screenshot),
-        ("Add a note", .note),
-        ("Record a clip", .clip),
-    ]
-
-    var body: some View {
-        Pane {
-            SettingsGroup(title: "Global shortcuts") {
-                ForEach(Self.shortcuts, id: \.title) { shortcut in
-                    SettingRow(title: shortcut.title) { Kbd(shortcut.combo.displayName) }
-                }
-            }
         }
     }
 }

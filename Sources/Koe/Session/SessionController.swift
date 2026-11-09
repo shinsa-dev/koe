@@ -185,7 +185,8 @@ final class SessionController {
         self.take = nil
         annotationCount = 0
         // The notice goes up before the phase changes, so the pill stays to show it.
-        post(PillNotice(kind: .neutral, title: "Discarded", detail: "Nothing was copied", icon: .trash))
+        post(PillNotice(kind: .neutral, title: "Recording thrown away", detail: "Nothing was copied or kept",
+                        icon: .trash))
         onCancel?()
         phase = .idle
     }
@@ -314,7 +315,8 @@ final class SessionController {
         if session.words.isEmpty, session.annotations.isEmpty {
             take.transcription?.cancel()
             try? FileManager.default.removeItem(at: take.folder.url)
-            post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
+            post(PillNotice(kind: .neutral, title: "We couldn't hear you", detail: "Check your microphone and try again",
+                            icon: .muted))
             if take.awaitingWords { onLateNotice?() }
         } else {
             take.delivered = session

@@ -9,9 +9,9 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 
 ## Status
 
-The first version, end to end: the menu bar item, a settings window whose Permissions pane asks for the
-microphone, screen recording and (optionally) Accessibility, on-device transcription with the ⌥Space hotkey and the
-pill with its waveform, the screenshot, note, drop and slow-motion clip tools, and the bundle on the clipboard when
+The first version, end to end: the menu bar item, a one-page settings window that asks for the microphone, screen
+recording and (optionally) Accessibility, on-device transcription with the ⌥Space hotkey and the pill with its
+waveform and tools, the comment, screenshot, note, drop and slow-motion clip tools, and the bundle on the clipboard when
 you stop, with recent sessions in the menu.
 
 ## Build
@@ -26,8 +26,8 @@ swift test            # KoeCore's unit tests
 
 There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with
 `KOE_SIGN_IDENTITY` or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions
-across rebuilds; without one it signs ad hoc and the permissions reset on every build. `swift scripts/icon.swift`
-redraws the placeholder icon, `Resources/Koe.icns`.
+across rebuilds; without one it signs ad hoc and the permissions reset on every build. `scripts/icon.sh`
+renders the icon, `Resources/Koe.svg`, into `Resources/Koe.icns`.
 
 ## Design
 
@@ -40,16 +40,17 @@ Everything that floats over other apps (the pill, note cards, the region hint, t
 is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a hairline ring (`floatingSurface`), dark
 whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
-- One window: Settings, as Shinsa's desktop draws settings: a sidebar (General, Permissions with a dot while a
-  required permission is missing, Shortcuts) under the traffic lights, and the pane as a page with a title, a line
-  and its cards. No system toolbar. First launch opens it on Permissions.
+- One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
+  stop, Shortcuts and General. No system toolbar. First launch opens it.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
 - The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform
-  of your voice (`AudioLevel`, `LevelHistory`), the clock (audio time, so it stops while paused, digits rolling with
+  of your voice (`AudioLevel`, `LevelHistory`) with the tools on its left (comment, screenshot, clip, note: each a
+  button, so you never need the shortcuts), the clock (audio time, so it stops while paused, digits rolling with
   `.numericText()`), the attachment count, and pause, discard (red) and finish (blue). Pressing a button deflates the
-  circle behind its glyph. When a session ends the same capsule shows a badge, a title and one line ("Copied",
-  "42 words and 2 files"; "Discarded"; "Nothing heard"), then fades.
+  background behind its glyph by Shinsa's press inset (1 pt across, 0.5 pt down), the same at any size. When a
+  session ends the same capsule shows a badge, a title and one line ("Copied to clipboard", "Press ⌘V to paste your
+  words and 2 attachments anywhere"; "Recording thrown away"; "We couldn't hear you"), then fades.
 
 ## Recording is instant and never lost
 
@@ -75,7 +76,7 @@ Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, AudioLevel, Ses
                    ClipboardPlan, SessionArchive and HistoryEntry, KoeSettings
 Sources/Koe/App/   main, AppDelegate, the status menu, MainMenu, HotKeys (Carbon global shortcuts), SessionLibrary
 Sources/Koe/Clipboard/ BundleWriter: the bundle onto NSPasteboard, and ⌘V for you
-Sources/Koe/Settings/ The window: General, Permissions and Shortcuts panes
+Sources/Koe/Settings/ The window: settings on one page
 Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
 Sources/Koe/HUD/   The pill: a non-activating panel at the bottom of the screen, its waveform, the drop target
@@ -128,7 +129,7 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   when files come with it, so in Safari-based editors the HTML is the text, which is why it carries everything the
   plain text does.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
-  in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied".
+  in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
   anywhere."), or that it heard nothing.
 - The menu lists the latest sessions (3, 5 or 10, in settings) under "Recent sessions", with when and how many
@@ -160,6 +161,9 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   region, or click to take the window under the pointer. A note card opens under the region (above it when there is
   no room). Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
+- **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything and write what the agent
+  should know about it in a card under the spot. The screenshot is the window you clicked (or 640 × 400 around the
+  spot when there is none) with a blue pin where you clicked (`PinMark`, `KoeCore`), and your comment as its note.
 - **Note, ⌥⇧N.** A note card above the pill. A blank note adds nothing.
 - **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
   down. Pick a region as for a screenshot (the pick starts recording; there is no note card). `ClipRecorder` records
@@ -188,8 +192,8 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so that row offers "Reopen Koe".
   The window checks again every second while it is open, since System Settings sends no notice.
-- `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` opens the Permissions pane at launch,
-  `--settings` the General pane, `--pane general|permissions|shortcuts` any pane, and `--open-menu` the menu, for
+- `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` and `--settings` open the settings
+  window at launch, and `--open-menu` the menu, for
   screenshots. `--audio-file <path>` plays a recording into each session
   instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
   to stdout: `say -o /tmp/s.aiff "Look at this." && ./Koe.app/Contents/MacOS/Koe --audio-file /tmp/s.aiff --start

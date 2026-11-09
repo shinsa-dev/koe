@@ -52,9 +52,9 @@ final class PillController {
 
     private let presence = PillPresence()
 
-    init(sessions: SessionController, onDrop: @escaping ([URL]) -> Void) {
+    init(sessions: SessionController, tools: PillTools) {
         panel = PillPanel(rootView: PillEntrance(presence: presence) {
-            PillView(sessions: sessions, onDrop: onDrop)
+            PillView(sessions: sessions, tools: tools)
         })
     }
 

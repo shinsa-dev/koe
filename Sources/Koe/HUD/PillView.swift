@@ -6,13 +6,12 @@ import SwiftUI
 /// happened, in the same capsule, until it fades.
 struct PillView: View {
     let sessions: SessionController
-    /// Files dropped on the pill; they attach at the moment they land.
-    let onDrop: ([URL]) -> Void
+    let tools: PillTools
     @State private var dropTargeted = false
 
     var body: some View {
         let content = PillContent(phase: sessions.phase, notice: sessions.notice, dropTargeted: dropTargeted)
-        PillBody(content: content, sessions: sessions)
+        PillBody(content: content, sessions: sessions, tools: tools)
             .floatingSurface(cornerRadius: 20)
             .overlay {
                 if dropTargeted { Capsule().strokeBorder(Palette.action, lineWidth: 2) }
@@ -24,7 +23,7 @@ struct PillView: View {
                 scale > 1 ? .spring(duration: 0.18, bounce: 0) : .spring(duration: 0.4, bounce: 0.35)
             }
             .dropDestination(for: URL.self) { urls, _ in
-                onDrop(urls)
+                tools.drop(urls)
                 return true
             } isTargeted: { dropTargeted = $0 }
             // The pill is centred inside the animation's scope, so a change of width moves both edges together
@@ -35,6 +34,15 @@ struct PillView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Koe")
     }
+}
+
+/// What the pill's tools do. Files dropped on the pill attach at the moment they land.
+struct PillTools {
+    let comment: () -> Void
+    let screenshot: () -> Void
+    let note: () -> Void
+    let clip: () -> Void
+    let drop: ([URL]) -> Void
 }
 
 /// What the pill shows: the session's controls, or a notice in their place.
@@ -72,13 +80,14 @@ private enum PillContent: Equatable {
 private struct PillBody: View {
     let content: PillContent
     let sessions: SessionController
+    let tools: PillTools
 
     var body: some View {
         // Stacked, not side by side: what leaves and what arrives share the centre while the pill resizes.
         ZStack {
             switch content {
             case .session(let phase):
-                SessionControls(phase: phase, sessions: sessions)
+                SessionControls(phase: phase, sessions: sessions, tools: tools)
                     .transition(PillSwap())
             case .notice(let notice):
                 NoticeView(notice: notice, sessions: sessions)
@@ -87,7 +96,7 @@ private struct PillBody: View {
             }
         }
         // A round badge or button at either end sits 8 pt from the edge on every side, concentric with the pill.
-        .padding(.leading, content.isNotice ? 8 : 14)
+        .padding(.leading, 8)
         .padding(.trailing, 8)
         .frame(height: 40)
         // While the pill shrinks, what is leaving is cut at its edge instead of spilling past it.
@@ -98,10 +107,23 @@ private struct PillBody: View {
 private struct SessionControls: View {
     let phase: RecorderPhase
     let sessions: SessionController
+    let tools: PillTools
 
     var body: some View {
         let paused = phase == .paused
         HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                PillButton(icon: .comment, tone: .tool, label: help("Comment on something", .comment),
+                           action: tools.comment)
+                PillButton(icon: .screenshot, tone: .tool, label: help("Take a screenshot", .screenshot),
+                           action: tools.screenshot)
+                PillButton(icon: .clip, tone: .tool, label: help("Record a clip", .clip), action: tools.clip)
+                PillButton(icon: .note, tone: .tool, label: help("Add a note", .note), action: tools.note)
+            }
+            .disabled(!phase.isOpen)
+            Divider()
+                .frame(height: 16)
+                .overlay(Palette.ring)
             Waveform(level: { sessions.level }, live: phase == .recording)
                 .opacity(paused ? 0.35 : 1)
             SessionClock(sessions: sessions, paused: paused)
@@ -113,13 +135,19 @@ private struct SessionControls: View {
                 PillButton(icon: .close, tone: .destructive, label: "Discard", action: sessions.cancel)
                 PillButton(icon: paused ? .play : .pause, tone: .neutral,
                            label: paused ? "Resume" : "Pause", action: paused ? sessions.resume : sessions.pause)
-                    .contentTransition(.symbolEffect(.replace))
+                    .contentTransition(.symbolEffect(.replace.byLayer, options: .speed(2.5)))
+                    // Quick on its own, whatever pace the rest of the pill moves at.
+                    .animation(.snappy(duration: 0.14), value: paused)
                 PillButton(icon: .checkmark, tone: .action,
                            label: "Finish and copy (\(KeyCombo.toggleSession.displayName))", action: sessions.finish)
             }
             .disabled(!phase.isOpen)
         }
         .animation(.spring(duration: 0.3, bounce: 0.2), value: paused)
+    }
+
+    private func help(_ title: String, _ combo: KeyCombo) -> String {
+        "\(title) (\(combo.displayName))"
     }
 }
 
@@ -144,7 +172,7 @@ private struct SessionClock: View {
 
 /// A round glyph button. Pressing it deflates the circle behind the glyph, as Shinsa's buttons do.
 private struct PillButton: View {
-    enum Tone { case neutral, destructive, action }
+    enum Tone { case tool, neutral, destructive, action }
 
     let icon: Icon
     let tone: Tone
@@ -162,6 +190,7 @@ private struct PillButton: View {
 
     private var glyph: Color {
         switch tone {
+        case .tool: Palette.fg3
         case .neutral: Palette.fg4
         case .destructive: KoeTone.red.ink
         case .action: Palette.actionText
@@ -170,6 +199,7 @@ private struct PillButton: View {
 
     private var fill: Color {
         switch tone {
+        case .tool: .clear
         case .neutral: Palette.press
         case .destructive: KoeTone.red.tint
         case .action: Palette.actionTint
@@ -194,14 +224,18 @@ private struct PressDown: View {
     @State private var hovering = false
 
     var body: some View {
+        let pressed = configuration.isPressed && isEnabled
         configuration.label
             .frame(width: 24, height: 24)
             .background {
-                Circle()
-                    .fill(fill)
-                    .brightness(hovering && isEnabled ? 0.06 : 0)
-                    .scaleEffect(configuration.isPressed && isEnabled ? 0.84 : 1)
-                    .animation(.spring(duration: 0.25, bounce: 0.4), value: configuration.isPressed)
+                // Shinsa's press: the background pulls in by the same inset at any size (`--press-inset-x` 1 px,
+                // `--press-inset-y` 0.5 px), so a small button barely moves and a large one moves just as little.
+                Capsule()
+                    .fill(hovering && isEnabled && fill == .clear ? Palette.press : fill)
+                    .brightness(hovering && isEnabled && fill != .clear ? 0.06 : 0)
+                    .padding(.horizontal, pressed ? 1 : 0)
+                    .padding(.vertical, pressed ? 0.5 : 0)
+                    .animation(.spring(duration: 0.2, bounce: 0.3), value: pressed)
             }
             .contentShape(Circle())
             .opacity(isEnabled ? 1 : 0.4)
@@ -221,7 +255,8 @@ private struct NoticeView: View {
                 IconView(icon: icon, size: .tiny, color: tone.glyph, weight: .bold)
             }
             .frame(width: 24, height: 24)
-            VStack(alignment: .leading, spacing: 0) {
+            // The two lines sit at the font's own line height, no gap between them.
+            VStack(alignment: .leading, spacing: -2) {
                 Text(notice.title)
                     .font(Typography.label)
                     .foregroundStyle(Palette.fg4)

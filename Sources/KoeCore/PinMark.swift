@@ -1,0 +1,38 @@
+import CoreGraphics
+import Foundation
+
+/// The pin a comment leaves on its screenshot: a blue dot ringed in white with a soft shadow, where you clicked, so
+/// the agent sees exactly what the comment is about.
+public enum PinMark {
+    /// Shinsa's blue (`--primary-4`, light).
+    static let blue = CGColor(srgbRed: 0, green: 0x7B / 255, blue: 0xFC / 255, alpha: 1)
+
+    /// Where a point on the screen lands in a crop of it: `point` and `region` in screen points from the top left,
+    /// `scale` the image's pixels per point. Nil when the point is outside the region.
+    public static func location(of point: CGPoint, in region: CGRect, scale: CGFloat) -> CGPoint? {
+        guard region.contains(point) else { return nil }
+        return CGPoint(x: (point.x - region.minX) * scale, y: (point.y - region.minY) * scale)
+    }
+
+    /// The image with a pin drawn at `point`, in pixels from its top left. `radius` is the dot's, in pixels.
+    public static func draw(on image: CGImage, at point: CGPoint, radius: CGFloat) -> CGImage? {
+        let width = image.width, height = image.height
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        context.draw(image, in: bounds)
+        // Core Graphics counts from the bottom left.
+        let center = CGPoint(x: point.x, y: CGFloat(height) - point.y)
+        let ring = radius * 1.35
+        context.setShadow(offset: CGSize(width: 0, height: -radius * 0.2), blur: radius * 0.8,
+                          color: CGColor(gray: 0, alpha: 0.35))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fillEllipse(in: CGRect(x: center.x - ring, y: center.y - ring, width: ring * 2, height: ring * 2))
+        context.setShadow(offset: .zero, blur: 0)
+        context.setFillColor(blue)
+        context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+        return context.makeImage()
+    }
+}

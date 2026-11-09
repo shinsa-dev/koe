@@ -28,7 +28,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var copiesInFlight = 0
     /// The sessions the menu listed when it last opened, so a click copies the one you saw.
     private var listed: [HistoryEntry] = []
-    private lazy var pill = PillController(sessions: sessions) { [weak self] urls in self?.tools.drop(urls) }
+    private lazy var pill = PillController(sessions: sessions, tools: PillTools(
+        comment: { [weak self] in self?.addComment() },
+        screenshot: { [weak self] in self?.takeScreenshot() },
+        note: { [weak self] in self?.addNote() },
+        clip: { [weak self] in self?.recordClip() },
+        drop: { [weak self] urls in self?.tools.drop(urls) }
+    ))
     /// The shortcuts another app already holds, which the menu points out.
     private var takenHotKeys: Set<KeyCombo> = []
 
@@ -55,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         library.onSettingsChange = { [weak self] _ in self?.applyAppearance() }
         let hotKeys: [(KeyCombo, () -> Void)] = [
             (.toggleSession, { [weak self] in self?.toggleSession() }),
+            (.comment, { [weak self] in self?.addComment() }),
             (.screenshot, { [weak self] in self?.takeScreenshot() }),
             (.note, { [weak self] in self?.addNote() }),
             (.clip, { [weak self] in self?.recordClip() }),
@@ -75,8 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { item.button?.performClick(nil) }
         }
         if Launch.has("--settings") { openSettings() }
-        if let name = Launch.value(after: "--pane"),
-           let pane = SettingsWindowController.Pane.allCases.first(where: { "\($0)" == name }) { present(pane) }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
     }
@@ -100,6 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         sessions.toggle()
     }
+
+    @objc func addComment() { tools.comment() }
 
     @objc func takeScreenshot() { tools.screenshot() }
 
@@ -136,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func run(_ step: ScriptedStep) async {
         switch step.action {
         case .screenshot(let rect, let note): tools.screenshot(preset: rect, note: note, holds: step.holds)
+        case .comment(let spot, let note): tools.comment(at: spot, note: note, holds: step.holds)
         case .note(let text): tools.note(text: text, holds: step.holds)
         case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
         case .clip(let rect, let seconds, let picks):
@@ -158,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let recovered = await library.recover(unfinished, using: transcriber)
             guard recovered > 0, !sessions.phase.isActive else { return }
             sessions.post(PillNotice(
-                kind: .success, title: "Recovered",
+                kind: .success, title: "Recording saved",
                 detail: recovered == 1 ? "A recording is in Recent sessions" : "\(recovered) recordings are in Recent sessions"
             ))
             pill.show()
@@ -227,14 +235,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc func openSettings() { present(.general) }
+    @objc func openSettings() { present() }
 
-    @objc func openSetup() { present(.permissions) }
+    @objc func openSetup() { present() }
 
     /// A window open means Koe is an app you switch to: it joins the Dock and ⌘Tab until the window closes.
-    private func present(_ pane: SettingsWindowController.Pane) {
+    private func present() {
         NSApp.setActivationPolicy(.regular)
-        settingsWindow.present(pane)
+        settingsWindow.present()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

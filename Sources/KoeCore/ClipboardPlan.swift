@@ -25,12 +25,12 @@ public enum ClipboardPlan {
         return items
     }
 
-    /// What the pill shows once the bundle is on the clipboard: "Copied" or "Pasted", then what to do with it.
+    /// What the pill shows once the bundle is on the clipboard, then what to do with it.
     public static func summary(for items: [ClipboardItem], pasted: Bool) -> (title: String, detail: String) {
         let files = items.filter { if case .file = $0 { true } else { false } }.count
-        let with = files == 0 ? "" : files == 1 ? " with its file" : " with its \(files) files"
+        let attachments = files == 0 ? "" : files == 1 ? " and 1 attachment" : " and \(files) attachments"
         return pasted
-            ? ("Pasted", "Your transcript went in\(with)")
-            : ("Copied", "Press ⌘V to paste it\(with)")
+            ? ("Pasted for you", "Your words\(attachments) went straight in")
+            : ("Copied to clipboard", "Press ⌘V to paste your words\(attachments) anywhere")
     }
 }
