@@ -180,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // A session started meanwhile owns the pill: its waveform stays up and the copy says nothing.
             guard !sessions.phase.isActive else { return }
             sessions.post(message)
+            pill.show()
             lingerThenHide()
         }
     }
@@ -191,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if items.isEmpty {
             sessions.post(PillNotice(kind: .neutral, title: "Nothing to copy"))
         } else {
-            let summary = ClipboardPlan.summary(for: items, words: entry.session.words.count, pasted: false)
+            let summary = ClipboardPlan.summary(for: items, pasted: false)
             sessions.post(PillNotice(kind: .success, title: summary.title, detail: summary.detail))
         }
         pill.show()

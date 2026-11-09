@@ -128,20 +128,20 @@ struct RecorderPhaseTests {
 
 struct DeliveryTests {
     @Test func copiesAtOnceWithTheWordsHeardSoFar() {
-        #expect(Delivery.decide(openTools: 0, hasWords: true, transcriptDone: false) == .deliver(final: false))
+        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: false) == .deliver(final: false))
     }
 
     @Test func aSettledTranscriptIsFinal() {
-        #expect(Delivery.decide(openTools: 0, hasWords: true, transcriptDone: true) == .deliver(final: true))
-        #expect(Delivery.decide(openTools: 0, hasWords: false, transcriptDone: true) == .deliver(final: true))
+        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: true) == .deliver(final: true))
+        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: true) == .deliver(final: true))
     }
 
     @Test func waitsForAToolStillOpen() {
-        #expect(Delivery.decide(openTools: 1, hasWords: true, transcriptDone: true) == .wait)
+        #expect(Delivery.decide(openTools: 1, hasContent: true, transcriptDone: true) == .wait)
     }
 
     @Test func waitsWhenTheModelHasNoWordYetButIsStillWorking() {
-        #expect(Delivery.decide(openTools: 0, hasWords: false, transcriptDone: false) == .wait)
+        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false) == .whenSettled)
     }
 }
 

@@ -46,10 +46,9 @@ struct ClipboardPlanTests {
     @Test func theSummaryCountsWordsAndFiles() {
         let text = ClipboardItem.text(plain: "a", html: "a")
         let file = ClipboardItem.file(URL(fileURLWithPath: "/a.png"))
-        #expect(ClipboardPlan.summary(for: [text], words: 1, pasted: false) == ("Copied", "1 word"))
-        #expect(ClipboardPlan.summary(for: [text, file], words: 42, pasted: false) == ("Copied", "42 words and 1 file"))
-        #expect(ClipboardPlan.summary(for: [text, file, file], words: 0, pasted: true) == ("Pasted", "2 files"))
-        #expect(ClipboardPlan.summary(for: [text], words: 0, pasted: false) == ("Copied", "The transcript"))
+        #expect(ClipboardPlan.summary(for: [text], pasted: false) == ("Copied", "Press ⌘V to paste it"))
+        #expect(ClipboardPlan.summary(for: [text, file], pasted: false) == ("Copied", "Press ⌘V to paste it with its file"))
+        #expect(ClipboardPlan.summary(for: [text, file, file], pasted: true) == ("Pasted", "Your transcript went in with its 2 files"))
     }
 }
 

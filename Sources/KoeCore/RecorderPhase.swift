@@ -37,14 +37,17 @@ public enum RecorderPhase: Sendable, Equatable {
 /// model's latest guess, and refines the copy when the last words settle. It waits only for a tool you still have
 /// open, or when the model has not produced a single word yet but is still working.
 public enum Delivery: Sendable, Equatable {
+    /// A tool is still open on the session: its annotation belongs in the copy.
     case wait
     /// Copy now. `final` when the transcript is settled, so no refinement follows.
     case deliver(final: Bool)
+    /// Nothing heard yet and the model is still catching up: the session ends now and copies once it has the words.
+    case whenSettled
 
-    public static func decide(openTools: Int, hasWords: Bool, transcriptDone: Bool) -> Delivery {
+    public static func decide(openTools: Int, hasContent: Bool, transcriptDone: Bool) -> Delivery {
         guard openTools == 0 else { return .wait }
         if transcriptDone { return .deliver(final: true) }
-        return hasWords ? .deliver(final: false) : .wait
+        return hasContent ? .deliver(final: false) : .whenSettled
     }
 }
 

@@ -44,7 +44,7 @@ final class SessionLibrary {
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
         lastCopy = (session.id, NSPasteboard.general.changeCount)
         let pasted = settings.autoPaste ? await BundleWriter.paste() : false
-        let summary = ClipboardPlan.summary(for: items, words: session.words.count, pasted: pasted)
+        let summary = ClipboardPlan.summary(for: items, pasted: pasted)
         return PillNotice(kind: .success, title: summary.title, detail: summary.detail)
     }
 

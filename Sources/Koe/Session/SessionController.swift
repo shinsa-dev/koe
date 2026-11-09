@@ -27,6 +27,8 @@ private final class Take {
     var failure: (any Error)?
     var delivered: Session?
     var cancelled = false
+    /// Finished before the model heard anything: copied as soon as the transcript settles.
+    var awaitingWords = false
 
     init(source: any AudioSource, root: URL) {
         self.source = source
@@ -259,6 +261,10 @@ final class SessionController {
             Self.log.error("Transcription stopped: \(failure.localizedDescription, privacy: .public)")
         }
         guard !take.cancelled else { return }
+        if take.awaitingWords, take.delivered == nil {
+            deliver(take)
+            return
+        }
         if let delivered = take.delivered {
             let settled = take.snapshot()
             if settled.words != delivered.words || settled.annotations != delivered.annotations {
@@ -278,20 +284,37 @@ final class SessionController {
 
     private func deliverIfReady() {
         guard phase == .finishing, let take else { return }
-        let decision = Delivery.decide(openTools: take.ledger.openCount, hasWords: !take.transcript.isEmpty,
+        let decision = Delivery.decide(openTools: take.ledger.openCount,
+                                       hasContent: !take.transcript.isEmpty || !take.ledger.annotations.isEmpty,
                                        transcriptDone: take.transcriptDone)
-        guard case .deliver = decision else { return }
+        switch decision {
+        case .wait:
+            return
+        case .deliver:
+            self.take = nil
+            // The notice goes up before the phase changes, so the pill stays to show it.
+            deliver(take)
+            phase = .idle
+        case .whenSettled:
+            // Never hold the pill for the model: the session ends now and is copied once its words arrive.
+            take.awaitingWords = true
+            self.take = nil
+            phase = .idle
+        }
+    }
+
+    private func deliver(_ take: Take) {
         let session = take.snapshot()
-        self.take = nil
         if session.words.isEmpty, session.annotations.isEmpty {
             take.transcription?.cancel()
             try? FileManager.default.removeItem(at: take.folder.url)
-            post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
+            if !take.awaitingWords {
+                post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
+            }
         } else {
             take.delivered = session
             onFinish?(session, take.folder.url)
         }
-        phase = .idle
     }
 
     private func saveDraft(_ take: Take) {

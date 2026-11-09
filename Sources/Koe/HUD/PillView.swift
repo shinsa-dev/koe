@@ -52,6 +52,11 @@ private enum PillContent: Equatable {
         }
     }
 
+    var isNotice: Bool {
+        if case .notice = self { return true }
+        return false
+    }
+
     /// What changes the pill's shape, so the bounce runs once per change and not on every tick.
     var kind: String {
         switch self {
@@ -77,7 +82,8 @@ private struct PillBody: View {
                     .transition(PillSwap())
             }
         }
-        .padding(.leading, 14)
+        // A round badge or button at either end sits 8 pt from the edge on every side, concentric with the pill.
+        .padding(.leading, content.isNotice ? 8 : 14)
         .padding(.trailing, 8)
         .frame(height: 40)
         // While the pill shrinks, what is leaving is cut at its edge instead of spilling past it.
@@ -100,10 +106,10 @@ private struct SessionControls: View {
                     .transition(PillSwap())
             }
             HStack(spacing: 4) {
+                PillButton(icon: .close, tone: .destructive, label: "Discard", action: sessions.cancel)
                 PillButton(icon: paused ? .play : .pause, tone: .neutral,
                            label: paused ? "Resume" : "Pause", action: paused ? sessions.resume : sessions.pause)
                     .contentTransition(.symbolEffect(.replace))
-                PillButton(icon: .close, tone: .destructive, label: "Discard", action: sessions.cancel)
                 PillButton(icon: .checkmark, tone: .action,
                            label: "Finish and copy (\(KeyCombo.toggleSession.displayName))", action: sessions.finish)
             }
