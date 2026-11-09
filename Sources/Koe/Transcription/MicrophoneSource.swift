@@ -5,14 +5,30 @@ import os
 /// The default input device, through AVAudioEngine's input tap. When the device changes mid-session (AirPods
 /// connect, a mic is unplugged) the engine stops; the source picks up the new device and records on.
 final class MicrophoneSource: AudioSource, @unchecked Sendable {
-    // Starting the engine takes about half a second, so the engine lives on its own queue: the session and the pill
-    // start the moment you ask, and the audio follows. Every engine call goes through `queue`, in order.
-    private let queue = DispatchQueue(label: "studio.shinsa.koe.microphone", qos: .userInteractive)
-    private let engine = AVAudioEngine()
+    // Creating the input node takes about 0.4 s and starting the device about as long again, so one engine lives for
+    // the whole app, made ready at launch (`prewarm`), on its own queue: the session and the pill start the moment you
+    // ask and the audio follows. Every engine call goes through `queue`, in order.
+    private static let queue = DispatchQueue(label: "studio.shinsa.koe.microphone", qos: .userInteractive)
+    private static let engine = AVAudioEngine()
+    nonisolated(unsafe) private static var running = false
+    private var queue: DispatchQueue { Self.queue }
+    private var engine: AVAudioEngine { Self.engine }
+    private var running: Bool {
+        get { Self.running }
+        set { Self.running = newValue }
+    }
     private let stream = CaptureStream()
     private var observer: NSObjectProtocol?
-    private var running = false
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "microphone")
+
+    /// Builds the input node and readies the engine, so the first session only has to start the device.
+    static func prewarm() {
+        queue.async {
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            guard format.sampleRate > 0, format.channelCount > 0 else { return }
+            engine.prepare()
+        }
+    }
 
     var currentTime: AudioTime { stream.currentTime }
     var level: Float { stream.level }
@@ -43,7 +59,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else { throw AudioSourceError.noMicrophone }
         guard let converter = AudioConversion.toCapture(from: inputFormat) else { throw AudioSourceError.unconvertible }
         let stream = stream
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { buffer, _ in
             guard let converted = AudioConversion.convert(buffer, with: converter, to: CaptureStream.format) else { return }
             stream.ingest(converted)
         }

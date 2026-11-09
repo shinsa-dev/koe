@@ -50,28 +50,27 @@ final class PillController {
     private let panel: PillPanel
     private var pendingHide: Task<Void, Never>?
 
+    private let presence = PillPresence()
+
     init(sessions: SessionController, onDrop: @escaping ([URL]) -> Void) {
-        panel = PillPanel(rootView: PillView(sessions: sessions, onDrop: onDrop))
+        panel = PillPanel(rootView: PillEntrance(presence: presence) {
+            PillView(sessions: sessions, onDrop: onDrop)
+        })
     }
 
     var isVisible: Bool { panel.isVisible }
 
     func show() {
         pendingHide?.cancel()
-        guard !panel.isVisible else {
-            panel.animator().alphaValue = 1
-            return
+        if !panel.isVisible {
+            let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
+            if let visible = screen?.visibleFrame {
+                panel.setFrameOrigin(NSPoint(x: visible.midX - PillPanel.size.width / 2, y: visible.minY))
+            }
+            panel.orderFrontRegardless()
         }
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
-        if let visible = screen?.visibleFrame {
-            panel.setFrameOrigin(NSPoint(x: visible.midX - PillPanel.size.width / 2, y: visible.minY))
-        }
-        panel.alphaValue = 0
-        panel.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            panel.animator().alphaValue = 1
-        }
+        guard !presence.shown else { return }
+        withAnimation(PillPresence.entrance) { presence.shown = true }
     }
 
     /// Leaves the pill up a moment so you can read what it says, unless `keep` says it is needed again by then.
@@ -86,12 +85,32 @@ final class PillController {
 
     func hide() {
         pendingHide?.cancel()
-        guard panel.isVisible else { return }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            panel.animator().alphaValue = 0
-        } completionHandler: { [panel] in
-            MainActor.assumeIsolated { if panel.alphaValue == 0 { panel.orderOut(nil) } }
+        guard panel.isVisible, presence.shown else { return }
+        withAnimation(PillPresence.exit) { presence.shown = false } completion: { [panel, presence] in
+            if !presence.shown { panel.orderOut(nil) }
         }
+    }
+}
+
+/// Whether the pill is on screen, animated in SwiftUI so it arrives and leaves the way its content changes.
+@MainActor
+@Observable
+final class PillPresence {
+    var shown = false
+
+    static let entrance = Animation.spring(duration: 0.42, bounce: 0.3)
+    static let exit = Animation.spring(duration: 0.28, bounce: 0)
+}
+
+/// The pill grows in from slightly small and blurred with a small bounce, and leaves the same way in reverse.
+private struct PillEntrance<Content: View>: View {
+    let presence: PillPresence
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .scaleEffect(presence.shown ? 1 : 0.86, anchor: .bottom)
+            .blur(radius: presence.shown ? 0 : 8)
+            .opacity(presence.shown ? 1 : 0)
     }
 }

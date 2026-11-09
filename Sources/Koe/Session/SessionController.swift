@@ -77,6 +77,10 @@ final class SessionController {
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "session")
     @ObservationIgnored var onPhaseChange: ((RecorderPhase) -> Void)?
     /// A session copied at once, with the folder its files are in.
+    /// The session ended before the model had any words; they are copied once they arrive.
+    @ObservationIgnored var onCopyPending: (() -> Void)?
+    /// A notice that came after the session ended, such as nothing heard once the model settled.
+    @ObservationIgnored var onLateNotice: (() -> Void)?
     @ObservationIgnored var onFinish: ((Session, URL) -> Void)?
     /// The same session once its last words settled, when they differ from what was copied.
     @ObservationIgnored var onRefine: ((Session, URL) -> Void)?
@@ -299,6 +303,8 @@ final class SessionController {
             // Never hold the pill for the model: the session ends now and is copied once its words arrive.
             take.awaitingWords = true
             self.take = nil
+            // The notice goes up before the phase changes, so the pill goes straight to it.
+            onCopyPending?()
             phase = .idle
         }
     }
@@ -308,9 +314,8 @@ final class SessionController {
         if session.words.isEmpty, session.annotations.isEmpty {
             take.transcription?.cancel()
             try? FileManager.default.removeItem(at: take.folder.url)
-            if !take.awaitingWords {
-                post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
-            }
+            post(PillNotice(kind: .neutral, title: "Nothing heard", detail: "Nothing was copied", icon: .muted))
+            if take.awaitingWords { onLateNotice?() }
         } else {
             take.delivered = session
             onFinish?(session, take.folder.url)

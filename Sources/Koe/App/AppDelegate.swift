@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import KoeCore
 
@@ -46,12 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = menu
         statusItem = item
 
-        sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
-        sessions.onFinish = { [weak self] session, folder in self?.sessionEnded(session, folder: folder) }
-        sessions.onRefine = { [weak self] session, folder in self?.library.refined(session, folder: folder) }
-        sessions.onCancel = { [weak self] in
-            self?.tools.sessionCancelled()
-            self?.lingerThenHide()
+        wireSessions()
+        if audioFile == nil, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            MicrophoneSource.prewarm()
         }
         recoverUnfinished()
         library.onSettingsChange = { [weak self] _ in self?.applyAppearance() }
@@ -183,6 +181,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pill.show()
             lingerThenHide()
         }
+    }
+
+    private func wireSessions() {
+        sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
+        sessions.onFinish = { [weak self] session, folder in self?.sessionEnded(session, folder: folder) }
+        sessions.onRefine = { [weak self] session, folder in self?.library.refined(session, folder: folder) }
+        sessions.onCancel = { [weak self] in
+            self?.tools.sessionCancelled()
+            self?.lingerThenHide()
+        }
+        sessions.onCopyPending = { [weak self] in self?.copyPending() }
+        sessions.onLateNotice = { [weak self] in
+            guard let self, !sessions.phase.isActive else { return }
+            pill.show()
+            lingerThenHide()
+        }
+    }
+
+    /// You finished before the model had its first words: the pill says it's copied at once, and the copy lands as soon
+    /// as the words do, well before you can press ⌘V.
+    private func copyPending() {
+        let summary = ClipboardPlan.summary(for: [], pasted: false)
+        sessions.post(PillNotice(kind: .success, title: summary.title, detail: summary.detail))
     }
 
     @objc func copyRecent(_ sender: NSMenuItem) {
