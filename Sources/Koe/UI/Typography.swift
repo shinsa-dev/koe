@@ -39,6 +39,8 @@ enum Typography {
     static let pageTitle = Font(sans(18, .medium))
     static let title = Font(sans(15, .medium))
     static let rowTitle = Font(sans(13, .medium))
+    static let control = Font(sans(13, .medium))
+    static let controlLarge = Font(sans(14, .medium))
     static let body = Font(sans(13))
     static let meta = Font(sans(12))
     static let label = Font(sans(12, .medium))

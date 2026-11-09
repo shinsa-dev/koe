@@ -19,7 +19,11 @@ behaviour it describes.
 - **Koe's own look, Shinsa's system.** Native windows and menus, but Koe draws its own content: the settings window
   is one page of cards in a full-size content view (no tabs, no sidebar, no system toolbar), and controls are Shinsa's, drawn by Koe:
   `KoeButtonStyle` (the web's `Button`), `KoeSwitchStyle` (the web's `Switch`), `SegmentedTabs` (the web's tabs),
-  `SettingsGroup`/`SettingRow` cards. Never system push buttons, switches or segmented controls. ABC Areal through
+  `SettingsGroup`/`SettingRow` cards, `Badge` (the web's `Badge`), `Kbd`, `TextInput` (the web's `Input`) and
+  `.hint(_:shortcut:)` (the web's `Hint` tooltip; never `.help`). Each matches its React file in
+  `packages/ui/src/components` size for size and variant for variant; change both together. Shortcuts live in
+  hints, never inside a button. No focus rings anywhere (`focusEffectDisabled`). Never system push buttons, switches
+  or segmented controls. ABC Areal through
   `Typography`, colours through `Palette`/`Tone` (`Tokens.swift` is generated: change the web token and rerun
   `scripts/tokens.py`), SF Symbols through `Icon`. Never raw RGB or system colours in views.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the

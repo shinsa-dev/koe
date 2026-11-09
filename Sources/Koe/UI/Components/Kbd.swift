@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The web's `Kbd`: a key name on a bg-2 tile, 20 pt tall, in medium fg-2.
+/// The web's `Kbd`: a key name in 13 medium fg-2 on a bg-2 tile, 20 pt tall and at least as wide, rounded 5.
 struct Kbd: View {
     let key: String
 
@@ -12,10 +12,10 @@ struct Kbd: View {
         Text(key)
             .lineLimit(1)
             .fixedSize()
-            .font(Font(Typography.sans(11, .medium)))
+            .font(Typography.control)
             .foregroundStyle(Palette.fg2)
             .padding(.horizontal, 4)
             .frame(minWidth: 20, minHeight: 20)
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 }

@@ -80,14 +80,14 @@ private struct RecordingCard: View {
             }
             Spacer(minLength: 4)
             Button(action: stop) {
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     IconView(icon: .stop, size: .small, color: nil)
                     Text("Stop")
                 }
+                .padding(.leading, -2)
             }
             .buttonStyle(.koe(.outline, size: .small))
-            .help("Stop (\(KeyCombo.clip.displayName))")
-            Kbd(KeyCombo.clip.displayName)
+            .hint("Stop recording", shortcut: KeyCombo.clip.displayName)
         }
         .padding(.leading, 8)
         .padding(.trailing, 5)

@@ -189,15 +189,15 @@ struct ClipReviewView: View {
                 IconView(icon: reviewer.playing ? .pause : .play, size: .medium, color: nil)
             }
             .buttonStyle(.koe(.outline, iconOnly: true))
-            .help(reviewer.playing ? "Pause (Space)" : "Play (Space)")
+            .hint(reviewer.playing ? "Pause" : "Play", shortcut: "Space")
             .accessibilityLabel(reviewer.playing ? "Pause" : "Play")
             Button { reviewer.step(by: -1) } label: { IconView(icon: .previous, size: .medium, color: nil) }
                 .buttonStyle(.koe(.secondary, iconOnly: true))
-                .help("Previous frame (←)")
+                .hint("Previous frame", shortcut: "←")
                 .accessibilityLabel("Previous frame")
             Button { reviewer.step(by: 1) } label: { IconView(icon: .next, size: .medium, color: nil) }
                 .buttonStyle(.koe(.secondary, iconOnly: true))
-                .help("Next frame (→)")
+                .hint("Next frame", shortcut: "→")
                 .accessibilityLabel("Next frame")
             Text(position)
                 .font(Typography.meta.monospacedDigit())
@@ -208,7 +208,6 @@ struct ClipReviewView: View {
                 items: PlaybackSpeed.allCases.map { (value: $0, label: $0.label) },
                 selection: Binding(get: { reviewer.speed }, set: { reviewer.speed = $0 })
             )
-            .help("Playback speed")
         }
     }
 
@@ -241,20 +240,19 @@ struct ClipReviewView: View {
                 HStack(spacing: 6) {
                     IconView(icon: .add, size: .small, color: nil)
                     Text(reviewer.review.isPicked(reviewer.current) ? "Frame picked" : "Pick this frame")
-                    Kbd("P")
                 }
+                .padding(.leading, -2)
             }
             .buttonStyle(.koe(.outline))
+            .hint("Pick this frame", shortcut: "P")
             .disabled(reviewer.review.isPicked(reviewer.current))
             Spacer()
-            Button { reviewer.finish(attach: false) } label: {
-                HStack(spacing: 6) { Text("Discard"); Kbd("Esc") }
-            }
-            .buttonStyle(.koe(.secondary))
-            Button { reviewer.finish(attach: true) } label: {
-                HStack(spacing: 6) { Text(reviewer.attachTitle); Kbd("↩") }
-            }
-            .buttonStyle(.koe(.primary))
+            Button("Discard") { reviewer.finish(attach: false) }
+                .buttonStyle(.koe(.secondary))
+                .hint("Discard this clip", shortcut: "Esc")
+            Button(reviewer.attachTitle) { reviewer.finish(attach: true) }
+                .buttonStyle(.koe(.primary))
+                .hint("Attach the clip and its frames", shortcut: "↩")
         }
     }
 }
@@ -322,15 +320,15 @@ private struct PickedFrameRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Palette.border, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .help("Show this frame")
+            .hint("Show this frame")
             Text(String(format: "%.2f s", pick.time))
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
                 .frame(width: 52, alignment: .leading)
-            TextInput(placeholder: "Add a note for this frame (optional)", text: $note)
+            TextInput(placeholder: "Add a note for this frame (optional)", text: $note, size: .small)
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
-                .help("Remove this frame")
+                .buttonStyle(.koe(.bare, size: .small, iconOnly: true))
+                .hint("Remove this frame")
                 .accessibilityLabel("Remove frame at \(String(format: "%.2f", pick.time)) seconds")
         }
     }

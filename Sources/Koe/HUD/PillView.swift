@@ -113,12 +113,12 @@ private struct SessionControls: View {
         let paused = phase == .paused
         HStack(spacing: 10) {
             HStack(spacing: 4) {
-                PillButton(icon: .comment, tone: .tool, label: help("Comment on something", .comment),
+                PillButton(icon: .comment, tone: .tool, label: "Comment on something", shortcut: KeyCombo.comment.displayName,
                            action: tools.comment)
-                PillButton(icon: .screenshot, tone: .tool, label: help("Take a screenshot", .screenshot),
+                PillButton(icon: .screenshot, tone: .tool, label: "Take a screenshot", shortcut: KeyCombo.screenshot.displayName,
                            action: tools.screenshot)
-                PillButton(icon: .clip, tone: .tool, label: help("Record a clip", .clip), action: tools.clip)
-                PillButton(icon: .note, tone: .tool, label: help("Add a note", .note), action: tools.note)
+                PillButton(icon: .clip, tone: .tool, label: "Record a clip", shortcut: KeyCombo.clip.displayName, action: tools.clip)
+                PillButton(icon: .note, tone: .tool, label: "Add a note", shortcut: KeyCombo.note.displayName, action: tools.note)
             }
             .disabled(!phase.isOpen)
             Divider()
@@ -139,16 +139,13 @@ private struct SessionControls: View {
                     // Quick on its own, whatever pace the rest of the pill moves at.
                     .animation(.snappy(duration: 0.14), value: paused)
                 PillButton(icon: .checkmark, tone: .action,
-                           label: "Finish and copy (\(KeyCombo.toggleSession.displayName))", action: sessions.finish)
+                           label: "Finish and copy", shortcut: KeyCombo.toggleSession.displayName, action: sessions.finish)
             }
             .disabled(!phase.isOpen)
         }
         .animation(.spring(duration: 0.3, bounce: 0.2), value: paused)
     }
 
-    private func help(_ title: String, _ combo: KeyCombo) -> String {
-        "\(title) (\(combo.displayName))"
-    }
 }
 
 /// The session's length, ticking with its audio so it stops while paused. Each digit rolls as it changes.
@@ -177,6 +174,7 @@ private struct PillButton: View {
     let icon: Icon
     let tone: Tone
     let label: String
+    var shortcut: String?
     let action: () -> Void
 
     var body: some View {
@@ -184,7 +182,7 @@ private struct PillButton: View {
             IconView(icon: icon, size: .tiny, color: glyph, weight: .bold)
         }
         .buttonStyle(PressDownStyle(fill: fill))
-        .help(label)
+        .hint(label, shortcut: shortcut)
         .accessibilityLabel(label)
     }
 

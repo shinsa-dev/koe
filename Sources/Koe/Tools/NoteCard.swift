@@ -28,12 +28,12 @@ struct NoteCard: View {
                         .truncationMode(.middle)
                 }
                 Spacer(minLength: 8)
-                Button(action: cancel) {
-                    HStack(spacing: 6) { Text("Cancel"); Kbd("Esc") }
-                }
-                .buttonStyle(.koe(.secondary, size: .small))
-                Button(action: submit) { Text(action) }
-                .buttonStyle(.koe(.primary, size: .small))
+                Button("Cancel", action: cancel)
+                    .buttonStyle(.koe(.secondary, size: .small))
+                    .hint("Cancel", shortcut: "Esc")
+                Button(action, action: submit)
+                    .buttonStyle(.koe(.primary, size: .small))
+                    .hint(action, shortcut: "↩")
             }
         }
         .padding(8)

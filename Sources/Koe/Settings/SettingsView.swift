@@ -92,7 +92,7 @@ private struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(permission.title).foregroundStyle(Palette.fg4)
-                    if !permission.isRequired { Text("Optional").font(Typography.meta).foregroundStyle(Palette.fg1) }
+                    if !permission.isRequired { Badge(title: "Optional", size: .small) }
                 }
                 Text(detail)
                     .font(Typography.meta)
@@ -102,7 +102,8 @@ private struct PermissionRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 6) { trailing }
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8)
+        .padding(.trailing, 6)
         .padding(.vertical, 6)
         .accessibilityElement(children: .contain)
     }
@@ -119,11 +120,7 @@ private struct PermissionRow: View {
     @ViewBuilder private var trailing: some View {
         switch status {
         case .granted:
-            HStack(spacing: 4) {
-                IconView(icon: .checkmark, size: .small, color: nil, weight: .bold)
-                Text("Allowed").font(Typography.label)
-            }
-            .foregroundStyle(Tone.green.ink)
+            Badge(title: "Allowed", tone: .green, icon: .checkmark)
         case .notDetermined:
             Button("Allow") { center.request(permission) }
                 .buttonStyle(.koe(isNext ? .primary : .outline, size: .small))

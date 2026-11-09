@@ -57,11 +57,15 @@ enum Palette {
     static let actionTint = Color(nsColor: Tokens.primaryA3)
     /// The web's shadows are pure black at an alpha (tokens.py skips them), so this is the one black Koe draws.
     static let shadow = Color(nsColor: NSColor(rgba: 0x000000FF))
+    static let highlight = Color(nsColor: NSColor(rgba: 0xFFFFFFFF))
     static let scrim = shadow.opacity(0.4)
     static let sidebar = Color(nsColor: Tokens.sidebar)
     static let ring = Color(nsColor: Tokens.bgA3)
     /// The web's outline button and raised segment: the canvas in light, bg-4 lifted off it in dark.
     static let control = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg3))
+    static let popover = Color(nsColor: Tokens.popover)
+    static let input = Color(nsColor: Tokens.input)
+    static let ringHover = Color(nsColor: Tokens.bg4)
     static let controlPressed = Color(nsColor: .token(light: Tokens.bg1, dark: Tokens.bg4))
     static let segment = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg4))
     static let hudCanvas = Color(nsColor: Tokens.background.inDark)
