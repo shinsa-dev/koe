@@ -222,7 +222,7 @@ final class ClipTool {
         }
     }
 
-    /// ← → step a frame (with ⇧, ten), Space plays, P picks, Return keeps the note being said or attaches. Esc is
+    /// ← → step a frame (with ⇧, ten), Space plays, Return keeps the note being said or attaches. Esc is
     /// the panel's.
     private static func handle(_ event: NSEvent, in reviewer: ClipReviewer) -> Bool {
         let stride = event.modifierFlags.contains(.shift) ? 10 : 1
@@ -230,7 +230,6 @@ final class ClipTool {
         case 123: reviewer.step(by: -stride)
         case 124: reviewer.step(by: stride)
         case 49: reviewer.togglePlay()
-        case 35: reviewer.pickCurrent()
         case 36, 76: confirmPressed(in: reviewer)
         default: return false
         }
@@ -350,8 +349,8 @@ extension ClipTool {
                 detail: picked ? "\(time) · picked" : time, confirm: reviewer.attachTitle, canTalk: false,
                 cancel: "Discard this clip", canPause: false,
                 extra: picked
-                    ? .init(icon: .retake, label: "Talk about this frame again", shortcut: "P")
-                    : .init(icon: .add, label: "Pick this frame and talk about it", shortcut: "P")
+                    ? .init(icon: .retake, label: "Talk about this frame again")
+                    : .init(icon: .add, label: "Pick this frame and talk about it")
             )
         }
         status.onExtra = { reviewer.pickCurrent() }

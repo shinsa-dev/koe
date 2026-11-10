@@ -25,7 +25,8 @@ enum Icon: String, CaseIterable {
     case retake = "IconArrowRotateCounterClockwise"
     case previous = "IconChevronLeftSmall"
     case next = "IconChevronRightSmall"
-    case add = "IconPlusSmall"
+    /// The medium plus: its arms reach as far as the cross and the check beside it in the pill.
+    case add = "IconPlusMedium"
     case trash = "IconTrashCanSimple"
     case warning = "IconExclamationCircle"
     case muted = "IconMicrophoneOff"

@@ -37,9 +37,7 @@ struct FadingScroll<Content: View>: View {
                 edge(strength: hidden.below, towards: .bottom)
             }
         }
-        .frame(height: height.map { min($0, maxHeight) })
-        .frame(maxHeight: maxHeight)
-        .fixedSize(horizontal: false, vertical: height == nil)
+        .sized(height: height.map { min($0, maxHeight) }, maxHeight: maxHeight)
     }
 
     /// An eased ramp from clear at the edge to solid, as strong as there is content hidden behind it.
@@ -52,5 +50,17 @@ struct FadingScroll<Content: View>: View {
         return LinearGradient(stops: stops, startPoint: edge == .top ? .top : .bottom,
                               endPoint: edge == .top ? .bottom : .top)
             .frame(height: Self.fade)
+    }
+}
+
+private extension View {
+    /// A flexible frame grows to whatever its parent offers and centres its content, so a list that knows its
+    /// height takes exactly that and nothing more.
+    @ViewBuilder func sized(height: CGFloat?, maxHeight: CGFloat) -> some View {
+        if let height {
+            frame(height: height)
+        } else {
+            frame(maxHeight: maxHeight).fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

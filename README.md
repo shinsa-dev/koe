@@ -207,7 +207,7 @@ frames picked so far.
   or stopping the session stops it; a clip has no length limit. Then the clip opens at 1× (`PlaybackSpeed`): play
   it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub. Stepping stays in the review's own card, which has no buttons of its own for the clip. While it is open
   the pill names the frame on screen beside the live waveform, with discard, pick this frame (`ToolPrompt.extra`) and attach; it has no pause there. Picking a
-  frame (P) starts listening for its note at once: the pill shows the frame's time, its check (Return) keeps the note
+  frame starts listening for its note at once: the pill shows the frame's time, its check (Return) keeps the note
   and its discard removes that frame. Return also stops a recording: Koe holds Return and Enter system-wide while a
   clip records (`ClipTool.stopKeys`), since none of its windows has the keys then. The row shows your words as they
   are heard (`SessionController.spoken(in:)`), with say it again and remove beside them. Return attaches, Esc
