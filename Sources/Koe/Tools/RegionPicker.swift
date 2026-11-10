@@ -31,6 +31,8 @@ final class RegionPicker {
 
     let freeze: Freeze
     let purpose: Purpose
+    /// The comments this session already has, so numbers carry on from them.
+    let commentsBefore: Int
     var stage: Stage = .choosing {
         didSet {
             guard stage != oldValue else { return }
@@ -57,9 +59,10 @@ final class RegionPicker {
     /// A comment is done because you clicked the next thing: it is saved, and the picker carries on.
     @ObservationIgnored var onCommit: ((RegionChoice) -> Void)?
 
-    init(freeze: Freeze, purpose: Purpose = .screenshot) {
+    init(freeze: Freeze, purpose: Purpose = .screenshot, commentsBefore: Int = 0) {
         self.freeze = freeze
         self.purpose = purpose
+        self.commentsBefore = commentsBefore
     }
 
     func hover(at point: CGPoint?, on index: Int) {
@@ -131,8 +134,8 @@ final class RegionPicker {
         return Self.label(source)
     }
 
-    /// Which comment of this go is being said, from 1.
-    var commentNumber: Int { saved.count + 1 }
+    /// Which comment of the session is being said, from 1.
+    var commentNumber: Int { commentsBefore + saved.count + 1 }
 
     func submit(voice: VoiceSpan? = nil) {
         guard var choice else { return }
@@ -203,17 +206,18 @@ struct RegionPickerView: View {
                 Highlight(rect: highlight.rect)
                 if highlight.showsSize { SizeChip(rect: highlight.rect) }
             }
-            ForEach(Array(picker.saved.enumerated()), id: \.offset) { number, comment in
-                if comment.screen == index {
-                    Pin(number: number + 1, saved: true).position(comment.point).transition(.identity)
-                }
-            }
             if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
-                // A new pin each time: it comes out of the comment before it and travels to where you clicked.
-                ArrivingPin(number: picker.saved.isEmpty ? nil : picker.saved.count + 1, from: origin(of: pin))
+                // A new pin each time, drawn under the saved ones: it comes out from behind the comment before
+                // it and travels to where you clicked.
+                ArrivingPin(number: picker.commentNumber, from: origin(of: pin))
                     .position(pin)
                     .id(picker.saved.count)
                     .transition(.identity)
+            }
+            ForEach(Array(picker.saved.enumerated()), id: \.offset) { number, comment in
+                if comment.screen == index {
+                    Pin(number: picker.commentsBefore + number + 1, saved: true).position(comment.point).transition(.identity)
+                }
             }
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
@@ -270,39 +274,36 @@ private struct Dim: View {
     }
 }
 
-/// Where a comment points, drawn as it will appear in the screenshot. From the second comment of one go each
-/// carries its number, and one already saved turns quiet.
+/// Where a comment points, carrying its number in the session. One already saved turns quiet.
 private struct Pin: View {
-    let number: Int?
+    let number: Int
     let saved: Bool
 
     var body: some View {
         ZStack {
             Circle().fill(Palette.onAction)
-            Circle().fill(saved ? Palette.fg2 : Palette.action).padding(number == nil ? 3 : 2)
-            if let number {
-                Text("\(number)")
-                    .font(Typography.meta.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Palette.onAction)
-            }
+            Circle().fill(saved ? Palette.fg2 : Palette.action).padding(2)
+            Text("\(number)")
+                .font(Typography.meta.weight(.semibold).monospacedDigit())
+                .foregroundStyle(Palette.onAction)
         }
-        .frame(width: number == nil ? 20 : 22, height: number == nil ? 20 : 22)
+        .frame(width: 22, height: 22)
         .shadow(color: Palette.shadow.opacity(0.35), radius: 3, y: 1)
         .allowsHitTesting(false)
     }
 }
 
-/// The pin of the comment being said. It grows out of the one before it and moves to its own spot; the first
-/// one swells in where you clicked. Moved before it is placed, so it never slides in from a corner of the screen.
+/// The pin of the comment being said. It comes out from behind the one before it and moves to its own spot; the
+/// first one swells in where you clicked. Moved before it is placed, so it never slides in from a corner of the screen.
 private struct ArrivingPin: View {
-    let number: Int?
+    let number: Int
     let from: CGSize
     @State private var landed = false
 
     var body: some View {
         Pin(number: number, saved: false)
-            .scaleEffect(landed ? 1 : 0.5)
-            .opacity(landed ? 1 : from == .zero ? 0 : 0.6)
+            .scaleEffect(landed ? 1 : 0.6)
+            .opacity(landed || from != .zero ? 1 : 0)
             .offset(landed ? .zero : from)
             .onAppear { withAnimation(.spring(duration: 0.34, bounce: 0.22)) { landed = true } }
     }

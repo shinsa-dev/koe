@@ -37,6 +37,8 @@ final class ClipTool {
     /// The session finished while the clip was recording: it attaches as it is, with no review.
     private var attachWhenStopped = false
     private var reviewKeys: Any?
+    /// Return and Enter, held system-wide while a clip records: no window of Koe's has the keys then.
+    private var stopKeys: [UInt32] = []
     private var busy = false
     var clipFile: URL?
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "clip")
@@ -117,6 +119,7 @@ final class ClipTool {
     func stopRecording() {
         guard let recording, !stopping else { return }
         stopping = true
+        releaseStopKeys()
         recording.autoStop?.cancel()
         recording.indicator?.close()
         // Straight to the review's page, so the pill never shows its home page while the clip is read.
@@ -152,6 +155,7 @@ final class ClipTool {
     /// Drops the clip in progress, recording or in review, when its session was discarded.
     func discard() {
         attachWhenStopped = false
+        releaseStopKeys()
         if let recording {
             recording.autoStop?.cancel()
             recording.indicator?.close()
@@ -276,6 +280,7 @@ final class ClipTool {
     }
 
     private func fail(_ ticket: AnnotationLedger.Ticket, _ notice: String) {
+        releaseStopKeys()
         status.clear()
         sessions.post(notice: notice)
         end(ticket, with: [])
@@ -291,6 +296,7 @@ extension ClipTool {
     /// Throws away the clip that is recording and nothing else: the session carries on.
     func cancelRecording() {
         guard let recording, !stopping else { return }
+        releaseStopKeys()
         recording.autoStop?.cancel()
         recording.indicator?.close()
         self.recording = nil
@@ -308,17 +314,26 @@ extension ClipTool {
                                    clock: .init(started: Date(), limit: limit))
         status.onCancel = { [weak self] in self?.cancelRecording() }
         status.onConfirm = { [weak self] in self?.stopRecording() }
+        guard stopKeys.isEmpty else { return }
+        stopKeys = [36, 76].compactMap { key in
+            HotKeys.shared.register(KeyCombo(keyCode: key, modifiers: 0)) { [weak self] in self?.stopRecording() }
+        }
     }
 
-    /// While the clip is open the pill is its toolbar: it steps through the frames and picks one, and its discard
-    /// and confirm act on the clip. Picking a frame turns it to listening for that frame's note.
+    private func releaseStopKeys() {
+        stopKeys.forEach(HotKeys.shared.unregister)
+        stopKeys = []
+    }
+
+    /// While the clip is open the pill follows it: the frame on screen, and its discard and confirm act on the clip.
+    /// It keeps showing your voice, so you see the session still hears you. While a frame's note is being said it
+    /// names that frame, and confirm keeps the note.
     private func promptReview(_ reviewer: ClipReviewer?) {
         guard let reviewer else {
             status.prompt = ToolPrompt(stage: .confirming, icon: .video, title: "Opening the clip", detail: "One moment",
-                                       confirm: "Attach clip", canTalk: false, cancel: "Discard this clip")
+                                       confirm: "Attach clip", canTalk: false, cancel: "Discard this clip", canPause: false)
             status.onCancel = nil
             status.onConfirm = nil
-            status.onAction = nil
             return
         }
         let frames = reviewer.frames
@@ -326,31 +341,18 @@ extension ClipTool {
             status.prompt = ToolPrompt(stage: .listening, icon: .video,
                                        title: String(format: "Frame at %.2f s", frames.time(of: index)),
                                        detail: "Say what it shows", confirm: "Keep this note", canTalk: false,
-                                       cancel: "Remove this frame")
+                                       cancel: "Remove this frame", canPause: false)
         } else {
             let picked = reviewer.review.isPicked(reviewer.current)
             let time = String(format: "%.2f s", frames.time(of: reviewer.current))
             status.prompt = ToolPrompt(
                 stage: .confirming, icon: .video, title: "Frame \(reviewer.current + 1) of \(frames.count)",
                 detail: picked ? "\(time) · picked" : time, confirm: reviewer.attachTitle, canTalk: false,
-                cancel: "Discard this clip",
-                actions: [
-                    .init(id: "previous", icon: .previous, label: "Previous frame", shortcut: "←"),
-                    .init(id: "pick", icon: picked ? .microphone : .add,
-                          label: picked ? "Say its note again" : "Pick this frame and talk about it", shortcut: "P"),
-                    .init(id: "next", icon: .next, label: "Next frame", shortcut: "→")
-                ]
+                cancel: "Discard this clip", canPause: false
             )
         }
         status.onCancel = { [weak self] in self?.cancelPressed(in: reviewer) }
         status.onConfirm = { Self.confirmPressed(in: reviewer) }
-        status.onAction = { id in
-            switch id {
-            case "previous": reviewer.step(by: -1)
-            case "next": reviewer.step(by: 1)
-            default: reviewer.pickCurrent()
-            }
-        }
     }
 
     /// Keeps the pill's page in step with the clip: the frame on screen, whether it is picked, and listening.

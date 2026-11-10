@@ -17,6 +17,8 @@ final class ToolCoordinator {
     private var overlay: [ToolPanel] = []
     /// A screenshot's freeze is under way: its overlay isn't up yet, but a second press must not start another.
     private var freezing = false
+    /// Comments being saved right now, which the session doesn't list yet.
+    private var savingComments = 0
     /// What the pill asks while a tool is open.
     let status = ToolStatus()
     /// The setting: hold the screen still while you pick. Off, the screen keeps moving under the picker.
@@ -77,7 +79,8 @@ final class ToolCoordinator {
                 return
             }
             freezing = false
-            let picker = RegionPicker(freeze: freeze, purpose: purpose)
+            let before = sessions.attachments.filter(\.isComment).count + savingComments
+            let picker = RegionPicker(freeze: freeze, purpose: purpose, commentsBefore: before)
             let voice = VoiceNote { [sessions] in sessions.currentTime }
             follow(picker, voice: voice, ticket: ticket)
             showOverlay(for: picker)
@@ -152,7 +155,7 @@ final class ToolCoordinator {
     }
 
     private static func title(comment: Bool, listening: Bool, number: Int) -> String {
-        if comment { return number > 1 ? "Comment \(number - 1) saved. Say the next" : "Say your comment" }
+        if comment { return "Say comment \(number)" }
         return listening ? "Talk about it, or just attach" : "Attach this screenshot?"
     }
 
@@ -196,7 +199,10 @@ final class ToolCoordinator {
         let note = choice.note
         let voice = choice.voice
         let source = choice.source
+        let counted = choice.pin != nil
+        if counted { savingComments += 1 }
         Task {
+            defer { if counted { savingComments -= 1 } }
             let screen = await picture(for: choice, live: live)
             guard let pixels = ScreenGeometry.pixelRect(
                       of: choice.region, screenSize: screen.frame.size,

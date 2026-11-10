@@ -22,14 +22,6 @@ struct ToolPrompt: Equatable {
         var limit: AudioTime?
     }
 
-    /// A button of the tool's own, left of discard, pause and confirm: stepping through a clip's frames.
-    struct Action: Equatable, Identifiable {
-        var id: String
-        var icon: Icon
-        var label: String
-        var shortcut: String?
-    }
-
     var stage: Stage
     var icon: Icon
     var title: String
@@ -42,7 +34,8 @@ struct ToolPrompt: Equatable {
     /// The left button's label, when it does more than cancel.
     var cancel = "Cancel"
     var clock: Clock?
-    var actions: [Action] = []
+    /// Whether the session's pause sits between discard and confirm. A clip in review leaves it out.
+    var canPause = true
 }
 
 /// The open tool's prompt and what its buttons do. The pill reads it; the tool coordinator writes it.
@@ -53,14 +46,12 @@ final class ToolStatus {
     @ObservationIgnored var onCancel: (() -> Void)?
     @ObservationIgnored var onConfirm: (() -> Void)?
     @ObservationIgnored var onTalk: (() -> Void)?
-    @ObservationIgnored var onAction: ((String) -> Void)?
 
     func clear() {
         prompt = nil
         onCancel = nil
         onConfirm = nil
         onTalk = nil
-        onAction = nil
     }
 }
 

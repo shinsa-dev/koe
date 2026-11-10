@@ -205,9 +205,11 @@ frames picked so far.
   a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and
   its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline shows around the region, and the pill becomes the recording's own page: its clock, discard (this clip only, the session carries on), pause and stop. R again,
   or stopping the session stops it; a clip has no length limit. Then the clip opens at 1× (`PlaybackSpeed`): play
-  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub. While it is open the pill is its toolbar (`ToolPrompt.actions`): previous frame, pick, next frame, then
-  discard and attach. Picking a frame (P) starts listening for its note at once: the pill shows the waveform and
-  the frame's time, its check keeps the note and its discard removes that frame. The row shows your words as they
+  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub. Stepping and picking stay in the review's own card. While it is open
+  the pill names the frame on screen beside the live waveform, with discard and attach; it has no pause there. Picking a
+  frame (P) starts listening for its note at once: the pill shows the frame's time, its check (Return) keeps the note
+  and its discard removes that frame. Return also stops a recording: Koe holds Return and Enter system-wide while a
+  clip records (`ClipTool.stopKeys`), since none of its windows has the keys then. The row shows your words as they
   are heard (`SessionController.spoken(in:)`), with say it again and remove beside them. Return attaches, Esc
   discards. The scrubber runs from the first frame to the last (`ClipFrames.fraction`), so the right end is always
   the end, however long the clip holds its last frame.

@@ -239,6 +239,14 @@ struct ClipReviewView: View {
             .buttonStyle(.koe(.outline, iconOnly: true))
             .hint(reviewer.playing ? "Pause" : "Play", shortcut: "Space")
             .accessibilityLabel(reviewer.playing ? "Pause" : "Play")
+            Button { reviewer.step(by: -1) } label: { IconView(icon: .previous, size: .medium, color: nil) }
+                .buttonStyle(.koe(.secondary, iconOnly: true))
+                .hint("Previous frame", shortcut: "←")
+                .accessibilityLabel("Previous frame")
+            Button { reviewer.step(by: 1) } label: { IconView(icon: .next, size: .medium, color: nil) }
+                .buttonStyle(.koe(.secondary, iconOnly: true))
+                .hint("Next frame", shortcut: "→")
+                .accessibilityLabel("Next frame")
             Text(position)
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
@@ -288,6 +296,24 @@ struct ClipReviewView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
+            Button(action: reviewer.pickCurrent) {
+                let picked = reviewer.review.isPicked(reviewer.current)
+                HStack(spacing: 6) {
+                    ZStack {
+                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil, grow: picked ? 0 : 2)
+                            .id(picked)
+                            .transition(GlyphSwap())
+                    }
+                    Text(picked ? "Frame picked" : "Pick this frame")
+                        .contentTransition(.interpolate)
+                        .fixedSize()
+                }
+                .padding(.leading, -2)
+                .animation(.spring(duration: 0.24, bounce: 0.12), value: picked)
+            }
+            .buttonStyle(.koe(.outline))
+            .hint("Pick this frame and talk about it", shortcut: "P")
+            .disabled(reviewer.review.isPicked(reviewer.current))
             Spacer()
             Button("Discard") { reviewer.finish(attach: false) }
                 .buttonStyle(.koe(.secondary))
@@ -357,20 +383,4 @@ struct SeekBar: View {
         }
         .frame(height: 20)
     }
-}
-
-/// The clip itself, drawn by an AVPlayerLayer with no controls of its own.
-struct ClipPlayerView: NSViewRepresentable {
-    let player: AVPlayer
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        let layer = AVPlayerLayer(player: player)
-        layer.videoGravity = .resizeAspect
-        view.layer = layer
-        view.wantsLayer = true
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

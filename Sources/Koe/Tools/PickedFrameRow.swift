@@ -2,8 +2,8 @@ import KoeCore
 import SwiftUI
 
 /// One picked frame: its picture, when it showed, and what you said about it. Before you speak it offers to
-/// listen; afterwards it shows your words, with say it again beside remove on the right. While it listens that
-/// button is the blue stop.
+/// listen; afterwards it shows your words, with say it again beside remove on the right. While it listens the
+/// pill's check keeps the note.
 struct PickedFrameRow: View {
     let pick: PickedFrame
     let thumbnail: CGImage?
@@ -42,7 +42,7 @@ struct PickedFrameRow: View {
                     // Your words show as they are heard, so they are already there when you click done.
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
                         let heard = live() ?? ""
-                        Text(heard.isEmpty ? "Listening, click when done" : heard)
+                        Text(heard.isEmpty ? "Listening, press Return when done" : heard)
                             .font(Typography.meta)
                             .foregroundStyle(Palette.fg2)
                             .lineLimit(1)
@@ -59,19 +59,12 @@ struct PickedFrameRow: View {
             .animation(GlyphSwap.animation, value: talking)
             .animation(GlyphSwap.animation, value: pick.voice == nil)
             Spacer(minLength: 0)
-            if talking || pick.voice != nil {
-                Button(action: talk) {
-                    ZStack {
-                        IconView(icon: talking ? .stop : .retake, size: .small, color: nil)
-                            .id(talking)
-                            .transition(GlyphSwap())
-                    }
-                    .animation(GlyphSwap.animation, value: talking)
-                }
-                .buttonStyle(.koe(talking ? .primary : .secondary, size: .small, iconOnly: true))
-                .hint(talking ? "Stop and keep what you said" : "Say it again")
-                .accessibilityLabel(talking ? "Stop listening" : "Say this frame's note again")
-                .transition(GlyphSwap())
+            if !talking, pick.voice != nil {
+                Button(action: talk) { IconView(icon: .retake, size: .small, color: nil) }
+                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
+                    .hint("Say it again")
+                    .accessibilityLabel("Say this frame's note again")
+                    .transition(GlyphSwap())
             }
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
                 .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true))
@@ -79,6 +72,7 @@ struct PickedFrameRow: View {
                 .accessibilityLabel("Remove frame at \(String(format: "%.2f", pick.time)) seconds")
         }
         .animation(GlyphSwap.animation, value: pick.voice == nil)
+        .animation(GlyphSwap.animation, value: talking)
     }
 
     private var talkButton: some View {

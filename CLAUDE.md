@@ -45,8 +45,9 @@ behaviour it describes.
 - In the pill, actions keep one order everywhere: discard on the left, pause in the middle, confirm on the right.
   Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`). Every tool's
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
-  and its discard cancels that tool only, never the session. A tool's own buttons (a clip's frame stepping and
-  pick) are the prompt's `actions`, left of that trio, not buttons in its card.
+  and its discard cancels that tool only, never the session. Every page but a clip's recording shows the
+  live waveform, so the session is seen to be listening. Return confirms on every page (held system-wide while a
+  clip records). A tool's own buttons (a clip's frame stepping and pick) stay in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
   finishing is global; a tool's key (`isSessionOnly`) is held only while a session is open. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.

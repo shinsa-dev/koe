@@ -1,8 +1,8 @@
 import KoeCore
 import SwiftUI
 
-/// What the pill asks while a tool is open: pick something, attach it, or say what it's about. While it listens,
-/// your voice shows where the badge was, so you see it's hearing you.
+/// What the pill asks while a tool is open: pick something, attach it, or say what it's about. Your voice shows on
+/// every page but a clip's recording, so you always see the session is still hearing you.
 struct PromptView: View {
     let prompt: ToolPrompt
     let paused: Bool
@@ -11,17 +11,11 @@ struct PromptView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            if prompt.stage == .listening {
-                Waveform(level: { sessions.level }, live: !paused, bars: 9)
-                    .opacity(paused ? 0.35 : 1)
-            } else if prompt.stage == .recording {
+            if prompt.stage == .recording {
                 RecordingBadge()
             } else {
-                ZStack {
-                    Circle().fill(Tone.neutral.tint)
-                    IconView(icon: prompt.icon, size: .small, color: Palette.icon2)
-                }
-                .frame(width: 24, height: 24)
+                Waveform(level: { sessions.level }, live: !paused, bars: 9)
+                    .opacity(paused ? 0.35 : 1)
             }
             VStack(alignment: .leading, spacing: -1) {
                 Text(prompt.title)
@@ -51,27 +45,17 @@ struct PromptView: View {
             .frame(minWidth: prompt.stage == .picking ? 250 : nil, maxWidth: prompt.stage == .picking ? 250 : 280,
                    alignment: .leading)
             .fixedSize()
-            if !prompt.actions.isEmpty {
-                HStack(spacing: 2) {
-                    ForEach(prompt.actions) { action in
-                        PillButton(icon: action.icon, tone: .tool, label: action.label, shortcut: action.shortcut) {
-                            status.onAction?(action.id)
-                        }
-                    }
-                }
-            }
             // The session's own order: discard on the left, pause in the middle, confirm on the right.
             HStack(spacing: 4) {
                 PillButton(icon: .close, tone: .destructive, label: prompt.cancel, shortcut: "Esc") { status.onCancel?() }
-                if prompt.stage == .listening || prompt.stage == .recording {
+                if prompt.canPause, prompt.stage == .listening || prompt.stage == .recording {
                     PillButton(icon: paused ? .playLine : .pauseLine, tone: .neutral, label: paused ? "Resume" : "Pause",
                                action: paused ? sessions.resume : sessions.pause)
                 } else if prompt.stage == .confirming, prompt.canTalk, let talk = status.onTalk {
                     PillButton(icon: .microphone, tone: .neutral, label: "Say something about it", action: talk)
                 }
                 if prompt.stage != .picking, let confirm = status.onConfirm {
-                    PillButton(icon: .checkmark, tone: .action, label: prompt.confirm,
-                               shortcut: prompt.stage == .recording ? ShortcutCenter.shared.name(.clip) : "↩", action: confirm)
+                    PillButton(icon: .checkmark, tone: .action, label: prompt.confirm, shortcut: "↩", action: confirm)
                 }
             }
         }
