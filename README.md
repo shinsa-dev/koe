@@ -45,10 +45,10 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation,
   While you dictate, When you finish and General. No system toolbar; the page fades out under the window's controls. First launch
   opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). Starting and
-  finishing (⌥Space) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be a function key). The tools are single keys,
-  C to comment, S for a screenshot and R to record a clip, and `ShortcutCenter` holds them only while a session
-  is open (`setDictating`), so they type as usual the rest of the time; a tool can't take Esc, Return or Space on
-  their own. No two actions share one (`Shortcuts`); a changed one is saved as
+  finishing (⌥Space) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be a function key). The tools are ⌃⌥C to comment, ⌃⌥S for a
+  screenshot and ⌃⌥R to record a clip, and `ShortcutCenter` holds them only while a session is open
+  (`setDictating`). Every shortcut carries ⌘, ⌃ or ⌥: you type and use your apps as usual while you dictate, so a
+  bare key is refused. No two actions share one (`Shortcuts`); a changed one is saved as
   `shortcut.<action>` = `keyCode:modifiers`. The old shortcuts are unregistered while you press the new one.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
@@ -175,7 +175,7 @@ you finish while a tool is open never waits for another click (`ToolCoordinator.
 attaches with what you said, a clip still recording stops and attaches, and a clip in review attaches with the
 frames picked so far.
 
-- **Screenshot, S while you dictate.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
+- **Screenshot, ⌃⌥S while you dictate.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
   and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed from the moment it opens,
   and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
   the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
@@ -183,13 +183,20 @@ frames picked so far.
   pointer is over. Once picked, the pill listens at once, as it does for a comment: what you say until you attach it
   (a `VoiceSpan`) becomes the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
-- **Comment, C while you dictate.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
+- **Comment, ⌃⌥C while you dictate.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
   what you say until you click its check is the comment. Clicking something else finishes that comment and starts
   the next one there (`RegionPicker.onCommit`), each on its own ticket. The pill's buttons keep the session's
   order: discard, pause, confirm; pause is the session's own pause, so the comment greys like the waveform does. The screenshot is the window you clicked (or 640 × 400
-  around the spot when there is none) with a blue pin in a wide halo where you clicked (`PinMark`, `KoeCore`), and
-  the bundle says where it is in words too ("at the blue pin 58% across and 60% down", `PinPlace`), so an agent
-  that misses the dot still knows the spot.
+  around the spot when there is none) with a blue pin in a wide halo where you clicked, carrying the comment's number in the session (`PinMark`,
+  `KoeCore`), and the bundle says it in words too ("at the blue pin numbered 2, 58% across and 60% down",
+  `PinPlace`), so an agent that misses the dot still knows the spot. Each comment keeps its own picture: the screen
+  as it was when you made it.
+- **Comment without stopping, ⌘⇧-click while you dictate.** `ClickTrigger` watches for the click and
+  `ToolCoordinator.quickComment` pictures the screen at that moment and pins the comment there, with no overlay:
+  every other click and key still reaches your apps, so you can move through pages and comment as you go. The pin
+  stays where you clicked while the pill listens; Return (held system-wide meanwhile), the pill's check or the next
+  ⌘⇧-click adds it. With Accessibility allowed the click is kept from the app under it (an event tap); without,
+  the app gets it too.
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
   you spent talking about an attachment never breaks a paragraph.
@@ -199,7 +206,7 @@ frames picked so far.
   (`ThumbnailCache`), so the list never opens on a placeholder. A comment is a
   screenshot of what you clicked with a pin on the spot (`Annotation.comment`), named "Comment" there and in the
   bundle.
-- **Clip, R while you dictate.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
+- **Clip, ⌃⌥R while you dictate.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
   down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` takes
   ScreenCaptureKit's frames at the screen's refresh rate and encodes them itself (`ClipQuality`: 0.08 bits a pixel
   a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and

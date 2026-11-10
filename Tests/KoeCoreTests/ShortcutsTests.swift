@@ -37,18 +37,12 @@ struct ShortcutsTests {
         }
     }
 
-    @Test func theToolsAreSingleKeysHeldOnlyWhileYouDictate() throws {
+    @Test func theToolsAreHeldOnlyWhileYouDictateAndLeaveTypingAlone() throws {
         var shortcuts = Shortcuts()
         #expect(ShortcutAction.allCases.filter(\.isSessionOnly) == [.comment, .screenshot, .clip])
-        #expect([ShortcutAction.comment, .screenshot, .clip].map { shortcuts[$0].displayName } == ["C", "S", "R"])
-        try shortcuts.set(KeyCombo(keyCode: 9, modifiers: 0), for: .clip)
-        #expect(shortcuts[.clip].displayName == "V")
-    }
-
-    @Test func aToolCannotTakeEscReturnOrSpaceOnTheirOwn() throws {
-        var shortcuts = Shortcuts()
-        for key: UInt32 in [53, 36, 76, 49] {
-            #expect(throws: Shortcuts.Refusal.reserved) { try shortcuts.set(KeyCombo(keyCode: key, modifiers: 0), for: .comment) }
+        #expect([ShortcutAction.comment, .screenshot, .clip].map { shortcuts[$0].displayName } == ["⌃⌥C", "⌃⌥S", "⌃⌥R"])
+        for key: UInt32 in [8, 53, 36, 49] {
+            #expect(throws: Shortcuts.Refusal.needsModifier) { try shortcuts.set(KeyCombo(keyCode: key, modifiers: 0), for: .comment) }
         }
         try shortcuts.set(KeyCombo(keyCode: 36, modifiers: KeyCombo.command), for: .comment)
         #expect(shortcuts[.comment].displayName == "⌘↩")
@@ -76,7 +70,7 @@ struct ShortcutsTests {
 
     @Test func unreadableOrClashingValuesFallBackToTheStandard() {
         let shortcuts = Shortcuts(values: [
-            "shortcut.comment": "nonsense", "shortcut.clip": "1:0", "shortcut.toggleSession": "1:512",
+            "shortcut.comment": "nonsense", "shortcut.clip": "1:6144", "shortcut.screenshot": "1:0", "shortcut.toggleSession": "1:512",
         ])
         #expect(shortcuts == Shortcuts())
     }

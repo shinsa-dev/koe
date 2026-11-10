@@ -1,7 +1,7 @@
 import Foundation
 
-/// What a shortcut does. Starting and finishing dictation works everywhere; the tools are single keys that only
-/// work while a session runs, so they take nothing from typing the rest of the time.
+/// What a shortcut does. Starting and finishing dictation works everywhere; the tools' shortcuts are held only
+/// while a session runs. Every one carries ⌘, ⌃ or ⌥, so you can type and use your apps while you dictate.
 public enum ShortcutAction: String, CaseIterable, Sendable {
     case toggleSession, comment, screenshot, clip
 
@@ -32,8 +32,6 @@ public struct Shortcuts: Sendable, Equatable {
     public enum Refusal: Error, Equatable {
         /// It has no ⌘, ⌃ or ⌥, so it would take a key away from typing all the time.
         case needsModifier
-        /// Esc, Return and Space belong to the open tool and the pill.
-        case reserved
         case usedBy(ShortcutAction)
     }
 
@@ -68,11 +66,7 @@ public struct Shortcuts: Sendable, Equatable {
     }
 
     public mutating func set(_ combo: KeyCombo, for action: ShortcutAction) throws(Refusal) {
-        if action.isSessionOnly {
-            guard combo.modifiers != 0 || !KeyCombo.reservedKeys.contains(combo.keyCode) else { throw .reserved }
-        } else {
-            guard combo.isUsable else { throw .needsModifier }
-        }
+        guard combo.isUsable else { throw .needsModifier }
         if let other = self.action(using: combo), other != action { throw .usedBy(other) }
         changed[action] = combo == action.standard ? nil : combo
     }

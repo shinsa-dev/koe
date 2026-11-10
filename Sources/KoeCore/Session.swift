@@ -100,10 +100,13 @@ public struct VoiceSpan: Codable, Sendable, Equatable {
 public struct PinPlace: Codable, Sendable, Equatable {
     public var x: Double
     public var y: Double
+    /// The number written in the pin: which comment of the session it is.
+    public var number: Int?
 
-    public init(x: Double, y: Double) {
+    public init(x: Double, y: Double, number: Int? = nil) {
         self.x = min(1, max(0, x))
         self.y = min(1, max(0, y))
+        self.number = number
     }
 
     /// "58% across and 60% down": what an agent reads beside the picture.

@@ -36,7 +36,11 @@ struct SettingsPage: View {
                 ShortcutRow(action: .toggleSession, library: library)
             }
             SettingsGroup(title: "While you dictate",
-                          description: "These keys only work during a session. The rest of the time they type as usual.") {
+                          description: "These shortcuts only work during a session.") {
+                SettingRow(title: "Comment without stopping",
+                           detail: "Click anything with these held, then say the comment. Return adds it.") {
+                    Kbd("⇧⌘ click")
+                }
                 ForEach(ShortcutAction.allCases.filter(\.isSessionOnly), id: \.self) { action in
                     ShortcutRow(action: action, library: library)
                 }

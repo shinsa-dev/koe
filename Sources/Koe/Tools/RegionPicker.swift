@@ -11,6 +11,8 @@ struct RegionChoice {
     var voice: VoiceSpan?
     /// Where a comment was pinned, in the screen's own space.
     var pin: CGPoint?
+    /// Which comment of the session it is, from 1.
+    var number: Int?
     /// The screen wasn't frozen, so the picture is taken when this is attached.
     var live = false
 }
@@ -118,8 +120,8 @@ final class RegionPicker {
     }
 
     /// For `--script`: a click at `point` on the first screen, with its note.
-    func preset(click point: CGPoint, note: String?) {
-        release(from: point, to: point, on: 0)
+    func preset(click point: CGPoint, note: String?, on index: Int = 0) {
+        release(from: point, to: point, on: index)
         self.note = note ?? ""
     }
 
@@ -147,7 +149,7 @@ final class RegionPicker {
     private var choice: RegionChoice? {
         guard case .noting(let index, let region) = stage else { return nil }
         return RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index),
-                            note: note, pin: pin, live: freeze.isLive)
+                            note: note, pin: pin, number: pin == nil ? nil : commentNumber, live: freeze.isLive)
     }
 
     func cancel() {
@@ -275,7 +277,7 @@ private struct Dim: View {
 }
 
 /// Where a comment points, carrying its number in the session. One already saved turns quiet.
-private struct Pin: View {
+struct Pin: View {
     let number: Int
     let saved: Bool
 

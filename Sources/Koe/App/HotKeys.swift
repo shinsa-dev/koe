@@ -91,7 +91,7 @@ final class ShortcutCenter {
         register()
     }
 
-    /// The tools' keys are held only while a session runs: the rest of the time C, S and R just type.
+    /// The tools' shortcuts are held only while a session runs.
     func setDictating(_ dictating: Bool) {
         guard dictating != self.dictating else { return }
         self.dictating = dictating

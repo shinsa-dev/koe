@@ -49,7 +49,9 @@ behaviour it describes.
   live waveform, so the session is seen to be listening. Return confirms on every page (held system-wide while a
   clip records). A tool's one extra action (a clip's pick this frame) sits between discard and confirm (`ToolPrompt.extra`); its card never repeats the pill's discard or confirm. A clip's frame stepping stays in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
-  finishing is global; a tool's key (`isSessionOnly`) is held only while a session is open. Never write a combo
+  finishing is global; a tool's shortcut (`isSessionOnly`) is held only while a session is open, as is ⌘⇧-click
+  to comment (`ClickTrigger`). Every shortcut carries ⌘, ⌃ or ⌥: Koe never takes a bare key from typing, apart
+  from Return while a tool waits for it. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
   bar) and back when it closes. Keep that when adding windows.

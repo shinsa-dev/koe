@@ -181,7 +181,9 @@ public struct BundleComposer: Sendable {
     private func describe(_ asset: Asset, of annotation: Annotation?, numbers: [UUID: Int]) -> String {
         let source = annotation?.source
         if annotation?.isComment == true {
-            let place = annotation?.pin.map { ", at the blue pin \($0.words)" } ?? ""
+            let place = annotation?.pin.map { pin in
+                ", at the blue pin \(pin.number.map { "numbered \($0), " } ?? "")\(pin.words)"
+            } ?? ""
             guard let source else { return "Comment, pinned where you clicked" + place }
             if let window = source.window, !window.isEmpty { return "Comment on \(source.app), \"\(window)\"" + place }
             return "Comment on \(source.app)" + place

@@ -10,15 +10,17 @@ import SwiftUI
 @MainActor
 final class ToolCoordinator {
     let sessions: SessionController
-    private let permissions: PermissionCenter
+    let permissions: PermissionCenter
     /// Starts a session when none runs (or opens setup when it can't) and says whether one is running now.
     let ensureSession: () -> Bool
-    private let presentSetup: () -> Void
+    let presentSetup: () -> Void
     private var overlay: [ToolPanel] = []
     /// A screenshot's freeze is under way: its overlay isn't up yet, but a second press must not start another.
-    private var freezing = false
+    var freezing = false
     /// Comments being saved right now, which the session doesn't list yet.
-    private var savingComments = 0
+    var savingComments = 0
+    /// The comment left with ⌘⇧-click that is being said: no overlay, the screen stays yours.
+    var quick: QuickComment?
     /// What the pill asks while a tool is open.
     let status = ToolStatus()
     /// The setting: hold the screen still while you pick. Off, the screen keeps moving under the picker.
@@ -46,7 +48,7 @@ final class ToolCoordinator {
         self.presentSetup = presentSetup
     }
 
-    var isBusy: Bool { freezing || !overlay.isEmpty || clips.isBusy }
+    var isBusy: Bool { freezing || quick != nil || !overlay.isEmpty || clips.isBusy }
     var isRecordingClip: Bool { clips.isRecording }
 
     // MARK: Screenshot
@@ -79,7 +81,7 @@ final class ToolCoordinator {
                 return
             }
             freezing = false
-            let before = sessions.attachments.filter(\.isComment).count + savingComments
+            let before = commentsSoFar
             let picker = RegionPicker(freeze: freeze, purpose: purpose, commentsBefore: before)
             let voice = VoiceNote { [sessions] in sessions.currentTime }
             follow(picker, voice: voice, ticket: ticket)
@@ -99,7 +101,7 @@ final class ToolCoordinator {
     }
 
     /// Saves what the picker picks on its ticket. Each comment made in one go closes its own and opens the next.
-    private func follow(_ picker: RegionPicker, voice: VoiceNote, ticket: AnnotationLedger.Ticket) {
+    func follow(_ picker: RegionPicker, voice: VoiceNote, ticket: AnnotationLedger.Ticket) {
         let pending = Pending(ticket)
         prompt(picker, voice: voice)
         picker.onCommit = { [weak self] choice in
@@ -217,13 +219,15 @@ final class ToolCoordinator {
             let scale = CGFloat(screen.image.width) / max(1, screen.frame.width)
             let crop = choice.pin
                 .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
-                .flatMap { PinMark.draw(on: cut, at: $0, radius: 7 * scale) } ?? cut
+                .flatMap { PinMark.draw(on: cut, at: $0, radius: 9 * scale, number: choice.number) } ?? cut
             do {
                 try await Task.detached { try PNG.write(crop, to: url) }.value
                 sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)),
                                                         note: note, source: source, voice: voice,
                                                         comment: choice.pin != nil,
-                                                        pin: choice.pin.flatMap { PinMark.place(of: $0, in: choice.region) }))
+                                                        pin: choice.pin.flatMap {
+                                                            PinMark.place(of: $0, in: choice.region, number: choice.number)
+                                                        }))
             } catch {
                 sessions.post(notice: "Koe couldn't save the screenshot.")
                 sessions.close(ticket, with: nil)
@@ -247,25 +251,6 @@ final class ToolCoordinator {
         }
         guard ensureSession(), let ticket = sessions.openTicket() else { return }
         clips.begin(ticket: ticket, preset: preset)
-    }
-
-    /// Closes every tool open on a session you discarded; what they would have added goes with it.
-    func sessionCancelled() {
-        overlay.first?.onCancel?()
-        status.clear()
-        closeOverlay()
-        clips.discard()
-    }
-
-    /// The session is finishing: nothing waits for another click. What is picked is attached with what you said,
-    /// a clip still recording stops, and a clip in review attaches with the frames picked so far.
-    func sessionStopping() {
-        if let confirm = status.onConfirm {
-            confirm()
-        } else if !overlay.isEmpty {
-            overlay.first?.onCancel?()
-        }
-        clips.sessionStopping()
     }
 
     /// Freezes the screen for you to pick the region a clip records, and hands it on, or nil when you cancel.
@@ -300,6 +285,26 @@ final class ToolCoordinator {
 }
 
 extension ToolCoordinator {
+    /// Closes every tool open on a session you discarded; what they would have added goes with it.
+    func sessionCancelled() {
+        overlay.first?.onCancel?()
+        if quick != nil { status.onCancel?() }
+        status.clear()
+        closeOverlay()
+        clips.discard()
+    }
+
+    /// The session is finishing: nothing waits for another click. What is picked is attached with what you said,
+    /// a clip still recording stops, and a clip in review attaches with the frames picked so far.
+    func sessionStopping() {
+        if let confirm = status.onConfirm {
+            confirm()
+        } else if !overlay.isEmpty {
+            overlay.first?.onCancel?()
+        }
+        clips.sessionStopping()
+    }
+
     // MARK: Drop
 
     /// Files dropped on the pill, copied into the session's folder so the bundle still has them if the originals move.

@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ensureSession: { [weak self] in self?.ensureSession() ?? false },
         presentSetup: { [weak self] in self?.openSetup() }
     )
+    private let clicks = ClickTrigger()
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
@@ -67,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .clip: { [weak self] in self?.recordClip() },
         ]
         ShortcutCenter.shared.apply(library.settings.shortcuts)
+        clicks.onClick = { [weak self] in self?.commentWhereClicked($0) }
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
@@ -103,22 +105,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         sessions.toggle()
-    }
-
-    // A tool takes the screen, so the list of attachments steps out of its way.
-    @objc func addComment() {
-        pill.closeAttachments()
-        tools.comment()
-    }
-
-    @objc func takeScreenshot() {
-        pill.closeAttachments()
-        tools.screenshot()
-    }
-
-    @objc func recordClip() {
-        pill.closeAttachments()
-        tools.clip()
     }
 
     /// Starts a session for a tool used while none runs, and says whether one is running now.
@@ -275,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pill.show()
         }
         ShortcutCenter.shared.setDictating(phase.isOpen)
+        clicks.setActive(phase.isOpen)
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.contentTintColor = Tokens.redText
@@ -295,6 +282,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showAbout() {
         NSApp.activate()
         NSApp.orderFrontStandardAboutPanel(nil)
+    }
+}
+
+extension AppDelegate {
+    // A tool takes the screen, so the list of attachments steps out of its way.
+    @objc func addComment() {
+        pill.closeAttachments()
+        tools.comment()
+    }
+
+    @objc func takeScreenshot() {
+        pill.closeAttachments()
+        tools.screenshot()
+    }
+
+    @objc func recordClip() {
+        pill.closeAttachments()
+        tools.clip()
+    }
+
+    func commentWhereClicked(_ point: CGPoint) {
+        pill.closeAttachments()
+        tools.quickComment(at: point)
     }
 }
 

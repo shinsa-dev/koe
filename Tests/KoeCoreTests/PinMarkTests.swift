@@ -37,6 +37,20 @@ struct PinMarkTests {
         #expect(corner.allSatisfy { $0 > 250 })
     }
 
+    @Test func aNumberedPinCarriesItsNumberInWhiteAndSaysItInWords() throws {
+        let image = try #require(Self.white(width: 200, height: 100))
+        let plain = try #require(PinMark.draw(on: image, at: CGPoint(x: 100, y: 50), radius: 20))
+        let numbered = try #require(PinMark.draw(on: image, at: CGPoint(x: 100, y: 50), radius: 20, number: 1))
+        let whiteInDot = { (pin: CGImage) in
+            (88...112).flatMap { x in (38...62).map { (x, $0) } }
+                .filter { Self.pixel(of: pin, x: $0.0, y: $0.1)?.prefix(3).allSatisfy { $0 > 230 } == true }.count
+        }
+        #expect(whiteInDot(plain) == 0)
+        #expect(whiteInDot(numbered) > 20)
+        let place = PinMark.place(of: CGPoint(x: 300, y: 125), in: CGRect(x: 100, y: 50, width: 400, height: 300), number: 2)
+        #expect(place?.number == 2)
+    }
+
     private static func white(width: Int, height: Int) -> CGImage? {
         let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                 space: CGColorSpace(name: CGColorSpace.sRGB)!,
