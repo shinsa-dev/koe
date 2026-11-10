@@ -51,15 +51,19 @@ public struct ClipFrames: Sendable, Equatable {
         return next > times[index] ? (times[index] + next) / 2 : times[index]
     }
 
-    /// Where frame `index` sits along the clip, from 0 to 1, for the scrubber.
+    /// Where frame `index` sits along the scrubber, from 0 to 1. The last frame is the right end, however long
+    /// the clip holds it afterwards.
     public func fraction(of index: Int) -> Double {
-        duration > 0 ? time(of: index) / duration : 0
+        span > 0 ? time(of: index) / span : 0
     }
 
     /// The frame at a point along the scrubber, from 0 to 1.
     public func index(atFraction fraction: Double) -> Int {
-        index(at: min(max(0, fraction), 1) * duration)
+        index(at: min(max(0, fraction), 1) * span)
     }
+
+    /// When the last frame appears: the length the scrubber covers.
+    private var span: AudioTime { times.last ?? 0 }
 }
 
 /// How fast the clip plays back: slowed down so an animation you saw for a moment can be watched.

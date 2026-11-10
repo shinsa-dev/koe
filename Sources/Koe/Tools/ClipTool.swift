@@ -190,8 +190,8 @@ final class ClipTool {
         panel.host(ClipReviewView(reviewer: reviewer)
             .padding(.bottom, 8)
             .frame(width: size.width, height: size.height, alignment: .bottom))
-        panel.onCancel = { reviewer.finish(attach: false) }
-        promptReview(reviewer)
+        panel.onCancel = { [weak self] in self?.cancelPressed(in: reviewer) }
+        followReview(reviewer)
         reviewer.onFinish = { [weak self] attach in
             self?.closeReview()
             if attach {
@@ -218,7 +218,8 @@ final class ClipTool {
         }
     }
 
-    /// ← → step a frame (with ⇧, ten), Space plays, P picks, Return attaches. Esc is the panel's.
+    /// ← → step a frame (with ⇧, ten), Space plays, P picks, Return keeps the note being said or attaches. Esc is
+    /// the panel's.
     private static func handle(_ event: NSEvent, in reviewer: ClipReviewer) -> Bool {
         let stride = event.modifierFlags.contains(.shift) ? 10 : 1
         switch event.keyCode {
@@ -226,10 +227,20 @@ final class ClipTool {
         case 124: reviewer.step(by: stride)
         case 49: reviewer.togglePlay()
         case 35: reviewer.pickCurrent()
-        case 36, 76: reviewer.finish(attach: true)
+        case 36, 76: confirmPressed(in: reviewer)
         default: return false
         }
         return true
+    }
+
+    /// While a frame's note is being said, confirm keeps it and discard removes that frame; otherwise they attach
+    /// or discard the clip.
+    private static func confirmPressed(in reviewer: ClipReviewer) {
+        if reviewer.talking != nil { reviewer.stopTalking() } else { reviewer.finish(attach: true) }
+    }
+
+    private func cancelPressed(in reviewer: ClipReviewer) {
+        if let index = reviewer.talking { reviewer.unpick(index) } else { reviewer.finish(attach: false) }
     }
 
     private func closeReview() {
@@ -299,12 +310,58 @@ extension ClipTool {
         status.onConfirm = { [weak self] in self?.stopRecording() }
     }
 
-    /// While the clip is open, the pill's discard and confirm act on it, not on the whole session.
+    /// While the clip is open the pill is its toolbar: it steps through the frames and picks one, and its discard
+    /// and confirm act on the clip. Picking a frame turns it to listening for that frame's note.
     private func promptReview(_ reviewer: ClipReviewer?) {
-        status.prompt = ToolPrompt(stage: .confirming, icon: .video, title: "Pick the frames to attach",
-                                   detail: "Then attach the clip, or discard it", confirm: "Attach clip",
-                                   canTalk: false, cancel: "Discard this clip")
-        status.onCancel = reviewer.map { reviewer in { reviewer.finish(attach: false) } }
-        status.onConfirm = reviewer.map { reviewer in { reviewer.finish(attach: true) } }
+        guard let reviewer else {
+            status.prompt = ToolPrompt(stage: .confirming, icon: .video, title: "Opening the clip", detail: "One moment",
+                                       confirm: "Attach clip", canTalk: false, cancel: "Discard this clip")
+            status.onCancel = nil
+            status.onConfirm = nil
+            status.onAction = nil
+            return
+        }
+        let frames = reviewer.frames
+        if let index = reviewer.talking {
+            status.prompt = ToolPrompt(stage: .listening, icon: .video,
+                                       title: String(format: "Frame at %.2f s", frames.time(of: index)),
+                                       detail: "Say what it shows", confirm: "Keep this note", canTalk: false,
+                                       cancel: "Remove this frame")
+        } else {
+            let picked = reviewer.review.isPicked(reviewer.current)
+            let time = String(format: "%.2f s", frames.time(of: reviewer.current))
+            status.prompt = ToolPrompt(
+                stage: .confirming, icon: .video, title: "Frame \(reviewer.current + 1) of \(frames.count)",
+                detail: picked ? "\(time) · picked" : time, confirm: reviewer.attachTitle, canTalk: false,
+                cancel: "Discard this clip",
+                actions: [
+                    .init(id: "previous", icon: .previous, label: "Previous frame", shortcut: "←"),
+                    .init(id: "pick", icon: picked ? .microphone : .add,
+                          label: picked ? "Say its note again" : "Pick this frame and talk about it", shortcut: "P"),
+                    .init(id: "next", icon: .next, label: "Next frame", shortcut: "→")
+                ]
+            )
+        }
+        status.onCancel = { [weak self] in self?.cancelPressed(in: reviewer) }
+        status.onConfirm = { Self.confirmPressed(in: reviewer) }
+        status.onAction = { id in
+            switch id {
+            case "previous": reviewer.step(by: -1)
+            case "next": reviewer.step(by: 1)
+            default: reviewer.pickCurrent()
+            }
+        }
+    }
+
+    /// Keeps the pill's page in step with the clip: the frame on screen, whether it is picked, and listening.
+    private func followReview(_ reviewer: ClipReviewer) {
+        withObservationTracking {
+            promptReview(reviewer)
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.reviewer === reviewer else { return }
+                self.followReview(reviewer)
+            }
+        }
     }
 }

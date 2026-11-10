@@ -23,7 +23,7 @@
       "layers": [
         {
           "blend-mode": "normal",
-          "glass": false,
+          "glass": true,
           "hidden": false,
           "image-name": "dot.svg",
           "name": "dot",
@@ -47,7 +47,7 @@
         "enabled": false,
         "value": 0.5
       },
-      "specular": false
+      "specular": true
     },
     {
       "layers": [

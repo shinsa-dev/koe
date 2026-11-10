@@ -34,16 +34,17 @@ struct ShortcutRow: View {
     }
 
     private var keys: some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
         return ZStack {
             Text(recording ? "Press the keys" : combo.displayName)
                 .id(recording)
                 .transition(GlyphSwap())
         }
-        .font(Typography.control)
+        // The size of a badge beside it: 12 medium, 20 tall.
+        .font(Typography.label)
         .foregroundStyle(recording ? Palette.actionText : Palette.fg3)
-        .padding(.horizontal, 8)
-        .frame(minWidth: 28, minHeight: 24)
+        .padding(.horizontal, 6)
+        .frame(minWidth: 20, minHeight: 20)
         .background(Palette.surface, in: shape)
         .overlay(shape.strokeBorder(recording ? Palette.action : hovering ? Palette.ringHover : .clear, lineWidth: 1))
         .contentShape(shape)

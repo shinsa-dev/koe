@@ -93,15 +93,20 @@ struct PickedFrameRow: View {
         .hint("What you say next becomes this frame's note")
     }
 
-    /// Your words about the frame, quiet like the time beside them; "Note recorded" until the model has them.
+    /// Your words about the frame, quiet like the time beside them. Until the model has the first of them, a
+    /// shimmering line holds their place, so the row never says something you didn't.
     private var spokenNote: some View {
         TimelineView(.periodic(from: .now, by: 0.1)) { _ in
             let text = note() ?? ""
-            Text(text.isEmpty ? "Note recorded" : text)
-                .font(Typography.meta)
-                .foregroundStyle(Palette.fg2)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            if text.isEmpty {
+                Capsule().fill(Palette.fg2.opacity(0.35)).frame(width: 96, height: 6).shimmer()
+            } else {
+                Text(text)
+                    .font(Typography.meta)
+                    .foregroundStyle(Palette.fg2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
         }
     }
 }
@@ -143,6 +148,24 @@ struct RowChange: Transition {
             .blur(radius: phase.isIdentity ? 0 : blur)
             .opacity(phase.isIdentity ? 1 : 0)
     }
+}
+
+/// How a card arrives above the pill: it grows out of it, from slightly small and blurred.
+struct GrowIn: ViewModifier {
+    static let animation = Animation.spring(duration: 0.32, bounce: 0.2)
+    static let exit = Animation.spring(duration: 0.24, bounce: 0)
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(shown ? 1 : 0.9, anchor: .bottom)
+            .blur(radius: shown ? 0 : 6)
+            .opacity(shown ? 1 : 0)
+    }
+}
+
+extension View {
+    func growsIn(_ shown: Bool) -> some View { modifier(GrowIn(shown: shown)) }
 }
 
 /// A band of light that crosses a label again and again while Koe listens for it.

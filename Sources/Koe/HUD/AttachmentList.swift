@@ -33,8 +33,7 @@ struct AttachmentList: View {
                         AttachmentRow(annotation: annotation) {
                             open(annotation)
                         } remove: {
-                            removing = true
-                            sessions.remove(annotation.id)
+                            remove(annotation)
                         }
                         .transition(RowChange.change)
                     }
@@ -47,10 +46,21 @@ struct AttachmentList: View {
         .animation(RowChange.animation(removing: removing), value: sessions.attachments.map(\.id))
         .onChange(of: sessions.attachments.count) { removing = false }
         // It grows out of the pill below it, the way the pill itself arrives.
-        .scaleEffect(shown ? 1 : 0.9, anchor: .bottom)
-        .blur(radius: shown ? 0 : 6)
-        .opacity(shown ? 1 : 0)
-        .onAppear { withAnimation(.spring(duration: 0.32, bounce: 0.2)) { shown = true } }
+        .growsIn(shown)
+        .onAppear { withAnimation(GrowIn.animation) { shown = true } }
+    }
+
+    /// Taking out the last one puts the whole list away in one motion, the row still in it.
+    private func remove(_ annotation: Annotation) {
+        guard sessions.attachments.count == 1 else {
+            removing = true
+            sessions.remove(annotation.id)
+            return
+        }
+        withAnimation(GrowIn.exit) { shown = false } completion: {
+            sessions.remove(annotation.id)
+            close()
+        }
     }
 }
 

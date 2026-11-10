@@ -51,6 +51,15 @@ struct PromptView: View {
             .frame(minWidth: prompt.stage == .picking ? 250 : nil, maxWidth: prompt.stage == .picking ? 250 : 280,
                    alignment: .leading)
             .fixedSize()
+            if !prompt.actions.isEmpty {
+                HStack(spacing: 2) {
+                    ForEach(prompt.actions) { action in
+                        PillButton(icon: action.icon, tone: .tool, label: action.label, shortcut: action.shortcut) {
+                            status.onAction?(action.id)
+                        }
+                    }
+                }
+            }
             // The session's own order: discard on the left, pause in the middle, confirm on the right.
             HStack(spacing: 4) {
                 PillButton(icon: .close, tone: .destructive, label: prompt.cancel, shortcut: "Esc") { status.onCancel?() }

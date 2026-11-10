@@ -12,7 +12,7 @@ behaviour it describes.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer
-  bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, as glass layers, with a dark variant); `build.sh`
+  bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, both glass layers, with a dark variant); `build.sh`
   compiles it with `actool`. `scripts/icon.sh` renders `Resources/Koe.svg` into the fallback `Resources/Koe.icns`. `bun scripts/icons.ts`
   renders every `"Icon…"` named in Swift with shinsa's own icon pipeline into `Resources/Icons` (`--check` on drift);
   run it after naming a new icon.
@@ -45,7 +45,8 @@ behaviour it describes.
 - In the pill, actions keep one order everywhere: discard on the left, pause in the middle, confirm on the right.
   Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`). Every tool's
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
-  and its discard cancels that tool only, never the session.
+  and its discard cancels that tool only, never the session. A tool's own buttons (a clip's frame stepping and
+  pick) are the prompt's `actions`, left of that trio, not buttons in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
   finishing is global; a tool's key (`isSessionOnly`) is held only while a session is open. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.

@@ -35,10 +35,19 @@ struct ClipFramesTests {
     }
 
     @Test func theScrubberMapsBothWays() {
-        #expect(frames.fraction(of: 2) == 0.25)
-        #expect(frames.index(atFraction: 0.3) == 2)
+        #expect(abs(frames.fraction(of: 2) - 0.25 / 0.7) < 1e-9)
+        #expect(frames.index(atFraction: 0.4) == 2)
         #expect(frames.index(atFraction: 2) == 3)
         #expect(frames.index(atFraction: -1) == 0)
+    }
+
+    @Test func theLastFrameIsTheRightEndOfTheScrubber() {
+        #expect(frames.fraction(of: 3) == 1)
+        #expect(frames.index(atFraction: 1) == 3)
+        // A clip that holds its last frame for a long time still ends at the right.
+        let held = ClipFrames(times: [0, 0.3, 0.57], duration: 4)
+        #expect(held.fraction(of: 2) == 1)
+        #expect(held.index(atFraction: 0.99) == 1)
     }
 
     @Test func theDurationCoversTheLastFrame() {

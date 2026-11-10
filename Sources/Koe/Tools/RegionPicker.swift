@@ -204,18 +204,19 @@ struct RegionPickerView: View {
                 if highlight.showsSize { SizeChip(rect: highlight.rect) }
             }
             ForEach(Array(picker.saved.enumerated()), id: \.offset) { number, comment in
-                if comment.screen == index { Pin(number: number + 1, saved: true).position(comment.point) }
+                if comment.screen == index {
+                    Pin(number: number + 1, saved: true).position(comment.point).transition(.identity)
+                }
             }
             if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
-                // A new pin each time, so the next comment lands as its own instead of the last one moving.
-                Pin(number: picker.saved.isEmpty ? nil : picker.saved.count + 1, saved: false)
+                // A new pin each time: it comes out of the comment before it and travels to where you clicked.
+                ArrivingPin(number: picker.saved.isEmpty ? nil : picker.saved.count + 1, from: origin(of: pin))
                     .position(pin)
                     .id(picker.saved.count)
-                    .transition(PinDrop())
+                    .transition(.identity)
             }
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
-        .animation(.spring(duration: 0.26, bounce: 0.3), value: picker.saved.count)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
@@ -231,6 +232,12 @@ struct RegionPickerView: View {
             }
         }
         .pointerStyle(picker.stage == .choosing ? .rectSelection : nil)
+    }
+
+    /// How far back the last comment on this screen is from `pin`; nothing for the first one.
+    private func origin(of pin: CGPoint) -> CGSize {
+        guard let last = picker.saved.last(where: { $0.screen == index }) else { return .zero }
+        return CGSize(width: last.point.x - pin.x, height: last.point.y - pin.y)
     }
 
     private struct Mark {
@@ -285,13 +292,19 @@ private struct Pin: View {
     }
 }
 
-/// A pin lands from a little larger, so a new comment reads as new.
-private struct PinDrop: Transition {
-    func body(content: Content, phase: TransitionPhase) -> some View {
-        content
-            .scaleEffect(phase.isIdentity ? 1 : 1.6)
-            .blur(radius: phase.isIdentity ? 0 : 3)
-            .opacity(phase.isIdentity ? 1 : 0)
+/// The pin of the comment being said. It grows out of the one before it and moves to its own spot; the first
+/// one swells in where you clicked. Moved before it is placed, so it never slides in from a corner of the screen.
+private struct ArrivingPin: View {
+    let number: Int?
+    let from: CGSize
+    @State private var landed = false
+
+    var body: some View {
+        Pin(number: number, saved: false)
+            .scaleEffect(landed ? 1 : 0.5)
+            .opacity(landed ? 1 : from == .zero ? 0 : 0.6)
+            .offset(landed ? .zero : from)
+            .onAppear { withAnimation(.spring(duration: 0.34, bounce: 0.22)) { landed = true } }
     }
 }
 

@@ -74,7 +74,8 @@ struct AttachmentViewer: View {
                 .onTapGesture(perform: close)
                 .opacity(shown ? 1 : 0)
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                // Top aligned, so the close button is as far from the top edge as from the right one.
+                HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(AttachmentLabel.title(of: annotation)).font(Typography.title).foregroundStyle(Palette.fg4)
                         Text(AttachmentLabel.detail(of: annotation)).font(Typography.meta).foregroundStyle(Palette.fg2)

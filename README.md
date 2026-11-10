@@ -205,10 +205,12 @@ frames picked so far.
   a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and
   its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline shows around the region, and the pill becomes the recording's own page: its clock, discard (this clip only, the session carries on), pause and stop. R again,
   or stopping the session stops it; a clip has no length limit. Then the clip opens at 1× (`PlaybackSpeed`): play
-  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
-  "Talk about this frame": what you say until you click it again is that frame's note, and the row then confirms it
-  ("Note recorded", then those words once heard, `SessionController.spoken(in:)`) with a button beside it to say
-  them again. Return attaches, Esc discards.
+  it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub. While it is open the pill is its toolbar (`ToolPrompt.actions`): previous frame, pick, next frame, then
+  discard and attach. Picking a frame (P) starts listening for its note at once: the pill shows the waveform and
+  the frame's time, its check keeps the note and its discard removes that frame. The row shows your words as they
+  are heard (`SessionController.spoken(in:)`), with say it again and remove beside them. Return attaches, Esc
+  discards. The scrubber runs from the first frame to the last (`ClipFrames.fraction`), so the right end is always
+  the end, however long the clip holds its last frame.
 - A screen recording only stores a frame when something changed, so `ClipMovie` reads the clip's real frame times
   (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
   pulled with zero tolerance, so the image you pick is the one you saw.

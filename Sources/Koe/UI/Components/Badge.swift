@@ -13,7 +13,7 @@ struct Badge: View {
     var body: some View {
         let edge: CGFloat = size == .small ? 6 : 8
         HStack(spacing: 4) {
-            if let icon { IconView(icon: icon, size: .small, color: nil, weight: .bold) }
+            if let icon { IconView(icon: icon, size: .small, color: nil, weight: .bold, grow: -2) }
             Text(title)
         }
         .font(Typography.label)

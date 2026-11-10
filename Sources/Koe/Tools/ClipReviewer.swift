@@ -83,10 +83,16 @@ final class ClipReviewer {
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
+    /// Picks the frame on screen and starts hearing what you say about it at once. On a frame already picked it
+    /// listens again, replacing what you said before.
     func pickCurrent() {
         pause()
         let index = current
-        guard review.pick(index) else { return }
+        guard review.pick(index) else {
+            if talking != index { toggleTalk(index) }
+            return
+        }
+        toggleTalk(index)
         Task { [url, frames] in
             let image = try? await ClipMovie.image(at: frames.seekTime(of: index), of: url, maxSide: 160)
             thumbnails[index] = image
@@ -119,7 +125,8 @@ final class ClipReviewer {
         talking == nil ? nil : spoken(VoiceSpan(start: talkStart, end: now()))
     }
 
-    private func stopTalking() {
+    /// Ends the note being said and keeps it.
+    func stopTalking() {
         guard let index = talking else { return }
         review.setVoice(VoiceSpan(start: talkStart, end: now()), for: index)
         talking = nil
@@ -170,6 +177,7 @@ struct ClipReviewView: View {
     let reviewer: ClipReviewer
     /// Set as a row is removed, so the card closes on the slower spring.
     @State private var removing = false
+    @State private var shown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -190,6 +198,8 @@ struct ClipReviewView: View {
         .onChange(of: reviewer.review.picks.count) { removing = false }
         // The card grows and shrinks with its rows, on the same spring.
         .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.map(\.index))
+        .growsIn(shown)
+        .onAppear { withAnimation(GrowIn.animation) { shown = true } }
     }
 
     /// The clip fitted into the window's width and at most 340 pt tall.
@@ -229,14 +239,6 @@ struct ClipReviewView: View {
             .buttonStyle(.koe(.outline, iconOnly: true))
             .hint(reviewer.playing ? "Pause" : "Play", shortcut: "Space")
             .accessibilityLabel(reviewer.playing ? "Pause" : "Play")
-            Button { reviewer.step(by: -1) } label: { IconView(icon: .previous, size: .medium, color: nil) }
-                .buttonStyle(.koe(.secondary, iconOnly: true))
-                .hint("Previous frame", shortcut: "←")
-                .accessibilityLabel("Previous frame")
-            Button { reviewer.step(by: 1) } label: { IconView(icon: .next, size: .medium, color: nil) }
-                .buttonStyle(.koe(.secondary, iconOnly: true))
-                .hint("Next frame", shortcut: "→")
-                .accessibilityLabel("Next frame")
             Text(position)
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
@@ -286,25 +288,6 @@ struct ClipReviewView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Button(action: reviewer.pickCurrent) {
-                let picked = reviewer.review.isPicked(reviewer.current)
-                HStack(spacing: 6) {
-                    ZStack {
-                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil, grow: picked ? 0 : 2)
-                            .id(picked)
-                            .transition(GlyphSwap())
-                    }
-                    // The words morph and the button's width follows, in one motion with the glyph.
-                    Text(picked ? "Frame picked" : "Pick this frame")
-                        .contentTransition(.interpolate)
-                        .fixedSize()
-                }
-                .padding(.leading, -2)
-                .animation(.spring(duration: 0.24, bounce: 0.12), value: picked)
-            }
-            .buttonStyle(.koe(.outline))
-            .hint("Pick this frame", shortcut: "P")
-            .disabled(reviewer.review.isPicked(reviewer.current))
             Spacer()
             Button("Discard") { reviewer.finish(attach: false) }
                 .buttonStyle(.koe(.secondary))
@@ -343,30 +326,33 @@ struct SeekBar: View {
     let fraction: Double
     var marks: [Double] = []
     let seek: (Double) -> Void
+    private static let knob: CGFloat = 14
 
     var body: some View {
         GeometryReader { geometry in
-            let width = geometry.size.width
+            // The knob stays inside the track: its centre runs from 7 pt in to 7 pt short of the end.
+            let run = max(0, geometry.size.width - Self.knob)
+            let half = Self.knob / 2
             ZStack(alignment: .leading) {
                 Capsule().fill(Palette.well).frame(height: 4)
-                Capsule().fill(Palette.action).frame(width: max(4, width * fraction), height: 4)
+                Capsule().fill(Palette.action).frame(width: half + run * fraction, height: 4)
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                     RoundedRectangle(cornerRadius: 1)
                         .fill(Palette.fg3)
                         .frame(width: 2, height: 12)
-                        .offset(x: width * mark - 1)
+                        .offset(x: half + run * mark - 1)
                 }
                 Circle()
                     .fill(Palette.card)
                     .overlay(Circle().strokeBorder(Palette.action, lineWidth: 2))
-                    .frame(width: 14, height: 14)
+                    .frame(width: Self.knob, height: Self.knob)
                     .shadow(color: Palette.shadow.opacity(0.12), radius: 1, y: 1)
-                    .offset(x: width * fraction - 7)
+                    .offset(x: run * fraction)
             }
             .frame(height: 20)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                seek(width > 0 ? min(1, max(0, value.location.x / width)) : 0)
+                seek(run > 0 ? min(1, max(0, (value.location.x - half) / run)) : 0)
             })
         }
         .frame(height: 20)
