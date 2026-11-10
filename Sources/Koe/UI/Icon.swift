@@ -19,6 +19,9 @@ enum Icon: String, CaseIterable {
     case play = "IconPlayFilled"
     case pause = "IconPauseFilled"
     case stop = "IconStopFilled"
+    /// Stroked like the cross and the check beside them in the pill.
+    case pauseLine = "IconPause"
+    case playLine = "IconPlay"
     case retake = "IconArrowRotateCounterClockwise"
     case previous = "IconChevronLeftSmall"
     case next = "IconChevronRightSmall"

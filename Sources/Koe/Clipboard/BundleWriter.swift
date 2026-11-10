@@ -30,14 +30,7 @@ enum BundleWriter {
         guard AXIsProcessTrusted(), !NSApp.isActive else { return false }
         // Gives the app in front a moment to see the new clipboard, and you to let go of the stop hotkey's keys.
         try? await Task.sleep(for: .milliseconds(250))
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let vKey: CGKeyCode = 9
-        guard let press = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
-              let release = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false) else { return false }
-        press.flags = .maskCommand
-        release.flags = .maskCommand
-        press.post(tap: .cghidEventTap)
-        release.post(tap: .cghidEventTap)
+        BundlePaster.pressPaste()
         return true
     }
 }

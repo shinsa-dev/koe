@@ -1,4 +1,5 @@
 import AppKit
+import KoeCore
 import SwiftUI
 
 /// A borderless panel that floats over every app and space without taking focus, so you keep typing where you were.
@@ -58,6 +59,7 @@ final class PillController {
     private let sessions: SessionController
     private var list: ToolPanel?
     private var listWatch: Task<Void, Never>?
+    private var viewer: ToolPanel?
 
     init(sessions: SessionController, tools: PillTools) {
         self.sessions = sessions
@@ -74,7 +76,8 @@ final class PillController {
         let frame = panel.frame
         let list = ToolPanel(frame: NSRect(x: frame.midX - size.width / 2, y: frame.minY + PillPanel.cardsAbove - 20,
                                            width: size.width, height: size.height), level: PillPanel.level)
-        list.host(AttachmentList(sessions: sessions, close: { [weak self] in self?.closeAttachments() })
+        list.host(AttachmentList(sessions: sessions, open: { [weak self] in self?.view($0) },
+                                 close: { [weak self] in self?.closeAttachments() })
             .padding(.bottom, 20)
             .frame(width: size.width, height: size.height, alignment: .bottom))
         list.onCancel = { [weak self] in self?.closeAttachments() }
@@ -90,7 +93,25 @@ final class PillController {
         }
     }
 
+    /// Opens one attachment large over the screen the pill is on.
+    private func view(_ annotation: Annotation) {
+        closeViewer()
+        guard let screen = panel.screen ?? NSScreen.main else { return }
+        let viewer = ToolPanel(frame: screen.frame, level: NSWindow.Level(rawValue: PillPanel.level.rawValue + 1))
+        viewer.host(AttachmentViewer(annotation: annotation, screen: screen.frame.size,
+                                     close: { [weak self] in self?.closeViewer() }))
+        viewer.onCancel = { [weak self] in self?.closeViewer() }
+        viewer.present()
+        self.viewer = viewer
+    }
+
+    private func closeViewer() {
+        viewer?.close()
+        viewer = nil
+    }
+
     func closeAttachments() {
+        closeViewer()
         listWatch?.cancel()
         listWatch = nil
         list?.close()

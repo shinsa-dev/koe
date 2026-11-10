@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if items.isEmpty {
             sessions.post(PillNotice(kind: .neutral, title: "Nothing to copy"))
         } else {
-            let summary = ClipboardPlan.summary(for: items, pasted: false)
+            let summary = ClipboardPlan.summary(for: items, pasted: false, together: library.pastesTogether)
             sessions.post(PillNotice(kind: .success, title: summary.title, detail: summary.detail))
         }
         pill.show()

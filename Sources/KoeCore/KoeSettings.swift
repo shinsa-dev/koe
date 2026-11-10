@@ -11,6 +11,8 @@ public struct KoeSettings: Sendable, Equatable {
     public var copyFiles = true
     /// Press ⌘V for you in the app you're in once the bundle is copied. Needs Accessibility.
     public var autoPaste = false
+    /// One ⌘V pastes your words and then the attachments, as two pastes Koe makes for you. Needs Accessibility.
+    public var pasteTogether = true
     public var theme: ThemeChoice = .system
     /// How many past sessions the menu lists.
     public var recentCount = 5
@@ -23,6 +25,7 @@ public struct KoeSettings: Sendable, Equatable {
     public enum Key {
         public static let copyFiles = "copyFiles"
         public static let autoPaste = "autoPaste"
+        public static let pasteTogether = "pasteTogether"
         public static let theme = "appearance"
         public static let recentCount = "recentCount"
         public static let freezeScreen = "freezeScreen"
@@ -33,6 +36,7 @@ public struct KoeSettings: Sendable, Equatable {
     public init(values: [String: Any]) {
         if let copyFiles = values[Key.copyFiles] as? Bool { self.copyFiles = copyFiles }
         if let autoPaste = values[Key.autoPaste] as? Bool { self.autoPaste = autoPaste }
+        if let pasteTogether = values[Key.pasteTogether] as? Bool { self.pasteTogether = pasteTogether }
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
         if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
@@ -40,6 +44,6 @@ public struct KoeSettings: Sendable, Equatable {
 
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
-         Key.freezeScreen: freezeScreen]
+         Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether]
     }
 }

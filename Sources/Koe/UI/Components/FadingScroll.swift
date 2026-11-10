@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A list that scrolls inside a fixed height the way the web's lists do: never a scroll bar, and the rows melt away
-/// at whichever edge has more to show. The fade grows in with the first points of scrolling, so it never pops.
+/// at whichever edge has more to show. The fade is there from the first point of scrolling.
 struct FadingScroll<Content: View>: View {
     let maxHeight: CGFloat
     @ViewBuilder var content: Content
@@ -40,7 +40,7 @@ struct FadingScroll<Content: View>: View {
 
     /// An eased ramp from clear at the edge to solid, as strong as there is content hidden behind it.
     private func edge(strength hiddenPoints: CGFloat, towards edge: VerticalEdge) -> some View {
-        let strength = min(1, hiddenPoints / Self.fade)
+        let strength = min(1, hiddenPoints / 4)
         let stops = [0, 0.15, 0.35, 0.6, 1].map { position -> Gradient.Stop in
             let eased = position * position * (3 - 2 * position)
             return Gradient.Stop(color: Palette.shadow.opacity(1 - strength * (1 - eased)), location: position)

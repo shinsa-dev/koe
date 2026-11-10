@@ -15,6 +15,9 @@ final class SessionLibrary {
     /// The session last put on the clipboard and the clipboard's change count right after, to tell whether it is
     /// still there when the session's last words settle.
     @ObservationIgnored private var lastCopy: (id: UUID, changeCount: Int)?
+    @ObservationIgnored private let paster = BundlePaster()
+    /// Whether the last copy left only the words on the clipboard, with the attachments following your ⌘V.
+    @ObservationIgnored private(set) var pastesTogether = false
 
     init(root: URL, defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -44,7 +47,7 @@ final class SessionLibrary {
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
         lastCopy = (session.id, NSPasteboard.general.changeCount)
         let pasted = settings.autoPaste ? await BundleWriter.paste() : false
-        let summary = ClipboardPlan.summary(for: items, pasted: pasted)
+        let summary = ClipboardPlan.summary(for: items, pasted: pasted, together: pastesTogether)
         return PillNotice(kind: .success, title: summary.title, detail: summary.detail)
     }
 
@@ -53,7 +56,7 @@ final class SessionLibrary {
     func refined(_ session: Session, folder: URL) {
         save(session, in: folder)
         guard let lastCopy, lastCopy.id == session.id,
-              lastCopy.changeCount == NSPasteboard.general.changeCount else { return }
+              lastCopy.changeCount == NSPasteboard.general.changeCount || paster.holdsClipboard else { return }
         copy(session)
         self.lastCopy = (session.id, NSPasteboard.general.changeCount)
     }
@@ -103,7 +106,11 @@ final class SessionLibrary {
     @discardableResult
     func copy(_ session: Session) -> [ClipboardItem] {
         let items = ClipboardPlan.items(for: BundleComposer().compose(session), copyFiles: settings.copyFiles)
-        BundleWriter.write(items)
+        pastesTogether = settings.pasteTogether && paster.arm(items)
+        if !pastesTogether {
+            paster.disarm()
+            BundleWriter.write(items)
+        }
         return items
     }
 }

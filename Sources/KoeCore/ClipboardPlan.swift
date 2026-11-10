@@ -25,12 +25,47 @@ public enum ClipboardPlan {
         return items
     }
 
-    /// What the pill shows once the bundle is on the clipboard, then what to do with it.
-    public static func summary(for items: [ClipboardItem], pasted: Bool) -> (title: String, detail: String) {
+    /// What the pill shows once the bundle is on the clipboard, then what to do with it. `together` is when one ⌘V
+    /// brings the attachments in after the words.
+    public static func summary(for items: [ClipboardItem], pasted: Bool,
+                               together: Bool = false) -> (title: String, detail: String) {
         let files = items.filter { if case .file = $0 { true } else { false } }.count
         let attachments = files == 0 ? "" : files == 1 ? " and 1 attachment" : " and \(files) attachments"
-        return pasted
-            ? ("Pasted for you", "Your words\(attachments) went straight in")
-            : ("Copied to clipboard", "Press ⌘V to paste your words\(attachments) anywhere")
+        if pasted { return ("Pasted for you", "Your words\(attachments) went straight in") }
+        if together, files > 0 {
+            return ("Copied to clipboard", "Press ⌘V once for your words\(attachments)")
+        }
+        return ("Copied to clipboard", "Press ⌘V to paste your words\(attachments) anywhere")
     }
+}
+
+/// How one ⌘V becomes the whole bundle. A chat box given text and files in one paste keeps one and drops the other,
+/// so Koe leaves only your words on the clipboard and, when you paste them, follows with the files as a second paste.
+public enum PastePlan {
+    public struct Split: Sendable, Equatable {
+        /// What sits on the clipboard for your ⌘V.
+        public let words: ClipboardItem
+        /// What Koe pastes right after it.
+        public let files: [URL]
+    }
+
+    /// Nil when there is nothing to follow with: no words, or no files.
+    public static func split(_ items: [ClipboardItem]) -> Split? {
+        guard let words = items.first(where: { if case .text = $0 { true } else { false } }) else { return nil }
+        let files = items.compactMap { item -> URL? in
+            if case .file(let url) = item { url } else { nil }
+        }
+        return files.isEmpty ? nil : Split(words: words, files: files)
+    }
+
+    /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out.
+    public static func takesFiles(appWithBundleID id: String?) -> Bool {
+        guard let id = id?.lowercased() else { return true }
+        return !terminals.contains { id == $0 || id.hasPrefix($0 + ".") }
+    }
+
+    private static let terminals = [
+        "com.apple.terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.warp-stable", "dev.warp.warp",
+        "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
+    ]
 }

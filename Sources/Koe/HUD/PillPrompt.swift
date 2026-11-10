@@ -39,7 +39,7 @@ struct PromptView: View {
             HStack(spacing: 4) {
                 PillButton(icon: .close, tone: .destructive, label: "Cancel", shortcut: "Esc") { status.onCancel?() }
                 if prompt.stage == .listening {
-                    PillButton(icon: paused ? .play : .pause, tone: .neutral, label: paused ? "Resume" : "Pause",
+                    PillButton(icon: paused ? .playLine : .pauseLine, tone: .neutral, label: paused ? "Resume" : "Pause",
                                action: paused ? sessions.resume : sessions.pause)
                 } else if prompt.stage == .confirming, prompt.canTalk, let talk = status.onTalk {
                     PillButton(icon: .microphone, tone: .neutral, label: "Say something about it", action: talk)

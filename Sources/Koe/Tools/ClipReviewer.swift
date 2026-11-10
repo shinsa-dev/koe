@@ -192,8 +192,7 @@ struct ClipReviewView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            IconView(icon: .video, size: .medium, color: Palette.icon2)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Pick the frames to attach").font(Typography.title).foregroundStyle(Palette.fg4)
                 Text(subtitle).font(Typography.meta).foregroundStyle(Palette.fg2).lineLimit(1).truncationMode(.middle)
             }
@@ -346,7 +345,7 @@ private struct Scrubber: View {
 }
 
 /// The clip itself, drawn by an AVPlayerLayer with no controls of its own.
-private struct ClipPlayerView: NSViewRepresentable {
+struct ClipPlayerView: NSViewRepresentable {
     let player: AVPlayer
 
     func makeNSView(context: Context) -> NSView {

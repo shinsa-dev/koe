@@ -143,7 +143,7 @@ private struct SessionControls: View {
             SessionClock(sessions: sessions, paused: paused)
             HStack(spacing: 4) {
                 PillButton(icon: .close, tone: .destructive, label: "Discard", action: sessions.cancel)
-                PillButton(icon: paused ? .play : .pause, tone: .neutral,
+                PillButton(icon: paused ? .playLine : .pauseLine, tone: .neutral,
                            label: paused ? "Resume" : "Pause", action: paused ? sessions.resume : sessions.pause)
                 PillButton(icon: .checkmark, tone: .action,
                            label: "Finish and copy", shortcut: KeyCombo.toggleSession.displayName, action: sessions.finish)

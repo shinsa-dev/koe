@@ -37,8 +37,8 @@ switch and tabs), with SF Symbols for glyphs. The rest is Shinsa's: ABC Areal (`
 (`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
 them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the accent.
 Everything that floats over other apps (the pill, the attachment list, the recording card, the clip review)
-is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a glass rim, lit along its top edge
-(`floatingSurface`, `Palette.glassEdge`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
+is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with one hairline ring
+(`floatingSurface`, `Palette.hudRing`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
   stop, Shortcuts and General. No system toolbar. First launch opens it.
@@ -128,6 +128,13 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - Checked with a WebKit view: a paste gets both files with their types and the HTML. WebKit hides the plain text
   when files come with it, so in Safari-based editors the HTML is the text, which is why it carries everything the
   plain text does.
+- **One ⌘V for everything** ("Paste everything with one ⌘V", on by default, needs Accessibility). A chat box given
+  text and files in one paste keeps one and drops the other. So `BundlePaster` leaves only the words on the
+  clipboard and watches for your ⌘V; 220 ms after it, Koe puts the files on, presses ⌘V itself and puts the words
+  back (`PastePlan.split`). The files upload like any pasted file, so this works for a remote agent too. It stops
+  as soon as you copy something else. In a terminal (`PastePlan.takesFiles`) only the words go in: they already end
+  with every path. Without Accessibility, or with the setting off, everything goes on the clipboard at once as
+  above. Not yet tried in a real chat app.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it

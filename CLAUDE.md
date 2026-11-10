@@ -36,7 +36,9 @@ behaviour it describes.
   pill says what to do (`ToolStatus`/`ToolPrompt`); nothing is drawn on the frozen screen but your drag and pin.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
   notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme. It
-  gives every one the same glass rim; never draw a different border on a floating surface.
+  gives every one the same hairline ring; never draw a different border on a floating surface.
+- An attachment opens in the viewer (`AttachmentViewer`, a lightbox over the dimmed screen); a list row never
+  grows in place. Lists show the newest first.
 - In the pill, actions keep one order everywhere: discard on the left, pause in the middle, confirm on the right.
   Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`).
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu

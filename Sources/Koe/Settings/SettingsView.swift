@@ -33,6 +33,11 @@ struct SettingsPage: View {
                            detail: "Screenshots, clips and files paste in after your words.") {
                     Toggle("Copy attachments with the text", isOn: binding(\.copyFiles)).toggleStyle(.koe)
                 }
+                SettingRow(title: "Paste everything with one ⌘V", detail: canPaste
+                    ? "Your words go in, then Koe pastes the attachments."
+                    : "Needs Accessibility, above.") {
+                    Toggle("Paste everything with one ⌘V", isOn: binding(\.pasteTogether)).toggleStyle(.koe).disabled(!canPaste)
+                }
                 SettingRow(title: "Paste for you", detail: canPaste
                     ? "Presses ⌘V in the app you're in."
                     : "Needs Accessibility, above.") {

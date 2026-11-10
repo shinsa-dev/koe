@@ -53,13 +53,56 @@ struct ClipboardPlanTests {
         #expect(ClipboardPlan.summary(for: [text, file, file], pasted: true)
             == ("Pasted for you", "Your words and 2 attachments went straight in"))
     }
+
+    @Test func theSummarySaysOnePressBringsEverything() {
+        let text = ClipboardItem.text(plain: "a", html: "a")
+        let file = ClipboardItem.file(URL(fileURLWithPath: "/a.png"))
+        #expect(ClipboardPlan.summary(for: [text, file, file], pasted: false, together: true)
+            == ("Copied to clipboard", "Press ⌘V once for your words and 2 attachments"))
+        #expect(ClipboardPlan.summary(for: [text], pasted: false, together: true)
+            == ("Copied to clipboard", "Press ⌘V to paste your words anywhere"))
+    }
+}
+
+struct PastePlanTests {
+    let text = ClipboardItem.text(plain: "Look [1].", html: "<p>Look [1].</p>")
+    let shot = URL(fileURLWithPath: "/s/screenshot-1.png")
+    let clip = URL(fileURLWithPath: "/s/clip-1.mov")
+
+    @Test func theWordsStayAndTheFilesFollowInOrder() {
+        let split = PastePlan.split([text, .file(shot), .file(clip)])
+        #expect(split?.words == text)
+        #expect(split?.files == [shot, clip])
+    }
+
+    @Test func wordsAloneOrFilesAloneNeedNoSecondPaste() {
+        #expect(PastePlan.split([text]) == nil)
+        #expect(PastePlan.split([.file(shot)]) == nil)
+        #expect(PastePlan.split([]) == nil)
+    }
+
+    @Test(arguments: ["com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable"])
+    func aTerminalGetsOnlyTheWords(id: String) {
+        #expect(!PastePlan.takesFiles(appWithBundleID: id))
+    }
+
+    @Test(arguments: ["com.anthropic.claudefordesktop", "com.tinyspeck.slackmacgap", "com.apple.Safari",
+                      "com.apple.TerminalX"])
+    func anyOtherAppGetsTheFiles(id: String) {
+        #expect(PastePlan.takesFiles(appWithBundleID: id))
+    }
+
+    @Test func anUnknownAppGetsTheFiles() {
+        #expect(PastePlan.takesFiles(appWithBundleID: nil))
+    }
 }
 
 struct KoeSettingsTests {
     @Test func defaultsWhenNothingIsSet() {
         let settings = KoeSettings(values: [:])
         #expect(settings == KoeSettings())
-        #expect(settings.copyFiles && !settings.autoPaste && settings.theme == .system && settings.recentCount == 5)
+        #expect(settings.copyFiles && settings.pasteTogether && !settings.autoPaste)
+        #expect(settings.theme == .system && settings.recentCount == 5)
     }
 
     @Test func roundTripsThroughItsValues() {
@@ -69,6 +112,7 @@ struct KoeSettingsTests {
         settings.theme = .dark
         settings.recentCount = 10
         settings.freezeScreen = false
+        settings.pasteTogether = false
         #expect(KoeSettings(values: settings.values) == settings)
     }
 
