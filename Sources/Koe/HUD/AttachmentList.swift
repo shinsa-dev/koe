@@ -10,6 +10,7 @@ struct AttachmentList: View {
     let open: (Annotation) -> Void
     let close: () -> Void
     @State private var shown = false
+    @State private var removing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -32,7 +33,8 @@ struct AttachmentList: View {
                         AttachmentRow(annotation: annotation) {
                             open(annotation)
                         } remove: {
-                            withAnimation(RowChange.animation) { sessions.remove(annotation.id) }
+                            removing = true
+                            sessions.remove(annotation.id)
                         }
                         .transition(RowChange.change)
                     }
@@ -42,7 +44,8 @@ struct AttachmentList: View {
         .padding(8)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 16, shadow: false)
-        .animation(RowChange.animation, value: sessions.attachments.map(\.id))
+        .animation(RowChange.animation(removing: removing), value: sessions.attachments.map(\.id))
+        .onChange(of: sessions.attachments.count) { removing = false }
         // It grows out of the pill below it, the way the pill itself arrives.
         .scaleEffect(shown ? 1 : 0.9, anchor: .bottom)
         .blur(radius: shown ? 0 : 6)

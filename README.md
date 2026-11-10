@@ -42,10 +42,13 @@ Everything that floats over other apps (the pill, the attachment list, the clip 
 is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behind with one hairline ring
 (`floatingSurface`, `Palette.hudRing`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
-- One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
-  stop, Shortcuts and General. No system toolbar; the page fades out under the window's controls. First launch
-  opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). It needs ⌘, ⌃ or ⌥ (or
-  to be a function key) and can't be one another action has (`Shortcuts`); a changed one is saved as
+- One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation,
+  While you dictate, When you finish and General. No system toolbar; the page fades out under the window's controls. First launch
+  opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). Starting and
+  finishing (⌥Space) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be a function key). The tools are single keys,
+  C to comment, S for a screenshot and R to record a clip, and `ShortcutCenter` holds them only while a session
+  is open (`setDictating`), so they type as usual the rest of the time; a tool can't take Esc, Return or Space on
+  their own. No two actions share one (`Shortcuts`); a changed one is saved as
   `shortcut.<action>` = `keyCode:modifiers`. The old shortcuts are unregistered while you press the new one.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
@@ -172,7 +175,7 @@ you finish while a tool is open never waits for another click (`ToolCoordinator.
 attaches with what you said, a clip still recording stops and attaches, and a clip in review attaches with the
 frames picked so far.
 
-- **Screenshot, ⌥⇧S.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
+- **Screenshot, S while you dictate.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
   and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed from the moment it opens,
   and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
   the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
@@ -180,7 +183,7 @@ frames picked so far.
   pointer is over. Once picked, the pill listens at once, as it does for a comment: what you say until you attach it
   (a `VoiceSpan`) becomes the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
-- **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
+- **Comment, C while you dictate.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
   what you say until you click its check is the comment. Clicking something else finishes that comment and starts
   the next one there (`RegionPicker.onCommit`), each on its own ticket. The pill's buttons keep the session's
   order: discard, pause, confirm; pause is the session's own pause, so the comment greys like the waveform does. The screenshot is the window you clicked (or 640 × 400
@@ -196,12 +199,12 @@ frames picked so far.
   (`ThumbnailCache`), so the list never opens on a placeholder. A comment is a
   screenshot of what you clicked with a pin on the spot (`Annotation.comment`), named "Comment" there and in the
   bundle.
-- **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
+- **Clip, R while you dictate.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
   down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` takes
   ScreenCaptureKit's frames at the screen's refresh rate and encodes them itself (`ClipQuality`: 0.08 bits a pixel
   a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and
-  its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline shows around the region, and the pill becomes the recording's own page: its clock, discard (this clip only, the session carries on), pause and stop. ⌥⇧C again,
-  stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 1× (`PlaybackSpeed`): play
+  its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline shows around the region, and the pill becomes the recording's own page: its clock, discard (this clip only, the session carries on), pause and stop. R again,
+  or stopping the session stops it; a clip has no length limit. Then the clip opens at 1× (`PlaybackSpeed`): play
   it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
   "Talk about this frame": what you say until you click it again is that frame's note, and the row then confirms it
   ("Note recorded", then those words once heard, `SessionController.spoken(in:)`) with a button beside it to say
@@ -210,7 +213,7 @@ frames picked so far.
   (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
   pulled with zero tolerance, so the image you pick is the one you saw.
 - The clip is stamped when recording began, and each picked frame at that time plus its time in the clip, so a frame
-  lands at the words you said while it was on screen. All of them close the ticket taken when you pressed ⌥⇧C.
+  lands at the words you said while it was on screen. All of them close the ticket taken when you pressed R.
   Frames are saved full size as `clip-<n>-frame-<m>.png`.
 - **Drop on the pill.** Each file is stamped when it lands and copied (an APFS clone) into the session's folder, so
   the bundle keeps it if the original moves. The pill shows how many attachments the session holds.

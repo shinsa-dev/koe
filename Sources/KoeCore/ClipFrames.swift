@@ -4,9 +4,6 @@ import Foundation
 /// on screen changed, so these are the clip's real frame times, not a fixed rate: stepping goes from one change to
 /// the next.
 public struct ClipFrames: Sendable, Equatable {
-    /// A clip stops recording by itself after this long: enough for any animation, small enough to review.
-    public static let longest: AudioTime = 30
-
     /// Seconds into the clip, sorted, each once.
     public let times: [AudioTime]
     public let duration: AudioTime

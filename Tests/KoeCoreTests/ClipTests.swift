@@ -198,8 +198,8 @@ struct ClipFilesTests {
         #expect(pixels.height == height)
     }
 
-    @Test func theClipShortcutIsOptionShiftC() {
-        #expect(KeyCombo.clip.displayName == "⌥⇧C")
+    @Test func theClipShortcutIsR() {
+        #expect(KeyCombo.clip.displayName == "R")
     }
 }
 

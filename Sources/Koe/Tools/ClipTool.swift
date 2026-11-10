@@ -10,7 +10,7 @@ struct ClipScript {
     let holds: Bool
 }
 
-/// The clip tool from start to end: you pick a region, Koe records it until you stop (or for 30 s), then the clip
+/// The clip tool from start to end: you pick a region, Koe records it until you stop, however long that is, then the clip
 /// opens slowed down for you to step through and pick frames. Attaching adds the clip at the moment it started
 /// recording and each frame at the moment it was on screen, all on the ticket taken when you pressed the shortcut.
 @MainActor
@@ -60,7 +60,7 @@ final class ClipTool {
                 return
             }
             // Set before the recorder starts, so the pill goes from picking straight to recording.
-            if clipFile == nil || preset != nil { promptRecording(limit: preset?.seconds ?? ClipFrames.longest) }
+            if clipFile == nil || preset != nil { promptRecording(limit: preset?.seconds) }
             Task { await self.record(choice, ticket: ticket, script: preset) }
         }
     }
@@ -97,17 +97,19 @@ final class ClipTool {
         let global = ScreenGeometry.flip(
             choice.region.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY), mainScreenHeight: mainHeight
         )
-        let limit = script?.seconds ?? ClipFrames.longest
+        let limit = script?.seconds
         // A scripted --clip-file run still shows the outline for its length, so the indicator can be seen without recording.
         let indicator = recorder == nil && script == nil ? nil : RecordingIndicator(region: global)
         indicator?.show()
         if indicator != nil { promptRecording(limit: limit) }
         recording = Recording(ticket: ticket, url: url, startOffset: offset, source: source, recorder: recorder,
                               indicator: indicator, script: script)
-        recording?.autoStop = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(limit))
-            guard !Task.isCancelled else { return }
-            self?.stopRecording()
+        if let limit {
+            recording?.autoStop = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(limit))
+                guard !Task.isCancelled else { return }
+                self?.stopRecording()
+            }
         }
         if recorder == nil, script == nil { stopRecording() }
     }
@@ -289,7 +291,7 @@ extension ClipTool {
         end(recording.ticket, with: [])
     }
 
-    private func promptRecording(limit: AudioTime) {
+    private func promptRecording(limit: AudioTime?) {
         status.prompt = ToolPrompt(stage: .recording, icon: .video, title: "Recording a clip", detail: nil,
                                    confirm: "Stop recording", canTalk: false, cancel: "Discard this clip",
                                    clock: .init(started: Date(), limit: limit))

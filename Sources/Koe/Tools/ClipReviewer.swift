@@ -114,6 +114,11 @@ final class ClipReviewer {
         pick.voice.map(spoken)
     }
 
+    /// What has been heard of the note being said right now.
+    func liveNote() -> String? {
+        talking == nil ? nil : spoken(VoiceSpan(start: talkStart, end: now()))
+    }
+
     private func stopTalking() {
         guard let index = talking else { return }
         review.setVoice(VoiceSpan(start: talkStart, end: now()), for: index)
@@ -163,6 +168,8 @@ final class ClipReviewer {
 struct ClipReviewView: View {
     static let width: CGFloat = 640
     let reviewer: ClipReviewer
+    /// Set as a row is removed, so the card closes on the slower spring.
+    @State private var removing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -180,8 +187,9 @@ struct ClipReviewView: View {
         .padding(16)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 18, shadow: false)
+        .onChange(of: reviewer.review.picks.count) { removing = false }
         // The card grows and shrinks with its rows, on the same spring.
-        .animation(RowChange.animation, value: reviewer.review.picks.map(\.index))
+        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.map(\.index))
     }
 
     /// The clip fitted into the window's width and at most 340 pt tall.
@@ -258,7 +266,7 @@ struct ClipReviewView: View {
                 }
             }
         }
-        .animation(RowChange.animation, value: reviewer.review.picks.map(\.index))
+        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.map(\.index))
     }
 
     private func row(for pick: PickedFrame) -> PickedFrameRow {
@@ -266,9 +274,13 @@ struct ClipReviewView: View {
         return PickedFrameRow(
             pick: pick, thumbnail: reviewer.thumbnails[index], talking: reviewer.talking == index,
             note: { reviewer.note(for: pick) },
+            live: { reviewer.liveNote() },
             talk: { reviewer.toggleTalk(index) },
             show: { reviewer.pause(); reviewer.show(index) },
-            remove: { withAnimation(RowChange.animation) { reviewer.unpick(index) } }
+            remove: {
+                removing = true
+                reviewer.unpick(index)
+            }
         )
     }
 
@@ -282,14 +294,13 @@ struct ClipReviewView: View {
                             .id(picked)
                             .transition(GlyphSwap())
                     }
-                    ZStack {
-                        Text(picked ? "Frame picked" : "Pick this frame")
-                            .id(picked)
-                            .transition(GlyphSwap())
-                    }
+                    // The words morph and the button's width follows, in one motion with the glyph.
+                    Text(picked ? "Frame picked" : "Pick this frame")
+                        .contentTransition(.interpolate)
+                        .fixedSize()
                 }
                 .padding(.leading, -2)
-                .animation(GlyphSwap.animation, value: picked)
+                .animation(.spring(duration: 0.24, bounce: 0.12), value: picked)
             }
             .buttonStyle(.koe(.outline))
             .hint("Pick this frame", shortcut: "P")
@@ -298,7 +309,11 @@ struct ClipReviewView: View {
             Button("Discard") { reviewer.finish(attach: false) }
                 .buttonStyle(.koe(.secondary))
                 .hint("Discard this clip", shortcut: "Esc")
-            Button(reviewer.attachTitle) { reviewer.finish(attach: true) }
+            Button { reviewer.finish(attach: true) } label: {
+                Text(reviewer.attachTitle)
+                    .contentTransition(.numericText(value: Double(reviewer.review.picks.count)))
+                    .animation(.snappy(duration: 0.25), value: reviewer.review.picks.count)
+            }
                 .buttonStyle(.koe(.primary))
                 .hint("Attach the clip and its frames", shortcut: "↩")
         }

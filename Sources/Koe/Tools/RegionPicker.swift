@@ -50,6 +50,8 @@ final class RegionPicker {
     var note = ""
     /// The spot a comment is about, on the screen being noted.
     private(set) var pin: CGPoint?
+    /// The comments already saved in this go, so each stays where you left it while you make the next.
+    private(set) var saved: [(screen: Int, point: CGPoint)] = []
     private var picked: WindowInfo?
     @ObservationIgnored var onFinish: ((RegionChoice?) -> Void)?
     /// A comment is done because you clicked the next thing: it is saved, and the picker carries on.
@@ -87,7 +89,10 @@ final class RegionPicker {
             if purpose == .comment {
                 // A comment works anywhere: on a window it shows that window, elsewhere the area around the spot.
                 // Clicking the next thing finishes the comment you were saying and starts another there.
-                if let choice { onCommit?(choice) }
+                if let choice {
+                    if case .noting(let screen, _) = stage, let pin { saved.append((screen, pin)) }
+                    onCommit?(choice)
+                }
                 pin = end
                 picked = rect.isEmpty ? nil : window
                 let next = Stage.noting(screen: index, region: rect.isEmpty ? around(end, on: index) : rect)
@@ -125,6 +130,9 @@ final class RegionPicker {
         guard case .noting(let index, let region) = stage, let source = source(for: region, on: index) else { return nil }
         return Self.label(source)
     }
+
+    /// Which comment of this go is being said, from 1.
+    var commentNumber: Int { saved.count + 1 }
 
     func submit(voice: VoiceSpan? = nil) {
         guard var choice else { return }
@@ -195,11 +203,19 @@ struct RegionPickerView: View {
                 Highlight(rect: highlight.rect)
                 if highlight.showsSize { SizeChip(rect: highlight.rect) }
             }
+            ForEach(Array(picker.saved.enumerated()), id: \.offset) { number, comment in
+                if comment.screen == index { Pin(number: number + 1, saved: true).position(comment.point) }
+            }
             if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
-                Pin().position(pin)
+                // A new pin each time, so the next comment lands as its own instead of the last one moving.
+                Pin(number: picker.saved.isEmpty ? nil : picker.saved.count + 1, saved: false)
+                    .position(pin)
+                    .id(picker.saved.count)
+                    .transition(PinDrop())
             }
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
+        .animation(.spring(duration: 0.26, bounce: 0.3), value: picker.saved.count)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
@@ -247,17 +263,35 @@ private struct Dim: View {
     }
 }
 
-/// Where a comment points, drawn as it will appear in the screenshot.
+/// Where a comment points, drawn as it will appear in the screenshot. From the second comment of one go each
+/// carries its number, and one already saved turns quiet.
 private struct Pin: View {
+    let number: Int?
+    let saved: Bool
+
     var body: some View {
-        Circle()
-            .fill(Palette.action)
-            .padding(3)
-            .background(Circle().fill(Palette.onAction))
-            .frame(width: 20, height: 20)
-            .shadow(color: Palette.shadow.opacity(0.35), radius: 3, y: 1)
-            .transition(.scale.combined(with: .opacity))
-            .allowsHitTesting(false)
+        ZStack {
+            Circle().fill(Palette.onAction)
+            Circle().fill(saved ? Palette.fg2 : Palette.action).padding(number == nil ? 3 : 2)
+            if let number {
+                Text("\(number)")
+                    .font(Typography.meta.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Palette.onAction)
+            }
+        }
+        .frame(width: number == nil ? 20 : 22, height: number == nil ? 20 : 22)
+        .shadow(color: Palette.shadow.opacity(0.35), radius: 3, y: 1)
+        .allowsHitTesting(false)
+    }
+}
+
+/// A pin lands from a little larger, so a new comment reads as new.
+private struct PinDrop: Transition {
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        content
+            .scaleEffect(phase.isIdentity ? 1 : 1.6)
+            .blur(radius: phase.isIdentity ? 0 : 3)
+            .opacity(phase.isIdentity ? 1 : 0)
     }
 }
 

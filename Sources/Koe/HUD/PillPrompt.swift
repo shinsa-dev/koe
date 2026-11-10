@@ -27,9 +27,12 @@ struct PromptView: View {
                 Text(prompt.title)
                     .font(Typography.label)
                     .foregroundStyle(Palette.fg4)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.25), value: prompt.title)
                 if let clock = prompt.clock {
                     TimelineView(.periodic(from: clock.started, by: 1)) { context in
-                        Text("\(Elapsed.clock(context.date.timeIntervalSince(clock.started))) of \(Elapsed.clock(clock.limit))")
+                        let elapsed = Elapsed.clock(context.date.timeIntervalSince(clock.started))
+                        Text(clock.limit.map { "\(elapsed) of \(Elapsed.clock($0))" } ?? elapsed)
                             .font(Typography.meta.monospacedDigit())
                             .foregroundStyle(Palette.fg2)
                             .contentTransition(.numericText())

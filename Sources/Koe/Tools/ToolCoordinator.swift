@@ -138,20 +138,21 @@ final class ToolCoordinator {
             status.onTalk = { [weak self] in
                 voice.begin()
                 self?.status.prompt?.stage = .listening
-                self?.status.prompt?.title = Self.title(comment: comment, listening: true)
+                self?.status.prompt?.title = Self.title(comment: comment, listening: true, number: picker.commentNumber)
             }
             // Whatever you pick, what you say next is about it: it listens the moment you pick.
             voice.begin()
             status.prompt = ToolPrompt(
                 stage: voice.isListening ? .listening : .confirming, icon: comment ? .comment : .screenCapture,
-                title: Self.title(comment: comment, listening: voice.isListening), detail: picker.sourceLabel,
+                title: Self.title(comment: comment, listening: voice.isListening, number: picker.commentNumber),
+                detail: picker.sourceLabel,
                 confirm: comment ? "Add comment" : "Attach"
             )
         }
     }
 
-    private static func title(comment: Bool, listening: Bool) -> String {
-        if comment { return "Say your comment" }
+    private static func title(comment: Bool, listening: Bool, number: Int) -> String {
+        if comment { return number > 1 ? "Comment \(number - 1) saved. Say the next" : "Say your comment" }
         return listening ? "Talk about it, or just attach" : "Attach this screenshot?"
     }
 

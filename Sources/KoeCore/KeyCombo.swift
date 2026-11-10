@@ -18,12 +18,15 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
 
     /// ⌥Space: starts and stops a session.
     public static let toggleSession = KeyCombo(keyCode: 49, modifiers: option)
-    /// ⌥⇧S: freezes the screen to take a screenshot of a region or a window.
-    public static let screenshot = KeyCombo(keyCode: 1, modifiers: option | shift)
-    /// ⌥⇧A: freezes the screen to pin a comment on anything you click.
-    public static let comment = KeyCombo(keyCode: 0, modifiers: option | shift)
-    /// ⌥⇧C: picks a region to record a clip of, and stops the recording.
-    public static let clip = KeyCombo(keyCode: 8, modifiers: option | shift)
+    /// S, while you dictate: freezes the screen to take a screenshot of a region or a window.
+    public static let screenshot = KeyCombo(keyCode: 1, modifiers: 0)
+    /// C, while you dictate: freezes the screen to pin a comment on anything you click.
+    public static let comment = KeyCombo(keyCode: 8, modifiers: 0)
+    /// R, while you dictate: picks a region to record a clip of, and stops the recording.
+    public static let clip = KeyCombo(keyCode: 15, modifiers: 0)
+
+    /// Esc, Return, Enter and Space: on their own they cancel, confirm and play, so no tool may take them.
+    public static let reservedKeys: Set<UInt32> = [53, 36, 76, 49]
 
     private static let functionKeys: Set<UInt32> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
 

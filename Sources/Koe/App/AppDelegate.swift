@@ -274,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             pill.show()
         }
+        ShortcutCenter.shared.setDictating(phase.isOpen)
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.contentTintColor = Tokens.redText

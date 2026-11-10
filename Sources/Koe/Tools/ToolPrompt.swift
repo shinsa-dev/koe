@@ -15,10 +15,11 @@ struct ToolPrompt: Equatable {
         case recording
     }
 
-    /// When a recording began and how long it may run, for the clock under the title.
+    /// When a recording began, for the clock under the title. It runs until you stop it; only a scripted one has
+    /// a length.
     struct Clock: Equatable {
         var started: Date
-        var limit: AudioTime
+        var limit: AudioTime?
     }
 
     var stage: Stage

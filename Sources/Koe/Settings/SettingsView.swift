@@ -1,7 +1,8 @@
 import KoeCore
 import SwiftUI
 
-/// Koe's settings on one page, top to bottom: permissions, what happens when you stop, the shortcuts, and the rest.
+/// Koe's settings on one page, in the order you meet them: permissions, starting, the tools while you dictate,
+/// what happens when you finish, and the rest.
 struct SettingsPage: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
@@ -31,7 +32,20 @@ struct SettingsPage: View {
                                   isNext: checklist.nextStep == permission, center: permissions)
                 }
             }
-            SettingsGroup(title: "When you stop") {
+            SettingsGroup(title: "Dictation", description: "Click a shortcut, then press the keys you want.") {
+                ShortcutRow(action: .toggleSession, library: library)
+            }
+            SettingsGroup(title: "While you dictate",
+                          description: "These keys only work during a session. The rest of the time they type as usual.") {
+                ForEach(ShortcutAction.allCases.filter(\.isSessionOnly), id: \.self) { action in
+                    ShortcutRow(action: action, library: library)
+                }
+                SettingRow(title: "Freeze the screen while you pick",
+                           detail: "Off, the screen keeps moving and the picture is taken when you attach it.") {
+                    Toggle("Freeze the screen while you pick", isOn: binding(\.freezeScreen)).toggleStyle(.koe)
+                }
+            }
+            SettingsGroup(title: "When you finish") {
                 SettingRow(title: "Copy attachments with the text",
                            detail: "Screenshots, clips and files paste in after your words.") {
                     Toggle("Copy attachments with the text", isOn: binding(\.copyFiles)).toggleStyle(.koe)
@@ -47,16 +61,7 @@ struct SettingsPage: View {
                     Toggle("Paste for you", isOn: binding(\.autoPaste)).toggleStyle(.koe).disabled(!canPaste)
                 }
             }
-            SettingsGroup(title: "Shortcuts", description: "Click a shortcut, then press the keys you want.") {
-                ForEach(ShortcutAction.allCases, id: \.self) { action in
-                    ShortcutRow(action: action, library: library)
-                }
-            }
             SettingsGroup(title: "General") {
-                SettingRow(title: "Freeze the screen while you pick",
-                           detail: "Off, the screen keeps moving and the picture is taken when you attach it.") {
-                    Toggle("Freeze the screen while you pick", isOn: binding(\.freezeScreen)).toggleStyle(.koe)
-                }
                 SettingRow(title: "Theme") {
                     SegmentedTabs(items: ThemeChoice.allCases.map { ($0, $0.label) }, selection: binding(\.theme))
                 }

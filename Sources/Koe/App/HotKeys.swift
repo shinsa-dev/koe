@@ -69,6 +69,7 @@ final class ShortcutCenter {
     @ObservationIgnored var handlers: [ShortcutAction: () -> Void] = [:]
     @ObservationIgnored private var ids: [ShortcutAction: UInt32] = [:]
     @ObservationIgnored private var suspended = false
+    @ObservationIgnored private var dictating = false
 
     private init() {}
 
@@ -90,12 +91,19 @@ final class ShortcutCenter {
         register()
     }
 
+    /// The tools' keys are held only while a session runs: the rest of the time C, S and R just type.
+    func setDictating(_ dictating: Bool) {
+        guard dictating != self.dictating else { return }
+        self.dictating = dictating
+        register()
+    }
+
     private func register() {
         ids.values.forEach(HotKeys.shared.unregister)
         ids = [:]
         guard !suspended else { return }
         var taken: Set<ShortcutAction> = []
-        for action in ShortcutAction.allCases {
+        for action in ShortcutAction.allCases where dictating || !action.isSessionOnly {
             let id = HotKeys.shared.register(shortcuts[action]) { [weak self] in self?.handlers[action]?() }
             if let id { ids[action] = id } else { taken.insert(action) }
         }

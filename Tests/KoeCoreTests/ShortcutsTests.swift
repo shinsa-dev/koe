@@ -27,12 +27,31 @@ struct ShortcutsTests {
         #expect(shortcuts[.clip] == .clip)
     }
 
-    @Test func aKeyWithoutCommandControlOrOptionIsRefused() {
+    @Test func startingDictationNeedsCommandControlOrOption() {
         var shortcuts = Shortcuts()
         #expect(throws: Shortcuts.Refusal.needsModifier) {
-            try shortcuts.set(KeyCombo(keyCode: 1, modifiers: KeyCombo.shift), for: .clip)
+            try shortcuts.set(KeyCombo(keyCode: 2, modifiers: KeyCombo.shift), for: .toggleSession)
         }
-        #expect(throws: Shortcuts.Refusal.needsModifier) { try shortcuts.set(KeyCombo(keyCode: 1, modifiers: 0), for: .clip) }
+        #expect(throws: Shortcuts.Refusal.needsModifier) {
+            try shortcuts.set(KeyCombo(keyCode: 2, modifiers: 0), for: .toggleSession)
+        }
+    }
+
+    @Test func theToolsAreSingleKeysHeldOnlyWhileYouDictate() throws {
+        var shortcuts = Shortcuts()
+        #expect(ShortcutAction.allCases.filter(\.isSessionOnly) == [.comment, .screenshot, .clip])
+        #expect([ShortcutAction.comment, .screenshot, .clip].map { shortcuts[$0].displayName } == ["C", "S", "R"])
+        try shortcuts.set(KeyCombo(keyCode: 9, modifiers: 0), for: .clip)
+        #expect(shortcuts[.clip].displayName == "V")
+    }
+
+    @Test func aToolCannotTakeEscReturnOrSpaceOnTheirOwn() throws {
+        var shortcuts = Shortcuts()
+        for key: UInt32 in [53, 36, 76, 49] {
+            #expect(throws: Shortcuts.Refusal.reserved) { try shortcuts.set(KeyCombo(keyCode: key, modifiers: 0), for: .comment) }
+        }
+        try shortcuts.set(KeyCombo(keyCode: 36, modifiers: KeyCombo.command), for: .comment)
+        #expect(shortcuts[.comment].displayName == "⌘↩")
     }
 
     @Test func aFunctionKeyNeedsNoModifier() throws {
@@ -57,7 +76,7 @@ struct ShortcutsTests {
 
     @Test func unreadableOrClashingValuesFallBackToTheStandard() {
         let shortcuts = Shortcuts(values: [
-            "shortcut.comment": "nonsense", "shortcut.clip": "1:2560", "shortcut.screenshot": "1:512",
+            "shortcut.comment": "nonsense", "shortcut.clip": "1:0", "shortcut.toggleSession": "1:512",
         ])
         #expect(shortcuts == Shortcuts())
     }

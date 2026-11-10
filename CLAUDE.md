@@ -46,7 +46,8 @@ behaviour it describes.
   Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`). Every tool's
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
   and its discard cancels that tool only, never the session.
-- Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Never write a combo
+- Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
+  finishing is global; a tool's key (`isSessionOnly`) is held only while a session is open. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
   bar) and back when it closes. Keep that when adding windows.
