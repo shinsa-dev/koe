@@ -3,8 +3,9 @@ import ApplicationServices
 import KoeCore
 
 /// Makes one ⌘V paste the whole bundle. Only your words sit on the clipboard; when you paste them, Koe puts the
-/// files on, pastes again for you and puts the words back, so the next ⌘V does the same. It stops the moment you
-/// copy something else. Watching for ⌘V and pressing it both need Accessibility.
+/// files on, pastes again for you and puts the words back, so the next ⌘V does the same. It only acts while the
+/// clipboard is still the one Koe wrote (`changeCount`), and stops for good once you copy something else.
+/// Watching for ⌘V and pressing it both need Accessibility.
 @MainActor
 final class BundlePaster {
     private var split: PastePlan.Split?
@@ -41,16 +42,22 @@ final class BundlePaster {
         guard let split, !delivering else { return }
         guard pasteboard.changeCount == armedCount else { return disarm() }
         guard PastePlan.takesFiles(appWithBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else { return }
+        let target = NSWorkspace.shared.frontmostApplication?.processIdentifier
         delivering = true
         Task {
+            defer { delivering = false }
             // The app in front reads the words first, and you let go of ⌘V.
             try? await Task.sleep(for: .milliseconds(220))
+            // Anything copied meanwhile, or another app in front, means this paste is no longer ours to finish.
+            guard pasteboard.changeCount == armedCount,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == target else { return disarm() }
             BundleWriter.write(split.files.map(ClipboardItem.file))
+            let filesCount = pasteboard.changeCount
             Self.pressPaste()
             try? await Task.sleep(for: .milliseconds(600))
+            guard pasteboard.changeCount == filesCount else { return disarm() }
             BundleWriter.write([split.words])
             armedCount = pasteboard.changeCount
-            delivering = false
         }
     }
 
