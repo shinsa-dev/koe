@@ -12,12 +12,6 @@ struct AttachmentViewer: View {
     @State private var image: CGImage?
     @State private var player: AVPlayer?
     @State private var shown = false
-    @State private var zoom: CGFloat = 1
-    @State private var pinch: CGFloat = 1
-    @State private var offset = CGSize.zero
-    @State private var drag = CGSize.zero
-
-    private static let zoomRange: ClosedRange<CGFloat> = 1...8
 
     static func shows(_ annotation: Annotation) -> Bool {
         switch annotation.kind {
@@ -60,7 +54,7 @@ struct AttachmentViewer: View {
                     .truncationMode(.middle)
                     Spacer(minLength: 0)
                     Button(action: close) { IconView(icon: .close, size: .small, color: nil) }
-                        .buttonStyle(.koe(.secondary, size: .small, iconOnly: true, round: true))
+                        .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
                         .hint("Close", shortcut: "Esc")
                         .accessibilityLabel("Close")
                 }
@@ -88,47 +82,7 @@ struct AttachmentViewer: View {
         if let player {
             ClipPlayerView(player: player)
         } else if let image {
-            Image(decorative: image, scale: 1).resizable().scaledToFit()
-                .scaleEffect(scale)
-                .offset(panned)
-                .contentShape(Rectangle())
-                .gesture(MagnifyGesture()
-                    .onChanged { pinch = $0.magnification }
-                    .onEnded { _ in
-                        zoom = scale
-                        pinch = 1
-                        settle()
-                    })
-                .simultaneousGesture(DragGesture()
-                    .onChanged { if zoom > 1 { drag = $0.translation } }
-                    .onEnded { _ in
-                        offset = panned
-                        drag = .zero
-                        settle()
-                    })
-                .onTapGesture(count: 2) {
-                    withAnimation(.spring(duration: 0.3, bounce: 0.1)) {
-                        zoom = zoom > 1 ? 1 : 2.5
-                        offset = .zero
-                    }
-                }
-        }
-    }
-
-    private var scale: CGFloat {
-        min(Self.zoomRange.upperBound, max(Self.zoomRange.lowerBound, zoom * pinch))
-    }
-
-    private var panned: CGSize {
-        CGSize(width: offset.width + drag.width, height: offset.height + drag.height)
-    }
-
-    /// Keeps the zoomed picture from being dragged off its frame.
-    private func settle() {
-        let reach = CGSize(width: fitted.width * (zoom - 1) / 2, height: fitted.height * (zoom - 1) / 2)
-        withAnimation(.spring(duration: 0.25, bounce: 0)) {
-            offset = CGSize(width: min(reach.width, max(-reach.width, offset.width)),
-                            height: min(reach.height, max(-reach.height, offset.height)))
+            ZoomableImage(image: image, size: fitted)
         }
     }
 
@@ -157,6 +111,74 @@ struct AttachmentViewer: View {
         }
         self.player = player
         player.play()
+    }
+}
+
+/// A picture you can zoom: pinch, double-click, or turn a mouse wheel (⌘ and scroll on a trackpad); scroll or drag
+/// to move around once it is larger. AppKit's own scroll view, since it zooms about the pointer.
+private struct ZoomableImage: NSViewRepresentable {
+    let image: CGImage
+    let size: CGSize
+
+    func makeNSView(context: Context) -> ZoomScrollView {
+        let scroll = ZoomScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = false
+        scroll.hasHorizontalScroller = false
+        scroll.allowsMagnification = true
+        scroll.minMagnification = 1
+        scroll.maxMagnification = 8
+        scroll.scrollerStyle = .overlay
+        let picture = NSImageView()
+        picture.imageScaling = .scaleAxesIndependently
+        scroll.documentView = picture
+        return scroll
+    }
+
+    func updateNSView(_ scroll: ZoomScrollView, context: Context) {
+        guard let picture = scroll.documentView as? NSImageView else { return }
+        picture.image = NSImage(cgImage: image, size: size)
+        if picture.frame.size != size {
+            scroll.magnification = 1
+            picture.frame = CGRect(origin: .zero, size: size)
+        }
+    }
+}
+
+final class ZoomScrollView: NSScrollView {
+    override func scrollWheel(with event: NSEvent) {
+        // A mouse wheel has no pinch, so it zooms; so does ⌘ with a trackpad scroll.
+        guard !event.hasPreciseScrollingDeltas || event.modifierFlags.contains(.command) else {
+            return super.scrollWheel(with: event)
+        }
+        let step = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY * 0.01 : event.scrollingDeltaY * 0.1
+        let target = min(maxMagnification, max(minMagnification, magnification * (1 + step)))
+        setMagnification(target, centeredAt: contentView.convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.clickCount == 2 else { return drag(from: event) }
+        let point = contentView.convert(event.locationInWindow, from: nil)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            animator().setMagnification(magnification > 1 ? 1 : 2.5, centeredAt: point)
+        }
+    }
+
+    private func drag(from event: NSEvent) {
+        guard magnification > 1, let window else { return }
+        var last = event.locationInWindow
+        while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]), next.type == .leftMouseDragged {
+            let here = next.locationInWindow
+            let move = CGPoint(x: (last.x - here.x) / magnification, y: (last.y - here.y) / magnification)
+            let origin = contentView.bounds.origin
+            let flipped = documentView?.isFlipped ?? false
+            contentView.scroll(to: contentView.constrainBoundsRect(
+                CGRect(origin: CGPoint(x: origin.x + move.x, y: origin.y + (flipped ? -move.y : move.y)),
+                       size: contentView.bounds.size)).origin)
+            reflectScrolledClipView(contentView)
+            last = here
+        }
     }
 }
 

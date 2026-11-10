@@ -94,6 +94,11 @@ final class RegionPicker {
                 if stage == next { onPicked?() } else { stage = next }
                 return
             }
+            // With something picked, a click beside it lets go of it; a click inside it changes nothing.
+            if case .noting(let noted, let region) = stage {
+                if noted != index || !region.contains(end) { stage = .choosing }
+                return
+            }
             guard let window, !rect.isEmpty else { return }
             picked = window
             stage = .noting(screen: index, region: rect)
@@ -186,9 +191,9 @@ struct RegionPickerView: View {
                     .resizable()
             }
             Dim(cutout: highlight?.rect)
-            if let highlight, highlight.showsSize {
+            if let highlight {
                 Highlight(rect: highlight.rect)
-                SizeChip(rect: highlight.rect)
+                if highlight.showsSize { SizeChip(rect: highlight.rect) }
             }
             if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
                 Pin().position(pin)

@@ -19,7 +19,7 @@ struct AttachmentList: View {
                     .foregroundStyle(Palette.fg2)
                 Spacer()
                 Button(action: close) { IconView(icon: .close, size: .small, color: nil) }
-                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true, round: true))
+                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
                     .hint("Close", shortcut: "Esc")
                     .accessibilityLabel("Close")
             }
@@ -32,9 +32,9 @@ struct AttachmentList: View {
                         AttachmentRow(annotation: annotation) {
                             open(annotation)
                         } remove: {
-                            sessions.remove(annotation.id)
+                            withAnimation(RowChange.animation) { sessions.remove(annotation.id) }
                         }
-                        .transition(GlyphSwap())
+                        .transition(RowChange())
                     }
                 }
             }
@@ -42,7 +42,7 @@ struct AttachmentList: View {
         .padding(8)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 16, shadow: false)
-        .animation(.spring(duration: 0.3, bounce: 0.15), value: sessions.attachments.map(\.id))
+        .animation(RowChange.animation, value: sessions.attachments.map(\.id))
         // It grows out of the pill below it, the way the pill itself arrives.
         .scaleEffect(shown ? 1 : 0.9, anchor: .bottom)
         .blur(radius: shown ? 0 : 6)
@@ -74,7 +74,7 @@ private struct AttachmentRow: View {
             .truncationMode(.middle)
             Spacer(minLength: 4)
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true, round: true))
+                .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true))
                 .hint("Take it out")
                 .accessibilityLabel("Remove \(AttachmentLabel.title(of: annotation))")
         }

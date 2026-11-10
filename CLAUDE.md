@@ -37,6 +37,8 @@ behaviour it describes.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
   notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme. It
   gives every one the same hairline ring; never draw a different border on a floating surface.
+- A row joins or leaves a list through `RowChange` (from half size, blurred and faded); nothing ever scales from
+  zero. Buttons in cards and rows are the web's rounded squares; only the pill's own are round.
 - An attachment opens in the viewer (`AttachmentViewer`, a lightbox over the dimmed screen); a list row never
   grows in place. Lists show the newest first.
 - In the pill, actions keep one order everywhere: discard on the left, pause in the middle, confirm on the right.

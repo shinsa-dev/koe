@@ -33,12 +33,13 @@ struct PickedFrameRow: View {
             Text(String(format: "%.2f s", pick.time))
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
-                .frame(width: 52, alignment: .leading)
+                .fixedSize()
             ZStack(alignment: .leading) {
                 if talking {
                     Text("Listening, click when done")
                         .font(Typography.meta)
-                        .foregroundStyle(Palette.fg4)
+                        .foregroundStyle(Palette.fg2)
+                        .shimmer()
                         .transition(GlyphSwap())
                 } else if pick.voice == nil {
                     talkButton.transition(GlyphSwap())
@@ -109,4 +110,35 @@ struct GlyphSwap: Transition {
             .blur(radius: phase.isIdentity ? 0 : 2)
             .opacity(phase.isIdentity ? 1 : 0)
     }
+}
+
+/// How a row joins or leaves a list: from half size, blurred and faded, never from nothing.
+struct RowChange: Transition {
+    static let animation = Animation.spring(duration: 0.3, bounce: 0.15)
+
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        content
+            .scaleEffect(phase.isIdentity ? 1 : 0.5)
+            .blur(radius: phase.isIdentity ? 0 : 4)
+            .opacity(phase.isIdentity ? 1 : 0)
+    }
+}
+
+/// A band of light that crosses a label again and again while Koe listens for it.
+private struct Shimmer: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+                LinearGradient(colors: [.clear, Palette.fg4, .clear],
+                               startPoint: UnitPoint(x: phase * 2 - 1, y: 0.5), endPoint: UnitPoint(x: phase * 2, y: 0.5))
+            }
+            .mask(content)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+extension View {
+    func shimmer() -> some View { modifier(Shimmer()) }
 }

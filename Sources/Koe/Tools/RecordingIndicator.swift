@@ -85,15 +85,9 @@ private struct RecordingCard: View {
                 }
             }
             Spacer(minLength: 4)
-            Button(action: stop) {
-                HStack(spacing: 4) {
-                    IconView(icon: .stop, size: .small, color: Palette.fg4)
-                    Text("Stop").font(Typography.control).foregroundStyle(Palette.fg4)
-                }
-                .padding(.leading, 8)
-                .padding(.trailing, 10)
-            }
-            .buttonStyle(PressDownStyle(fill: Palette.press, width: nil))
+            Button(action: stop) { IconView(icon: .stop, size: .tiny, color: Palette.fg4) }
+                .buttonStyle(PressDownStyle(fill: Palette.press))
+                .accessibilityLabel("Stop recording")
             .hint("Stop recording", shortcut: KeyCombo.clip.displayName)
         }
         .padding(.leading, 8)

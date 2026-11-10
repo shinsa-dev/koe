@@ -251,12 +251,12 @@ struct ClipReviewView: View {
                 VStack(spacing: 6) {
                     ForEach(reviewer.review.picks) { pick in
                         row(for: pick)
-                            .transition(GlyphSwap())
+                            .transition(RowChange())
                     }
                 }
             }
         }
-        .animation(.spring(duration: 0.35, bounce: 0.2), value: reviewer.review.picks.map(\.index))
+        .animation(RowChange.animation, value: reviewer.review.picks.map(\.index))
     }
 
     private func row(for pick: PickedFrame) -> PickedFrameRow {
@@ -266,7 +266,7 @@ struct ClipReviewView: View {
             note: { reviewer.note(for: pick) },
             talk: { reviewer.toggleTalk(index) },
             show: { reviewer.pause(); reviewer.show(index) },
-            remove: { reviewer.unpick(index) }
+            remove: { withAnimation(RowChange.animation) { reviewer.unpick(index) } }
         )
     }
 

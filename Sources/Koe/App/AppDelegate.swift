@@ -107,11 +107,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sessions.toggle()
     }
 
-    @objc func addComment() { tools.comment() }
+    // A tool takes the screen, so the list of attachments steps out of its way.
+    @objc func addComment() {
+        pill.closeAttachments()
+        tools.comment()
+    }
 
-    @objc func takeScreenshot() { tools.screenshot() }
+    @objc func takeScreenshot() {
+        pill.closeAttachments()
+        tools.screenshot()
+    }
 
-    @objc func recordClip() { tools.clip() }
+    @objc func recordClip() {
+        pill.closeAttachments()
+        tools.clip()
+    }
 
     /// Starts a session for a tool used while none runs, and says whether one is running now.
     private func ensureSession() -> Bool {
