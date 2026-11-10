@@ -25,6 +25,14 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
     /// ⌥⇧C: picks a region to record a clip of, and stops the recording.
     public static let clip = KeyCombo(keyCode: 8, modifiers: option | shift)
 
+    private static let functionKeys: Set<UInt32> = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
+
+    /// Whether it can be a global shortcut: it holds ⌘, ⌃ or ⌥ (⇧ alone would take a letter away from typing), or
+    /// it is a function key.
+    public var isUsable: Bool {
+        modifiers & (Self.command | Self.control | Self.option) != 0 || Self.functionKeys.contains(keyCode)
+    }
+
     /// How macOS writes it in menus: modifiers in the order ⌃⌥⇧⌘, then the key.
     public var displayName: String {
         var name = ""
@@ -36,7 +44,12 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
     }
 
     private static let keyNames: [UInt32: String] = {
-        var names: [UInt32: String] = [49: "Space", 36: "↩", 53: "Esc", 48: "⇥"]
+        var names: [UInt32: String] = [
+            49: "Space", 36: "↩", 53: "Esc", 48: "⇥", 51: "⌫", 117: "⌦", 123: "←", 124: "→", 125: "↓", 126: "↑",
+            27: "-", 24: "=", 33: "[", 30: "]", 42: "\\", 41: ";", 39: "'", 43: ",", 47: ".", 44: "/", 50: "`",
+            122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8", 101: "F9",
+            109: "F10", 103: "F11", 111: "F12",
+        ]
         let letters: [(UInt32, String)] = [
             (0, "A"), (11, "B"), (8, "C"), (2, "D"), (14, "E"), (3, "F"), (5, "G"), (4, "H"), (34, "I"), (38, "J"),
             (40, "K"), (37, "L"), (46, "M"), (45, "N"), (31, "O"), (35, "P"), (12, "Q"), (15, "R"), (1, "S"),

@@ -60,6 +60,7 @@ final class PillController {
     private var list: ToolPanel?
     private var listWatch: Task<Void, Never>?
     private var viewer: ToolPanel?
+    private let showing = ViewerShowing()
 
     init(sessions: SessionController, tools: PillTools) {
         self.sessions = sessions
@@ -81,8 +82,10 @@ final class PillController {
             .padding(.bottom, 20)
             .frame(width: size.width, height: size.height, alignment: .bottom))
         list.onCancel = { [weak self] in self?.closeAttachments() }
-        list.orderFrontRegardless()
+        // Key, so the first click on a row is a click and Esc closes it.
+        list.present()
         self.list = list
+        prepareViewer()
         // It closes once the session has nothing left to list, or the session ends.
         listWatch = Task { [weak self] in
             while !Task.isCancelled {
@@ -93,25 +96,33 @@ final class PillController {
         }
     }
 
-    /// Opens one attachment large over the screen the pill is on.
-    private func view(_ annotation: Annotation) {
-        closeViewer()
-        guard let screen = panel.screen ?? NSScreen.main else { return }
+    /// The viewer's window is made with the list, so the first click on a row opens it at once.
+    private func prepareViewer() {
+        guard viewer == nil, let screen = panel.screen ?? NSScreen.main else { return }
         let viewer = ToolPanel(frame: screen.frame, level: NSWindow.Level(rawValue: PillPanel.level.rawValue + 1))
-        viewer.host(AttachmentViewer(annotation: annotation, screen: screen.frame.size,
-                                     close: { [weak self] in self?.closeViewer() }))
+        viewer.host(ViewerStage(showing: showing, screen: screen.frame.size, close: { [weak self] in self?.closeViewer() }))
         viewer.onCancel = { [weak self] in self?.closeViewer() }
-        viewer.present()
         self.viewer = viewer
     }
 
+    /// Opens one attachment large over the screen the pill is on.
+    private func view(_ annotation: Annotation) {
+        prepareViewer()
+        showing.annotation = annotation
+        viewer?.present()
+    }
+
     private func closeViewer() {
-        viewer?.close()
-        viewer = nil
+        guard showing.annotation != nil else { return }
+        showing.annotation = nil
+        viewer?.orderOut(nil)
+        list?.makeKey()
     }
 
     func closeAttachments() {
-        closeViewer()
+        showing.annotation = nil
+        viewer?.close()
+        viewer = nil
         listWatch?.cancel()
         listWatch = nil
         list?.close()
@@ -173,5 +184,27 @@ private struct PillEntrance<Content: View>: View {
             .scaleEffect(presence.shown ? 1 : 0.86, anchor: .bottom)
             .blur(radius: presence.shown ? 0 : 8)
             .opacity(presence.shown ? 1 : 0)
+    }
+}
+
+/// Which attachment the viewer shows, if any.
+@MainActor
+@Observable
+final class ViewerShowing {
+    var annotation: Annotation?
+}
+
+private struct ViewerStage: View {
+    let showing: ViewerShowing
+    let screen: CGSize
+    let close: () -> Void
+
+    var body: some View {
+        ZStack {
+            if let annotation = showing.annotation {
+                AttachmentViewer(annotation: annotation, screen: screen, close: close).id(annotation.id)
+            }
+        }
+        .frame(width: screen.width, height: screen.height)
     }
 }

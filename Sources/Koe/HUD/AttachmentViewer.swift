@@ -13,6 +13,35 @@ struct AttachmentViewer: View {
     @State private var playback: ClipPlayback?
     @State private var shown = false
 
+    init(annotation: Annotation, screen: CGSize, close: @escaping () -> Void) {
+        self.annotation = annotation
+        self.screen = screen
+        self.close = close
+        // The small picture is already made, so the card opens with something in it and at its final size.
+        _image = State(initialValue: ThumbnailCache.shared.image(for: annotation.id))
+        if case .clip(let asset) = annotation.kind { _playback = State(initialValue: ClipPlayback(url: asset.url)) }
+    }
+
+    /// The picture's size in pixels, read without decoding it.
+    static func pixelSize(of annotation: Annotation) async -> CGSize? {
+        switch annotation.kind {
+        case .screenshot(let asset):
+            let url = asset.url
+            return await Task.detached {
+                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                      let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+                      let height = properties[kCGImagePropertyPixelHeight] as? CGFloat else { return nil }
+                return CGSize(width: width, height: height)
+            }.value
+        case .clip(let asset):
+            let track = try? await AVURLAsset(url: asset.url).loadTracks(withMediaType: .video).first
+            return try? await track?.load(.naturalSize)
+        case .file, .note:
+            return nil
+        }
+    }
+
     static func shows(_ annotation: Annotation) -> Bool {
         switch annotation.kind {
         case .screenshot, .clip: true
@@ -75,7 +104,10 @@ struct AttachmentViewer: View {
         }
         .frame(width: screen.width, height: screen.height)
         .task(id: annotation.id) { await load() }
-        .onAppear { withAnimation(.spring(duration: 0.32, bounce: 0.18)) { shown = true } }
+        .onAppear {
+            withAnimation(.spring(duration: 0.28, bounce: 0.18)) { shown = true }
+            if let playback, !playback.playing { playback.toggle() }
+        }
         .onDisappear { playback?.stop() }
     }
 
@@ -90,19 +122,17 @@ struct AttachmentViewer: View {
     /// The picture fitted into most of the screen, never drawn larger than it is.
     private var fitted: CGSize {
         let limit = CGSize(width: screen.width * 0.78, height: screen.height * 0.72)
-        guard let image, image.width > 0, image.height > 0 else { return CGSize(width: 480, height: 300) }
-        let size = CGSize(width: CGFloat(image.width) / 2, height: CGFloat(image.height) / 2)
+        let pixels = ThumbnailCache.shared.pixelSize(for: annotation.id)
+            ?? image.map { CGSize(width: $0.width, height: $0.height) }
+        guard let pixels, pixels.width > 0, pixels.height > 0 else { return CGSize(width: 480, height: 300) }
+        let size = CGSize(width: pixels.width / 2, height: pixels.height / 2)
         let scale = min(1, limit.width / size.width, limit.height / size.height)
         return CGSize(width: max(240, size.width * scale), height: max(150, size.height * scale))
     }
 
     private func load() async {
-        image = ThumbnailCache.shared.image(for: annotation.id)
+        guard playback == nil else { return }
         image = await Self.image(of: annotation, maxSide: 3200) ?? image
-        guard case .clip(let asset) = annotation.kind else { return }
-        let playback = ClipPlayback(url: asset.url)
-        self.playback = playback
-        playback.toggle()
     }
 }
 
@@ -275,14 +305,18 @@ final class ThumbnailCache {
     static let shared = ThumbnailCache()
     static let side: CGFloat = 176
     private var images: [UUID: CGImage] = [:]
+    private var sizes: [UUID: CGSize] = [:]
 
     func image(for id: UUID) -> CGImage? { images[id] }
+    func pixelSize(for id: UUID) -> CGSize? { sizes[id] }
 
     func warm(_ annotations: [Annotation]) async {
         let ids = Set(annotations.map(\.id))
         images = images.filter { ids.contains($0.key) }
+        sizes = sizes.filter { ids.contains($0.key) }
         for annotation in annotations where images[annotation.id] == nil {
             images[annotation.id] = await AttachmentViewer.image(of: annotation, maxSide: Self.side)
+            sizes[annotation.id] = await AttachmentViewer.pixelSize(of: annotation)
         }
     }
 }

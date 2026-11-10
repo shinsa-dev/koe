@@ -12,9 +12,12 @@ struct SettingsPage: View {
         let canPaste = checklist.status(of: .accessibility) == .granted
         VStack(alignment: .leading, spacing: 24) {
             HStack(spacing: 12) {
-                Image(nsImage: NSApp.applicationIconImage)
+                // The system's own rendering of the Icon Composer icon, as the Dock draws it.
+                Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
                     .resizable()
-                    .frame(width: 44, height: 44)
+                    .interpolation(.high)
+                    .frame(width: 52, height: 52)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: -1) {
                     Text("Koe").font(Typography.pageTitle).foregroundStyle(Palette.fg4)
                     Text("Talk, point and paste. Everything stays on this Mac.")
@@ -44,18 +47,16 @@ struct SettingsPage: View {
                     Toggle("Paste for you", isOn: binding(\.autoPaste)).toggleStyle(.koe).disabled(!canPaste)
                 }
             }
-            SettingsGroup(title: "Screenshots and comments") {
+            SettingsGroup(title: "Shortcuts", description: "Click a shortcut, then press the keys you want.") {
+                ForEach(ShortcutAction.allCases, id: \.self) { action in
+                    ShortcutRow(action: action, library: library)
+                }
+            }
+            SettingsGroup(title: "General") {
                 SettingRow(title: "Freeze the screen while you pick",
                            detail: "Off, the screen keeps moving and the picture is taken when you attach it.") {
                     Toggle("Freeze the screen while you pick", isOn: binding(\.freezeScreen)).toggleStyle(.koe)
                 }
-            }
-            SettingsGroup(title: "Shortcuts") {
-                ForEach(Self.shortcuts, id: \.title) { shortcut in
-                    SettingRow(title: shortcut.title) { Kbd(shortcut.combo.displayName) }
-                }
-            }
-            SettingsGroup(title: "General") {
                 SettingRow(title: "Theme") {
                     SegmentedTabs(items: ThemeChoice.allCases.map { ($0, $0.label) }, selection: binding(\.theme))
                 }
@@ -69,13 +70,6 @@ struct SettingsPage: View {
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-
-    private static let shortcuts: [(title: String, combo: KeyCombo)] = [
-        ("Start or finish dictation", .toggleSession),
-        ("Comment on something", .comment),
-        ("Take a screenshot", .screenshot),
-        ("Record a clip", .clip),
-    ]
 
     private func binding<Value>(_ path: WritableKeyPath<KoeSettings, Value>) -> Binding<Value> {
         Binding(get: { library.settings[keyPath: path] }, set: { value in library.update { $0[keyPath: path] = value } })

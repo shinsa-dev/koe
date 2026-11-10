@@ -58,8 +58,8 @@ struct PromptView: View {
                     PillButton(icon: .microphone, tone: .neutral, label: "Say something about it", action: talk)
                 }
                 if prompt.stage != .picking, let confirm = status.onConfirm {
-                    PillButton(icon: prompt.stage == .recording ? .stop : .checkmark, tone: .action, label: prompt.confirm,
-                               shortcut: prompt.stage == .recording ? KeyCombo.clip.displayName : "↩", action: confirm)
+                    PillButton(icon: .checkmark, tone: .action, label: prompt.confirm,
+                               shortcut: prompt.stage == .recording ? ShortcutCenter.shared.name(.clip) : "↩", action: confirm)
                 }
             }
         }

@@ -59,6 +59,8 @@ final class ClipTool {
                 end(ticket, with: [])
                 return
             }
+            // Set before the recorder starts, so the pill goes from picking straight to recording.
+            if clipFile == nil || preset != nil { promptRecording(limit: preset?.seconds ?? ClipFrames.longest) }
             Task { await self.record(choice, ticket: ticket, script: preset) }
         }
     }
@@ -99,13 +101,7 @@ final class ClipTool {
         // A scripted --clip-file run still shows the outline for its length, so the indicator can be seen without recording.
         let indicator = recorder == nil && script == nil ? nil : RecordingIndicator(region: global)
         indicator?.show()
-        if indicator != nil {
-            status.prompt = ToolPrompt(stage: .recording, icon: .video, title: "Recording a clip", detail: nil,
-                                       confirm: "Stop recording", canTalk: false, cancel: "Discard this clip",
-                                       clock: .init(started: Date(), limit: limit))
-            status.onCancel = { [weak self] in self?.cancelRecording() }
-            status.onConfirm = { [weak self] in self?.stopRecording() }
-        }
+        if indicator != nil { promptRecording(limit: limit) }
         recording = Recording(ticket: ticket, url: url, startOffset: offset, source: source, recorder: recorder,
                               indicator: indicator, script: script)
         recording?.autoStop = Task { [weak self] in
@@ -121,7 +117,8 @@ final class ClipTool {
         stopping = true
         recording.autoStop?.cancel()
         recording.indicator?.close()
-        status.clear()
+        // Straight to the review's page, so the pill never shows its home page while the clip is read.
+        if attachWhenStopped { status.clear() } else { promptReview(nil) }
         Task {
             defer {
                 self.recording = nil
@@ -175,6 +172,7 @@ final class ClipTool {
                                     spoken: { [sessions] in sessions.spoken(in: $0) })
         if attachWhenStopped {
             attachWhenStopped = false
+            status.clear()
             attach(reviewer, recording: recording)
             return
         }
@@ -265,6 +263,7 @@ final class ClipTool {
     }
 
     private func fail(_ ticket: AnnotationLedger.Ticket, _ notice: String) {
+        status.clear()
         sessions.post(notice: notice)
         end(ticket, with: [])
     }
@@ -290,12 +289,20 @@ extension ClipTool {
         end(recording.ticket, with: [])
     }
 
+    private func promptRecording(limit: AudioTime) {
+        status.prompt = ToolPrompt(stage: .recording, icon: .video, title: "Recording a clip", detail: nil,
+                                   confirm: "Stop recording", canTalk: false, cancel: "Discard this clip",
+                                   clock: .init(started: Date(), limit: limit))
+        status.onCancel = { [weak self] in self?.cancelRecording() }
+        status.onConfirm = { [weak self] in self?.stopRecording() }
+    }
+
     /// While the clip is open, the pill's discard and confirm act on it, not on the whole session.
-    private func promptReview(_ reviewer: ClipReviewer) {
+    private func promptReview(_ reviewer: ClipReviewer?) {
         status.prompt = ToolPrompt(stage: .confirming, icon: .video, title: "Pick the frames to attach",
                                    detail: "Then attach the clip, or discard it", confirm: "Attach clip",
                                    canTalk: false, cancel: "Discard this clip")
-        status.onCancel = { reviewer.finish(attach: false) }
-        status.onConfirm = { reviewer.finish(attach: true) }
+        status.onCancel = reviewer.map { reviewer in { reviewer.finish(attach: false) } }
+        status.onConfirm = reviewer.map { reviewer in { reviewer.finish(attach: true) } }
     }
 }

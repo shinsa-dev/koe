@@ -1,5 +1,6 @@
 import Carbon.HIToolbox
 import KoeCore
+import Observation
 
 /// Global shortcuts through Carbon's RegisterEventHotKey, the one system-wide hotkey API that needs no
 /// Accessibility permission.
@@ -52,5 +53,52 @@ final class HotKeys {
             DispatchQueue.main.async { MainActor.assumeIsolated { HotKeys.shared.fire(id) } }
             return noErr
         }, 1, &spec, nil, &eventHandler)
+    }
+}
+
+/// The shortcuts as they are now, registered system-wide. Views read a shortcut's name from here, so a tooltip or
+/// menu always shows the one you chose.
+@MainActor
+@Observable
+final class ShortcutCenter {
+    static let shared = ShortcutCenter()
+
+    private(set) var shortcuts = Shortcuts()
+    /// The actions whose shortcut another app already holds.
+    private(set) var taken: Set<ShortcutAction> = []
+    @ObservationIgnored var handlers: [ShortcutAction: () -> Void] = [:]
+    @ObservationIgnored private var ids: [ShortcutAction: UInt32] = [:]
+    @ObservationIgnored private var suspended = false
+
+    private init() {}
+
+    func name(_ action: ShortcutAction) -> String { shortcuts[action].displayName }
+
+    func apply(_ shortcuts: Shortcuts) {
+        self.shortcuts = shortcuts
+        register()
+    }
+
+    /// While a new shortcut is being pressed in settings, the old ones must reach the window, not fire.
+    func suspend() {
+        suspended = true
+        register()
+    }
+
+    func resume() {
+        suspended = false
+        register()
+    }
+
+    private func register() {
+        ids.values.forEach(HotKeys.shared.unregister)
+        ids = [:]
+        guard !suspended else { return }
+        var taken: Set<ShortcutAction> = []
+        for action in ShortcutAction.allCases {
+            let id = HotKeys.shared.register(shortcuts[action]) { [weak self] in self?.handlers[action]?() }
+            if let id { ids[action] = id } else { taken.insert(action) }
+        }
+        self.taken = taken
     }
 }

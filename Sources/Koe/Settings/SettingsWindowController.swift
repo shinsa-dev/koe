@@ -79,6 +79,14 @@ private struct SettingsRoot: View {
         }
         .scrollIndicators(.never)
         .background(Palette.canvas)
+        // The page fades out under the window's controls instead of running through them.
+        .overlay(alignment: .top) {
+            LinearGradient(stops: [.init(color: Palette.canvas, location: 0), .init(color: Palette.canvas, location: 0.5),
+                                   .init(color: Palette.canvas.opacity(0), location: 1)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 60)
+                .allowsHitTesting(false)
+        }
         .font(Typography.body)
         .foregroundStyle(Palette.fg4)
         .tint(Palette.action)

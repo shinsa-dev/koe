@@ -10,7 +10,8 @@ enum StatusMenu {
         var phase: RecorderPhase
         var recordingClip: Bool
         /// The shortcuts another app already holds, which the menu points out.
-        var takenHotKeys: Set<KeyCombo>
+        var shortcuts = Shortcuts()
+        var takenHotKeys: Set<ShortcutAction>
         /// Past sessions, newest first, each copied again when clicked.
         var recent: [HistoryEntry] = []
     }
@@ -20,22 +21,22 @@ enum StatusMenu {
         let phase = current.phase
         let recordingClip = current.recordingClip
         let takenHotKeys = current.takenHotKeys
+        let shortcuts = current.shortcuts
         menu.removeAllItems()
         menu.autoenablesItems = false
 
         let state = NSMenuItem(title: stateLine(checklist: checklist, phase: phase), action: nil, keyEquivalent: "")
         state.isEnabled = false
         menu.addItem(state)
-        addTakenNotice(takenHotKeys, to: menu)
+        addTakenNotice(takenHotKeys, shortcuts, to: menu)
         menu.addItem(.separator())
 
-        let toggle = item(toggleTitle(phase), #selector(AppDelegate.toggleSession), .toggleSession, takenHotKeys, target)
+        let toggle = item(toggleTitle(phase), #selector(AppDelegate.toggleSession), .toggleSession, target)
         toggle.isEnabled = phase.toggleIntent != .ignore
         menu.addItem(toggle)
-        let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment, takenHotKeys, target)
-        let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, takenHotKeys, target)
-        let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip,
-                        takenHotKeys, target)
+        let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment, target)
+        let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, target)
+        let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip, target)
         comment.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         screenshot.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         clip.isEnabled = phase.toggleIntent != .ignore || recordingClip
@@ -87,11 +88,14 @@ enum StatusMenu {
     }
 
     /// The shortcut is display only: a status item's menu never fires key equivalents; the hotkeys are global.
-    private static func item(_ title: String, _ action: Selector, _ combo: KeyCombo, _ taken: Set<KeyCombo>,
+    private static func item(_ title: String, _ action: Selector, _ shortcut: ShortcutAction,
                              _ target: AppDelegate) -> NSMenuItem {
+        let shortcuts = ShortcutCenter.shared.shortcuts
+        let taken = ShortcutCenter.shared.taken
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = target
-        if !taken.contains(combo), let key = combo.menuKey {
+        let combo = shortcuts[shortcut]
+        if !taken.contains(shortcut), let key = combo.menuKey {
             item.keyEquivalent = key
             item.keyEquivalentModifierMask = combo.menuModifiers
         }
@@ -116,9 +120,9 @@ enum StatusMenu {
     }
 
     /// Says which shortcuts another app holds, so you use those tools from the menu or the pill instead.
-    private static func addTakenNotice(_ takenHotKeys: Set<KeyCombo>, to menu: NSMenu) {
+    private static func addTakenNotice(_ takenHotKeys: Set<ShortcutAction>, _ shortcuts: Shortcuts, to menu: NSMenu) {
         guard !takenHotKeys.isEmpty else { return }
-        let names = [KeyCombo.toggleSession, .comment, .screenshot, .clip].filter(takenHotKeys.contains).map(\.displayName)
+        let names = ShortcutAction.allCases.filter(takenHotKeys.contains).map { shortcuts[$0].displayName }
         let taken = NSMenuItem(title: "Another app uses \(names.joined(separator: ", ")), so use them from here.",
                                action: nil, keyEquivalent: "")
         taken.isEnabled = false
@@ -130,8 +134,11 @@ extension KeyCombo {
     /// The key as an NSMenuItem key equivalent: lower case, so ⇧ shows only when the combo has it.
     var menuKey: String? {
         if keyCode == 49 { return " " }
-        guard let last = displayName.last, last.isLetter || last.isNumber else { return nil }
-        return String(last).lowercased()
+        // A named key such as F5 or ← has no one-character equivalent; the menu then shows no shortcut.
+        guard let name = Self(keyCode: keyCode, modifiers: 0).displayName.first.map(String.init),
+              Self(keyCode: keyCode, modifiers: 0).displayName.count == 1, name.unicodeScalars.allSatisfy(\.isASCII)
+        else { return nil }
+        return name.lowercased()
     }
 
     var menuModifiers: NSEvent.ModifierFlags {

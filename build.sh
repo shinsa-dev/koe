@@ -15,6 +15,17 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Koe"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/Koe.icns "$APP/Contents/Resources/Koe.icns"
+# The icon is an Icon Composer bundle. actool compiles it into an Assets.car, which macOS 26 draws as layered
+# glass; the committed Koe.icns stays as the fallback.
+ICONTMP=$(mktemp -d)
+if xcrun actool --compile "$ICONTMP" --app-icon Koe --platform macosx --minimum-deployment-target 26.0 \
+  --output-partial-info-plist "$ICONTMP/partial.plist" "$PWD/Resources/Koe.icon" >/dev/null 2>&1 \
+  && [ -f "$ICONTMP/Assets.car" ]; then
+  cp "$ICONTMP/Assets.car" "$APP/Contents/Resources/Assets.car"
+else
+  echo "  (actool failed; using the committed Koe.icns)"
+fi
+rm -rf "$ICONTMP"
 cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
 cp -R Resources/Icons "$APP/Contents/Resources/Icons"
 

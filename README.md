@@ -26,8 +26,10 @@ swift test            # KoeCore's unit tests
 
 There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with
 `KOE_SIGN_IDENTITY` or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions
-across rebuilds; without one it signs ad hoc and the permissions reset on every build. `scripts/icon.sh`
-renders the icon, `Resources/Koe.svg`, into `Resources/Koe.icns`.
+across rebuilds; without one it signs ad hoc and the permissions reset on every build. The icon is an Icon Composer
+bundle, `Resources/Koe.icon` (two glass layers, the mark and the blue dot, on a light tile with a dark variant);
+`build.sh` compiles it with `actool` into `Assets.car`. `scripts/icon.sh` renders `Resources/Koe.svg` into
+`Resources/Koe.icns`, the fallback when `actool` fails.
 
 ## Design
 
@@ -41,7 +43,10 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 (`floatingSurface`, `Palette.hudRing`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
-  stop, Shortcuts and General. No system toolbar. First launch opens it.
+  stop, Shortcuts and General. No system toolbar; the page fades out under the window's controls. First launch
+  opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). It needs ⌘, ⌃ or ⌥ (or
+  to be a function key) and can't be one another action has (`Shortcuts`); a changed one is saved as
+  `shortcut.<action>` = `keyCode:modifiers`. The old shortcuts are unregistered while you press the new one.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
 - The pill sits at the bottom centre of the screen you're on, above the Dock. While you talk it shows a waveform

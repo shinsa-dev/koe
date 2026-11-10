@@ -38,6 +38,7 @@ final class ToolPanel: NSPanel {
     func present() {
         orderFrontRegardless()
         makeKey()
+        guard escape == nil else { return }
         // A text field's editor turns Esc into completion before it reaches the window, so watch for the key itself.
         escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self else { return event }

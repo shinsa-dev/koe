@@ -278,7 +278,7 @@ struct ClipReviewView: View {
                 let picked = reviewer.review.isPicked(reviewer.current)
                 HStack(spacing: 6) {
                     ZStack {
-                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil)
+                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil, grow: picked ? 0 : 2)
                             .id(picked)
                             .transition(GlyphSwap())
                     }

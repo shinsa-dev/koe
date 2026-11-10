@@ -11,8 +11,9 @@ behaviour it describes.
   the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
-  `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). `scripts/icon.sh` renders
-  `Resources/Koe.svg` (Shinsa's tile and curved cut, with a blue dot) into `Resources/Koe.icns`. `bun scripts/icons.ts`
+  `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer
+  bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, as glass layers, with a dark variant); `build.sh`
+  compiles it with `actool`. `scripts/icon.sh` renders `Resources/Koe.svg` into the fallback `Resources/Koe.icns`. `bun scripts/icons.ts`
   renders every `"Icon…"` named in Swift with shinsa's own icon pipeline into `Resources/Icons` (`--check` on drift);
   run it after naming a new icon.
 
@@ -45,6 +46,8 @@ behaviour it describes.
   Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`). Every tool's
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
   and its discard cancels that tool only, never the session.
+- Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Never write a combo
+  into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
   bar) and back when it closes. Keep that when adding windows.
 - Copy: sentence case (buttons and titles too), full sentences, no em dashes, American spelling.

@@ -79,7 +79,9 @@ private struct KoeButton: View {
             .contentShape(shape)
             .opacity(isEnabled ? 1 : 0.45)
             .onHover { hovering = $0 }
-            .transaction { $0.animation = nil }
+            // Hover and press change at once, but the button still moves with whatever resizes around it.
+            .animation(nil, value: active)
+            .animation(nil, value: pressed)
     }
 
     private var hasFill: Bool { variant != .bare && variant != .link }

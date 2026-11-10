@@ -125,11 +125,12 @@ private struct SessionControls: View {
         let paused = phase == .paused
         HStack(spacing: 10) {
             HStack(spacing: 4) {
-                PillButton(icon: .comment, tone: .tool, label: "Comment on something", shortcut: KeyCombo.comment.displayName,
+                PillButton(icon: .comment, tone: .tool, label: "Comment on something", shortcut: ShortcutCenter.shared.name(.comment),
                            action: tools.comment)
-                PillButton(icon: .screenshot, tone: .tool, label: "Take a screenshot", shortcut: KeyCombo.screenshot.displayName,
+                PillButton(icon: .screenshot, tone: .tool, label: "Take a screenshot", shortcut: ShortcutCenter.shared.name(.screenshot),
                            action: tools.screenshot)
-                PillButton(icon: .video, tone: .tool, label: "Record a clip", shortcut: KeyCombo.clip.displayName, action: tools.clip)
+                PillButton(icon: .video, tone: .tool, label: "Record a clip", shortcut: ShortcutCenter.shared.name(.clip),
+                           action: tools.clip)
                 if sessions.annotationCount > 0 {
                     AttachmentCount(count: sessions.annotationCount, action: tools.attachments)
                         .transition(PillSwap())
@@ -147,7 +148,7 @@ private struct SessionControls: View {
                 PillButton(icon: paused ? .playLine : .pauseLine, tone: .neutral,
                            label: paused ? "Resume" : "Pause", action: paused ? sessions.resume : sessions.pause)
                 PillButton(icon: .checkmark, tone: .action,
-                           label: "Finish and copy", shortcut: KeyCombo.toggleSession.displayName, action: sessions.finish)
+                           label: "Finish and copy", shortcut: ShortcutCenter.shared.name(.toggleSession), action: sessions.finish)
             }
             .disabled(!phase.isOpen)
         }

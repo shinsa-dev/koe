@@ -36,9 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         drop: { [weak self] urls in self?.tools.drop(urls) },
         attachments: { [weak self] in self?.pill.toggleAttachments() }
     ))
-    /// The shortcuts another app already holds, which the menu points out.
-    private var takenHotKeys: Set<KeyCombo> = []
-
     /// `--audio-file <path>` plays a recording into each session instead of the microphone.
     private let audioFile: URL? = Launch.value(after: "--audio-file").map { URL(fileURLWithPath: $0) }
 
@@ -59,16 +56,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MicrophoneSource.prewarm()
         }
         recoverUnfinished()
-        library.onSettingsChange = { [weak self] _ in self?.applyAppearance() }
-        let hotKeys: [(KeyCombo, () -> Void)] = [
-            (.toggleSession, { [weak self] in self?.toggleSession() }),
-            (.comment, { [weak self] in self?.addComment() }),
-            (.screenshot, { [weak self] in self?.takeScreenshot() }),
-            (.clip, { [weak self] in self?.recordClip() }),
-        ]
-        for (combo, handler) in hotKeys where HotKeys.shared.register(combo, handler: handler) == nil {
-            takenHotKeys.insert(combo)
+        library.onSettingsChange = { [weak self] settings in
+            self?.applyAppearance()
+            if settings.shortcuts != ShortcutCenter.shared.shortcuts { ShortcutCenter.shared.apply(settings.shortcuts) }
         }
+        ShortcutCenter.shared.handlers = [
+            .toggleSession: { [weak self] in self?.toggleSession() },
+            .comment: { [weak self] in self?.addComment() },
+            .screenshot: { [weak self] in self?.takeScreenshot() },
+            .clip: { [weak self] in self?.recordClip() },
+        ]
+        ShortcutCenter.shared.apply(library.settings.shortcuts)
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
@@ -92,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         listed = library.recent()
         StatusMenu.build(menu, state: StatusMenu.State(
             checklist: permissions.checklist, phase: sessions.phase, recordingClip: tools.isRecordingClip,
-            takenHotKeys: takenHotKeys, recent: listed
+            shortcuts: ShortcutCenter.shared.shortcuts, takenHotKeys: ShortcutCenter.shared.taken, recent: listed
         ), target: self)
     }
 

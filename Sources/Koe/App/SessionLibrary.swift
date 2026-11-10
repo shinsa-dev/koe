@@ -37,7 +37,9 @@ final class SessionLibrary {
         change(&next)
         guard next != settings else { return }
         settings = next
-        for (key, value) in next.values { defaults.set(value, forKey: key) }
+        let values = next.values
+        for (key, value) in values { defaults.set(value, forKey: key) }
+        for key in ShortcutAction.allCases.map(Shortcuts.key) where values[key] == nil { defaults.removeObject(forKey: key) }
         if next.pasteTogether { paster.watch() } else { paster.stop() }
         onSettingsChange?(next)
     }

@@ -19,6 +19,7 @@ public struct KoeSettings: Sendable, Equatable {
     /// Hold the screen still while you pick what to screenshot or comment on. Off, the screen keeps moving and the
     /// picture is taken when you attach it.
     public var freezeScreen = true
+    public var shortcuts = Shortcuts()
 
     public static let recentChoices = [3, 5, 10]
 
@@ -40,10 +41,12 @@ public struct KoeSettings: Sendable, Equatable {
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
         if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
+        shortcuts = Shortcuts(values: values)
     }
 
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
          Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether]
+            .merging(shortcuts.values) { current, _ in current }
     }
 }

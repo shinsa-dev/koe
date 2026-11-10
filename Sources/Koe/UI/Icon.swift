@@ -70,6 +70,8 @@ struct IconView: View {
     var color: Color? = Palette.icon2
     /// Kept for callers; the web's glyphs have one stroke.
     var weight: Font.Weight = .medium
+    /// Drawn this many points larger than its box, for a glyph whose artwork is slighter than its neighbours'.
+    var grow: CGFloat = 0
 
     var body: some View {
         glyph
@@ -80,7 +82,7 @@ struct IconView: View {
     /// With no colour of its own the glyph inherits the foreground around it, as a button's label does. Setting
     /// `.foreground` here would pin it to the primary label colour instead.
     @ViewBuilder private var glyph: some View {
-        let image = Image(nsImage: icon.image(side: size.rawValue)).renderingMode(.template)
+        let image = Image(nsImage: icon.image(side: size.rawValue + grow)).renderingMode(.template)
         if let color { image.foregroundStyle(color) } else { image }
     }
 }
