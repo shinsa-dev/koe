@@ -36,8 +36,8 @@ them Koe draws Shinsa's controls itself (`KoeButtonStyle`, `KoeSwitchStyle`, `Se
 switch and tabs), with SF Symbols for glyphs. The rest is Shinsa's: ABC Areal (`scripts/fonts.py` cuts it at the web's weights into `Resources/Fonts`), Shinsa's colours
 (`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
 them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the accent.
-Everything that floats over other apps (the pill, the attachment list, the recording card, the clip review)
-is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with one hairline ring
+Everything that floats over other apps (the pill, the attachment list, the clip review)
+is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behind with one hairline ring
 (`floatingSurface`, `Palette.hudRing`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
@@ -172,8 +172,8 @@ frames picked so far.
   and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
   the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
   the picture is taken when you attach. Nothing is drawn around windows: the pill names what the
-  pointer is over. Once picked, the pill asks to attach it; its microphone button first hears what you say about it
-  (a `VoiceSpan`), and those words become the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
+  pointer is over. Once picked, the pill listens at once, as it does for a comment: what you say until you attach it
+  (a `VoiceSpan`) becomes the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
 - **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
   what you say until you click its check is the comment. Clicking something else finishes that comment and starts
@@ -186,7 +186,7 @@ frames picked so far.
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
   you spent talking about an attachment never breaks a paragraph.
 - **The list.** The paperclip count beside the tools opens what the session holds (`AttachmentList`), to check each
-  one, open a picture or clip larger with a click, and take any out (`SessionController.remove`). The viewer's card
+  one, open a picture or clip larger with a click (a clip plays with its own controls: pause, a bar to drag, the speeds), and take any out (`SessionController.remove`). The viewer's card
   is as wide as its picture; pinch or double-click zooms and a drag pans. Previews are made as things are attached
   (`ThumbnailCache`), so the list never opens on a placeholder. A comment is a
   screenshot of what you clicked with a pin on the spot (`Annotation.comment`), named "Comment" there and in the
@@ -195,7 +195,7 @@ frames picked so far.
   down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` takes
   ScreenCaptureKit's frames at the screen's refresh rate and encodes them itself (`ClipQuality`: 0.08 bits a pixel
   a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and
-  its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
+  its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline shows around the region, and the pill becomes the recording's own page: its clock, discard (this clip only, the session carries on), pause and stop. ⌥⇧C again,
   stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 1× (`PlaybackSpeed`): play
   it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
   "Talk about this frame": what you say until you click it again is that frame's note, and the row then confirms it

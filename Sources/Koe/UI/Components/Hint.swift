@@ -109,7 +109,7 @@ final class HintCenter {
         pending?.cancel()
         let warm = Date().timeIntervalSince(lastClosed) < 0.3
         pending = Task { [weak self, weak view] in
-            if !warm { try? await Task.sleep(for: .milliseconds(700)) }
+            if !warm { try? await Task.sleep(for: .milliseconds(1000)) }
             guard !Task.isCancelled, let self, let view, self.anchor === view else { return }
             self.show(for: view)
         }

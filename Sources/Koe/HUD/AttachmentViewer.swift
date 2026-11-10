@@ -4,13 +4,13 @@ import KoeCore
 import SwiftUI
 
 /// One attachment opened large over a dimmed screen, the way Shinsa opens an asset: the picture, or the clip
-/// playing in a loop. A click outside it, Esc or the close button puts it away.
+/// playing in a loop with its controls. A click outside it, Esc or the close button puts it away.
 struct AttachmentViewer: View {
     let annotation: Annotation
     let screen: CGSize
     let close: () -> Void
     @State private var image: CGImage?
-    @State private var player: AVPlayer?
+    @State private var playback: ClipPlayback?
     @State private var shown = false
 
     static func shows(_ annotation: Annotation) -> Bool {
@@ -63,6 +63,7 @@ struct AttachmentViewer: View {
                     .frame(width: fitted.width, height: fitted.height)
                     .background(Palette.well)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if let playback { ClipControls(playback: playback) }
             }
             // The card is as wide as its picture, never the screen.
             .frame(width: fitted.width)
@@ -75,12 +76,12 @@ struct AttachmentViewer: View {
         .frame(width: screen.width, height: screen.height)
         .task(id: annotation.id) { await load() }
         .onAppear { withAnimation(.spring(duration: 0.32, bounce: 0.18)) { shown = true } }
-        .onDisappear { player?.pause() }
+        .onDisappear { playback?.stop() }
     }
 
     @ViewBuilder private var content: some View {
-        if let player {
-            ClipPlayerView(player: player)
+        if let playback {
+            ClipPlayerView(player: playback.player)
         } else if let image {
             ZoomableImage(image: image, size: fitted)
         }
@@ -99,18 +100,103 @@ struct AttachmentViewer: View {
         image = ThumbnailCache.shared.image(for: annotation.id)
         image = await Self.image(of: annotation, maxSide: 3200) ?? image
         guard case .clip(let asset) = annotation.kind else { return }
-        let player = AVPlayer(url: asset.url)
+        let playback = ClipPlayback(url: asset.url)
+        self.playback = playback
+        playback.toggle()
+    }
+}
+
+/// A clip playing in the viewer: it loops, and you can pause it, drag through it and slow it down.
+@MainActor
+@Observable
+final class ClipPlayback {
+    @ObservationIgnored let player: AVPlayer
+    private(set) var playing = false
+    private(set) var seconds = 0.0
+    private(set) var duration = 0.0
+    var speed = PlaybackSpeed.initial {
+        didSet { if playing { player.rate = Float(speed.rawValue) } }
+    }
+    @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
+
+    init(url: URL) {
+        player = AVPlayer(url: url)
         player.isMuted = true
         player.actionAtItemEnd = .none
-        NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification,
-                                               object: player.currentItem, queue: .main) { [weak player] _ in
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] time in
+            MainActor.assumeIsolated { self?.moved(to: time.seconds) }
+        }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification, object: player.currentItem, queue: .main
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
-                player?.seek(to: .zero)
-                player?.play()
+                guard let self else { return }
+                self.player.seek(to: .zero)
+                if self.playing { self.player.playImmediately(atRate: Float(self.speed.rawValue)) }
             }
         }
-        self.player = player
-        player.play()
+    }
+
+    var fraction: Double { duration > 0 ? min(1, max(0, seconds / duration)) : 0 }
+
+    func toggle() {
+        playing.toggle()
+        if playing { player.playImmediately(atRate: Float(speed.rawValue)) } else { player.pause() }
+    }
+
+    func seek(to fraction: Double) {
+        guard duration > 0 else { return }
+        seconds = fraction * duration
+        player.seek(to: CMTime(seconds: seconds, preferredTimescale: 6000), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    func stop() {
+        player.pause()
+        playing = false
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        timeObserver = nil
+        endObserver = nil
+    }
+
+    private func moved(to time: Double) {
+        guard time.isFinite else { return }
+        seconds = time
+        if let length = player.currentItem?.duration.seconds, length.isFinite, length > 0 { duration = length }
+    }
+}
+
+/// The viewer's controls for a clip, the review's own: play or pause, where it is, a bar to drag, and the speeds.
+private struct ClipControls: View {
+    let playback: ClipPlayback
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: playback.toggle) {
+                ZStack {
+                    IconView(icon: playback.playing ? .pause : .play, size: .medium, color: nil)
+                        .id(playback.playing)
+                        .transition(GlyphSwap())
+                }
+                .animation(GlyphSwap.animation, value: playback.playing)
+            }
+            .buttonStyle(.koe(.outline, iconOnly: true))
+            .hint(playback.playing ? "Pause" : "Play")
+            .accessibilityLabel(playback.playing ? "Pause" : "Play")
+            SeekBar(fraction: playback.fraction, seek: playback.seek)
+                .accessibilityElement()
+                .accessibilityLabel("Position in the clip")
+            Text(String(format: "%.1f of %.1f s", playback.seconds, playback.duration))
+                .font(Typography.meta.monospacedDigit())
+                .foregroundStyle(Palette.fg2)
+                .fixedSize()
+            SegmentedTabs(
+                items: PlaybackSpeed.allCases.map { (value: $0, label: $0.label) },
+                selection: Binding(get: { playback.speed }, set: { playback.speed = $0 })
+            )
+            .fixedSize()
+        }
     }
 }
 

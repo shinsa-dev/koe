@@ -28,6 +28,7 @@ final class ClipTool {
     }
 
     private let sessions: SessionController
+    private let status: ToolStatus
     private let pickRegion: (CGRect?, @escaping (RegionChoice?) -> Void) -> Void
     private var recording: Recording?
     private var stopping = false
@@ -40,8 +41,10 @@ final class ClipTool {
     var clipFile: URL?
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "clip")
 
-    init(sessions: SessionController, pickRegion: @escaping (CGRect?, @escaping (RegionChoice?) -> Void) -> Void) {
+    init(sessions: SessionController, status: ToolStatus,
+         pickRegion: @escaping (CGRect?, @escaping (RegionChoice?) -> Void) -> Void) {
         self.sessions = sessions
+        self.status = status
         self.pickRegion = pickRegion
     }
 
@@ -94,10 +97,15 @@ final class ClipTool {
         )
         let limit = script?.seconds ?? ClipFrames.longest
         // A scripted --clip-file run still shows the outline for its length, so the indicator can be seen without recording.
-        let indicator = recorder == nil && script == nil ? nil : RecordingIndicator(
-            region: global, on: choice.screen.screen, limit: limit
-        ) { [weak self] in self?.stopRecording() }
+        let indicator = recorder == nil && script == nil ? nil : RecordingIndicator(region: global)
         indicator?.show()
+        if indicator != nil {
+            status.prompt = ToolPrompt(stage: .recording, icon: .video, title: "Recording a clip", detail: nil,
+                                       confirm: "Stop recording", canTalk: false, cancel: "Discard this clip",
+                                       clock: .init(started: Date(), limit: limit))
+            status.onCancel = { [weak self] in self?.cancelRecording() }
+            status.onConfirm = { [weak self] in self?.stopRecording() }
+        }
         recording = Recording(ticket: ticket, url: url, startOffset: offset, source: source, recorder: recorder,
                               indicator: indicator, script: script)
         recording?.autoStop = Task { [weak self] in
@@ -113,6 +121,7 @@ final class ClipTool {
         stopping = true
         recording.autoStop?.cancel()
         recording.indicator?.close()
+        status.clear()
         Task {
             defer {
                 self.recording = nil
@@ -182,6 +191,7 @@ final class ClipTool {
             .padding(.bottom, 8)
             .frame(width: size.width, height: size.height, alignment: .bottom))
         panel.onCancel = { reviewer.finish(attach: false) }
+        promptReview(reviewer)
         reviewer.onFinish = { [weak self] attach in
             self?.closeReview()
             if attach {
@@ -225,6 +235,7 @@ final class ClipTool {
     private func closeReview() {
         if let reviewKeys { NSEvent.removeMonitor(reviewKeys) }
         reviewKeys = nil
+        if reviewPanel != nil { status.clear() }
         reviewPanel?.close()
         reviewPanel = nil
         reviewer = nil
@@ -261,5 +272,30 @@ final class ClipTool {
     private func end(_ ticket: AnnotationLedger.Ticket, with annotations: [(annotation: Annotation, after: AudioTime)]) {
         busy = false
         sessions.close(ticket, with: annotations)
+    }
+}
+
+extension ClipTool {
+    /// Throws away the clip that is recording and nothing else: the session carries on.
+    func cancelRecording() {
+        guard let recording, !stopping else { return }
+        recording.autoStop?.cancel()
+        recording.indicator?.close()
+        self.recording = nil
+        status.clear()
+        Task {
+            try? await recording.recorder?.stop()
+            try? FileManager.default.removeItem(at: recording.url)
+        }
+        end(recording.ticket, with: [])
+    }
+
+    /// While the clip is open, the pill's discard and confirm act on it, not on the whole session.
+    private func promptReview(_ reviewer: ClipReviewer) {
+        status.prompt = ToolPrompt(stage: .confirming, icon: .video, title: "Pick the frames to attach",
+                                   detail: "Then attach the clip, or discard it", confirm: "Attach clip",
+                                   canTalk: false, cancel: "Discard this clip")
+        status.onCancel = { reviewer.finish(attach: false) }
+        status.onConfirm = { reviewer.finish(attach: true) }
     }
 }

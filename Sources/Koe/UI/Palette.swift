@@ -108,7 +108,7 @@ enum Tone {
 }
 
 /// The surface of everything that floats over other apps: a dark HUD like the notch, whatever the theme. Shinsa's
-/// dark canvas over Liquid Glass, a hairline light ring and a soft shadow. Content inside reads the dark tokens.
+/// dark canvas over a blur of what is behind, a hairline light ring and a soft shadow. Content inside reads the dark tokens.
 struct HUDSurface: ViewModifier {
     let cornerRadius: CGFloat
     var shadow = true
@@ -116,8 +116,12 @@ struct HUDSurface: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
-            .background { shape.fill(Palette.hudCanvas.opacity(0.88)) }
-            .glassEffect(.regular.tint(Palette.hudCanvas.opacity(0.4)), in: shape)
+            // One material and one fill in the same shape, so the surface, its ring and its content resize as one.
+            // Liquid Glass keeps its own pace and showed as a second outline while the pill changed width.
+            .background {
+                shape.fill(.ultraThinMaterial)
+                shape.fill(Palette.hudCanvas.opacity(0.88))
+            }
             .overlay(shape.strokeBorder(Palette.hudRing, lineWidth: 1))
             .shadow(color: Palette.shadow.opacity(shadow ? 0.25 : 0), radius: 14, y: 6)
             .tint(Palette.action)

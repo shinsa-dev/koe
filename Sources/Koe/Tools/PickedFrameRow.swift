@@ -34,6 +34,7 @@ struct PickedFrameRow: View {
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
                 .fixedSize()
+                .padding(.trailing, 6)
             ZStack(alignment: .leading) {
                 if talking {
                     Text("Listening, click when done")
@@ -114,11 +115,20 @@ struct GlyphSwap: Transition {
 
 /// How a row joins or leaves a list: from half size, blurred and faded, never from nothing.
 struct RowChange: Transition {
-    static let animation = Animation.spring(duration: 0.3, bounce: 0.15)
+    static let animation = Animation.spring(duration: 0.22, bounce: 0.1)
+
+    /// A row arrives with the list's spring and leaves faster than the rows below close over it, so it is gone
+    /// before they meet.
+    static var change: AnyTransition {
+        .asymmetric(insertion: AnyTransition(RowChange()),
+                    removal: AnyTransition(RowChange(small: 0.8)).animation(.easeOut(duration: 0.12)))
+    }
+
+    var small: CGFloat = 0.5
 
     func body(content: Content, phase: TransitionPhase) -> some View {
         content
-            .scaleEffect(phase.isIdentity ? 1 : 0.5)
+            .scaleEffect(phase.isIdentity ? 1 : small)
             .blur(radius: phase.isIdentity ? 0 : 4)
             .opacity(phase.isIdentity ? 1 : 0)
     }

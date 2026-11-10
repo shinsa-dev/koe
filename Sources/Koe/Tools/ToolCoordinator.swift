@@ -21,7 +21,7 @@ final class ToolCoordinator {
     let status = ToolStatus()
     /// The setting: hold the screen still while you pick. Off, the screen keeps moving under the picker.
     var freezesScreen: () -> Bool = { true }
-    private lazy var clips = ClipTool(sessions: sessions, pickRegion: { [weak self] preset, done in
+    private lazy var clips = ClipTool(sessions: sessions, status: status, pickRegion: { [weak self] preset, done in
         guard let self else { return done(nil) }
         pickClipRegion(preset: preset, done: done)
     })
@@ -140,8 +140,8 @@ final class ToolCoordinator {
                 self?.status.prompt?.stage = .listening
                 self?.status.prompt?.title = Self.title(comment: comment, listening: true)
             }
-            // A comment is something said: it listens the moment you click.
-            if comment { voice.begin() }
+            // Whatever you pick, what you say next is about it: it listens the moment you pick.
+            voice.begin()
             status.prompt = ToolPrompt(
                 stage: voice.isListening ? .listening : .confirming, icon: comment ? .comment : .screenCapture,
                 title: Self.title(comment: comment, listening: voice.isListening), detail: picker.sourceLabel,
@@ -152,7 +152,7 @@ final class ToolCoordinator {
 
     private static func title(comment: Bool, listening: Bool) -> String {
         if comment { return "Say your comment" }
-        return listening ? "Say what this is about" : "Attach this screenshot?"
+        return listening ? "Talk about it, or just attach" : "Attach this screenshot?"
     }
 
     private func freeze() async throws -> Freeze {

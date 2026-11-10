@@ -11,6 +11,14 @@ struct ToolPrompt: Equatable {
         case confirming
         /// What you say now is this attachment's note.
         case listening
+        /// A clip is recording: the pill shows its clock, and stops or discards it.
+        case recording
+    }
+
+    /// When a recording began and how long it may run, for the clock under the title.
+    struct Clock: Equatable {
+        var started: Date
+        var limit: AudioTime
     }
 
     var stage: Stage
@@ -22,6 +30,9 @@ struct ToolPrompt: Equatable {
     var confirm: String
     /// Whether this tool takes a spoken note at all.
     var canTalk = true
+    /// The left button's label, when it does more than cancel.
+    var cancel = "Cancel"
+    var clock: Clock?
 }
 
 /// The open tool's prompt and what its buttons do. The pill reads it; the tool coordinator writes it.

@@ -34,7 +34,7 @@ struct AttachmentList: View {
                         } remove: {
                             withAnimation(RowChange.animation) { sessions.remove(annotation.id) }
                         }
-                        .transition(RowChange())
+                        .transition(RowChange.change)
                     }
                 }
             }

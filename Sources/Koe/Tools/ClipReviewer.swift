@@ -180,6 +180,8 @@ struct ClipReviewView: View {
         .padding(16)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 18, shadow: false)
+        // The card grows and shrinks with its rows, on the same spring.
+        .animation(RowChange.animation, value: reviewer.review.picks.map(\.index))
     }
 
     /// The clip fitted into the window's width and at most 340 pt tall.
@@ -251,7 +253,7 @@ struct ClipReviewView: View {
                 VStack(spacing: 6) {
                     ForEach(reviewer.review.picks) { pick in
                         row(for: pick)
-                            .transition(RowChange())
+                            .transition(RowChange.change)
                     }
                 }
             }
@@ -303,23 +305,41 @@ struct ClipReviewView: View {
     }
 }
 
-/// The web's slider, drawn as a bg-3 track with an accent fill to the current frame, a tick for each picked frame,
-/// and a knob. Dragging anywhere on it seeks.
+/// The review's slider: the current frame, with a tick for each picked frame.
 private struct Scrubber: View {
     let reviewer: ClipReviewer
 
     var body: some View {
+        SeekBar(fraction: reviewer.frames.fraction(of: reviewer.current),
+                marks: reviewer.review.picks.map { reviewer.frames.fraction(of: $0.index) },
+                seek: reviewer.scrub)
+            .accessibilityElement()
+            .accessibilityLabel("Position in the clip")
+            .accessibilityValue(String(format: "%.2f seconds", reviewer.frames.time(of: reviewer.current)))
+            .accessibilityAdjustableAction { direction in
+                reviewer.step(by: direction == .increment ? 1 : -1)
+            }
+    }
+}
+
+/// The web's slider, drawn as a bg-3 track with an accent fill to the current position, a tick at each mark, and a
+/// knob. Dragging anywhere on it seeks.
+struct SeekBar: View {
+    let fraction: Double
+    var marks: [Double] = []
+    let seek: (Double) -> Void
+
+    var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let fraction = reviewer.frames.fraction(of: reviewer.current)
             ZStack(alignment: .leading) {
                 Capsule().fill(Palette.well).frame(height: 4)
                 Capsule().fill(Palette.action).frame(width: max(4, width * fraction), height: 4)
-                ForEach(reviewer.review.picks) { pick in
+                ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                     RoundedRectangle(cornerRadius: 1)
                         .fill(Palette.fg3)
                         .frame(width: 2, height: 12)
-                        .offset(x: width * reviewer.frames.fraction(of: pick.index) - 1)
+                        .offset(x: width * mark - 1)
                 }
                 Circle()
                     .fill(Palette.card)
@@ -331,16 +351,10 @@ private struct Scrubber: View {
             .frame(height: 20)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                reviewer.scrub(to: width > 0 ? value.location.x / width : 0)
+                seek(width > 0 ? min(1, max(0, value.location.x / width)) : 0)
             })
         }
         .frame(height: 20)
-        .accessibilityElement()
-        .accessibilityLabel("Position in the clip")
-        .accessibilityValue(String(format: "%.2f seconds", reviewer.frames.time(of: reviewer.current)))
-        .accessibilityAdjustableAction { direction in
-            reviewer.step(by: direction == .increment ? 1 : -1)
-        }
     }
 }
 
