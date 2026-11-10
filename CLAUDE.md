@@ -47,7 +47,7 @@ behaviour it describes.
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
   and its discard cancels that tool only, never the session. Every page but a clip's recording shows the
   live waveform, so the session is seen to be listening. Return confirms on every page (held system-wide while a
-  clip records). A tool's own buttons (a clip's frame stepping and pick) stay in its card.
+  clip records). A tool's one extra action (a clip's pick this frame) sits between discard and confirm (`ToolPrompt.extra`); its card never repeats the pill's discard or confirm. A clip's frame stepping stays in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
   finishing is global; a tool's key (`isSessionOnly`) is held only while a session is open. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.

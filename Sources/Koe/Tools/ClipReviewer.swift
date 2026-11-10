@@ -171,7 +171,7 @@ final class ClipReviewer {
 }
 
 /// The window a clip opens in once it stops: the clip slowed down, a scrubber with the picked frames marked on it,
-/// the frames you picked, each with what you said about it, and attach or discard.
+/// and the frames you picked, each with what you said about it. Pick, attach and discard are the pill's.
 struct ClipReviewView: View {
     static let width: CGFloat = 640
     let reviewer: ClipReviewer
@@ -189,15 +189,14 @@ struct ClipReviewView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             transport
             Scrubber(reviewer: reviewer)
-            if !reviewer.review.picks.isEmpty { pickedFrames }
-            footer
+            if !reviewer.review.picks.isEmpty { pickedFrames.transition(.opacity) }
         }
         .padding(16)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 18, shadow: false)
         .onChange(of: reviewer.review.picks.count) { removing = false }
         // The card grows and shrinks with its rows, on the same spring.
-        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.map(\.index))
+        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.count)
         .growsIn(shown)
         .onAppear { withAnimation(GrowIn.animation) { shown = true } }
     }
@@ -267,16 +266,24 @@ struct ClipReviewView: View {
     private var pickedFrames: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Frames").font(Typography.label).foregroundStyle(Palette.fg2)
-            FadingScroll(maxHeight: 150) {
-                VStack(spacing: 6) {
+            FadingScroll(maxHeight: 150, height: Self.listHeight(rows: reviewer.review.picks.count)) {
+                VStack(spacing: Self.rowGap) {
                     ForEach(reviewer.review.picks) { pick in
                         row(for: pick)
+                            .frame(height: Self.rowHeight)
                             .transition(RowChange.change)
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
         }
-        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.map(\.index))
+    }
+
+    private static let rowHeight: CGFloat = 34
+    private static let rowGap: CGFloat = 6
+
+    private static func listHeight(rows: Int) -> CGFloat {
+        CGFloat(rows) * rowHeight + CGFloat(max(0, rows - 1)) * rowGap
     }
 
     private func row(for pick: PickedFrame) -> PickedFrameRow {
@@ -292,40 +299,6 @@ struct ClipReviewView: View {
                 reviewer.unpick(index)
             }
         )
-    }
-
-    private var footer: some View {
-        HStack(spacing: 8) {
-            Button(action: reviewer.pickCurrent) {
-                let picked = reviewer.review.isPicked(reviewer.current)
-                HStack(spacing: 6) {
-                    ZStack {
-                        IconView(icon: picked ? .checkmark : .add, size: .small, color: nil, grow: picked ? 0 : 2)
-                            .id(picked)
-                            .transition(GlyphSwap())
-                    }
-                    Text(picked ? "Frame picked" : "Pick this frame")
-                        .contentTransition(.interpolate)
-                        .fixedSize()
-                }
-                .padding(.leading, -2)
-                .animation(.spring(duration: 0.24, bounce: 0.12), value: picked)
-            }
-            .buttonStyle(.koe(.outline))
-            .hint("Pick this frame and talk about it", shortcut: "P")
-            .disabled(reviewer.review.isPicked(reviewer.current))
-            Spacer()
-            Button("Discard") { reviewer.finish(attach: false) }
-                .buttonStyle(.koe(.secondary))
-                .hint("Discard this clip", shortcut: "Esc")
-            Button { reviewer.finish(attach: true) } label: {
-                Text(reviewer.attachTitle)
-                    .contentTransition(.numericText(value: Double(reviewer.review.picks.count)))
-                    .animation(.snappy(duration: 0.25), value: reviewer.review.picks.count)
-            }
-                .buttonStyle(.koe(.primary))
-                .hint("Attach the clip and its frames", shortcut: "↩")
-        }
     }
 }
 
@@ -360,7 +333,11 @@ struct SeekBar: View {
             let run = max(0, geometry.size.width - Self.knob)
             let half = Self.knob / 2
             ZStack(alignment: .leading) {
-                Capsule().fill(Palette.well).frame(height: 4)
+                // Faint at the start and clearer towards the end, but seen along its whole length.
+                Capsule()
+                    .fill(LinearGradient(colors: [Palette.fg4.opacity(0.14), Palette.fg4.opacity(0.26)],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(height: 4)
                 Capsule().fill(Palette.action).frame(width: half + run * fraction, height: 4)
                 ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                     RoundedRectangle(cornerRadius: 1)

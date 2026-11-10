@@ -305,7 +305,7 @@ private struct ArrivingPin: View {
             .scaleEffect(landed ? 1 : 0.6)
             .opacity(landed || from != .zero ? 1 : 0)
             .offset(landed ? .zero : from)
-            .onAppear { withAnimation(.spring(duration: 0.34, bounce: 0.22)) { landed = true } }
+            .onAppear { withAnimation(.spring(duration: 0.27, bounce: 0.2)) { landed = true } }
     }
 }
 

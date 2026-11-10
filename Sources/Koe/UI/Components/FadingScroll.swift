@@ -4,6 +4,9 @@ import SwiftUI
 /// at whichever edge has more to show. The fade is there from the first point of scrolling.
 struct FadingScroll<Content: View>: View {
     let maxHeight: CGFloat
+    /// The height to hold, when the caller knows it: a scroll view learns its content's height a frame late, so a
+    /// list that grows under an animation gives its own.
+    var height: CGFloat?
     @ViewBuilder var content: Content
     @State private var hidden = Hidden()
 
@@ -34,8 +37,9 @@ struct FadingScroll<Content: View>: View {
                 edge(strength: hidden.below, towards: .bottom)
             }
         }
+        .frame(height: height.map { min($0, maxHeight) })
         .frame(maxHeight: maxHeight)
-        .fixedSize(horizontal: false, vertical: true)
+        .fixedSize(horizontal: false, vertical: height == nil)
     }
 
     /// An eased ramp from clear at the edge to solid, as strong as there is content hidden behind it.

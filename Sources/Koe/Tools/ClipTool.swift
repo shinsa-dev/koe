@@ -348,9 +348,13 @@ extension ClipTool {
             status.prompt = ToolPrompt(
                 stage: .confirming, icon: .video, title: "Frame \(reviewer.current + 1) of \(frames.count)",
                 detail: picked ? "\(time) · picked" : time, confirm: reviewer.attachTitle, canTalk: false,
-                cancel: "Discard this clip", canPause: false
+                cancel: "Discard this clip", canPause: false,
+                extra: picked
+                    ? .init(icon: .retake, label: "Talk about this frame again", shortcut: "P")
+                    : .init(icon: .add, label: "Pick this frame and talk about it", shortcut: "P")
             )
         }
+        status.onExtra = { reviewer.pickCurrent() }
         status.onCancel = { [weak self] in self?.cancelPressed(in: reviewer) }
         status.onConfirm = { Self.confirmPressed(in: reviewer) }
     }

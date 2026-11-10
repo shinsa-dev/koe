@@ -53,6 +53,8 @@ struct PromptView: View {
                                action: paused ? sessions.resume : sessions.pause)
                 } else if prompt.stage == .confirming, prompt.canTalk, let talk = status.onTalk {
                     PillButton(icon: .microphone, tone: .neutral, label: "Say something about it", action: talk)
+                } else if prompt.stage == .confirming, let extra = prompt.extra, let action = status.onExtra {
+                    PillButton(icon: extra.icon, tone: .neutral, label: extra.label, shortcut: extra.shortcut, action: action)
                 }
                 if prompt.stage != .picking, let confirm = status.onConfirm {
                     PillButton(icon: .checkmark, tone: .action, label: prompt.confirm, shortcut: "↩", action: confirm)

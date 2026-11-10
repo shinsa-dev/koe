@@ -36,6 +36,14 @@ struct ToolPrompt: Equatable {
     var clock: Clock?
     /// Whether the session's pause sits between discard and confirm. A clip in review leaves it out.
     var canPause = true
+    /// The tool's own action, between discard and confirm while it waits: a clip's "pick this frame".
+    var extra: Extra?
+
+    struct Extra: Equatable {
+        var icon: Icon
+        var label: String
+        var shortcut: String?
+    }
 }
 
 /// The open tool's prompt and what its buttons do. The pill reads it; the tool coordinator writes it.
@@ -46,12 +54,14 @@ final class ToolStatus {
     @ObservationIgnored var onCancel: (() -> Void)?
     @ObservationIgnored var onConfirm: (() -> Void)?
     @ObservationIgnored var onTalk: (() -> Void)?
+    @ObservationIgnored var onExtra: (() -> Void)?
 
     func clear() {
         prompt = nil
         onCancel = nil
         onConfirm = nil
         onTalk = nil
+        onExtra = nil
     }
 }
 
