@@ -1,10 +1,14 @@
 import KoeCore
 import SwiftUI
 
+/// One picked frame: its picture, when it showed, and what you said about it. Before you speak it offers to
+/// listen; afterwards it shows your words, with a button to say them again.
 struct PickedFrameRow: View {
     let pick: PickedFrame
     let thumbnail: CGImage?
     let talking: Bool
+    /// What was said about this frame so far; nil when nothing was.
+    let note: () -> String?
     let talk: () -> Void
     let show: () -> Void
     let remove: () -> Void
@@ -29,36 +33,59 @@ struct PickedFrameRow: View {
                 .font(Typography.meta.monospacedDigit())
                 .foregroundStyle(Palette.fg2)
                 .frame(width: 52, alignment: .leading)
-            Button(action: talk) {
-                HStack(spacing: 6) {
-                    ZStack {
-                        IconView(icon: talkIcon, size: .small, color: nil)
-                            .id(talkIcon)
-                            .transition(GlyphSwap())
-                    }
-                    Text(talkLabel)
-                        .contentTransition(.opacity)
+            ZStack(alignment: .leading) {
+                if talking || pick.voice == nil {
+                    talkButton.transition(GlyphSwap())
+                } else {
+                    spokenNote.transition(GlyphSwap())
                 }
-                .padding(.leading, -2)
-                .animation(GlyphSwap.animation, value: talkLabel)
             }
-            .buttonStyle(.koe(talking ? .primary : .secondary, size: .small))
-            .hint(talking ? "Stop and keep what you said" : "What you say next becomes this frame's note")
+            .animation(GlyphSwap.animation, value: talking)
+            .animation(GlyphSwap.animation, value: pick.voice == nil)
             Spacer(minLength: 0)
+            if pick.voice != nil, !talking {
+                Button(action: talk) { IconView(icon: .retake, size: .small, color: nil) }
+                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
+                    .hint("Say it again")
+                    .accessibilityLabel("Say this frame's note again")
+            }
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.bare, size: .small, iconOnly: true))
+                .buttonStyle(.koe(.destructiveSoft, size: .small, iconOnly: true))
                 .hint("Remove this frame")
                 .accessibilityLabel("Remove frame at \(String(format: "%.2f", pick.time)) seconds")
         }
     }
-}
 
-extension PickedFrameRow {
-    private var talkIcon: Icon { talking ? .stop : (pick.voice == nil ? .microphone : .checkmark) }
+    private var talkButton: some View {
+        Button(action: talk) {
+            HStack(spacing: 6) {
+                ZStack {
+                    IconView(icon: talking ? .stop : .microphone, size: .small, color: nil)
+                        .id(talking)
+                        .transition(GlyphSwap())
+                }
+                Text(talking ? "Listening, click when done" : "Talk about this frame")
+                    .contentTransition(.opacity)
+            }
+            .padding(.leading, -2)
+            .animation(GlyphSwap.animation, value: talking)
+        }
+        .buttonStyle(.koe(talking ? .primary : .secondary, size: .small))
+        .hint(talking ? "Stop and keep what you said" : "What you say next becomes this frame's note")
+    }
 
-    private var talkLabel: String {
-        if talking { return "Listening, click when done" }
-        return pick.voice == nil ? "Talk about this frame" : "Note spoken, talk again"
+    /// Your words for this frame. The model settles them a moment after you stop, so the line keeps reading them.
+    private var spokenNote: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let text = note() ?? ""
+            Text(text.isEmpty ? "Hearing what you said…" : text)
+                .font(Typography.meta)
+                .foregroundStyle(text.isEmpty ? Palette.fg2 : Palette.fg4)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .contentTransition(.opacity)
+                .animation(.snappy(duration: 0.2), value: text)
+        }
     }
 }
 

@@ -37,8 +37,8 @@ switch and tabs), with SF Symbols for glyphs. The rest is Shinsa's: ABC Areal (`
 (`scripts/tokens.py` writes `Sources/Koe/UI/Tokens.swift` from shinsa's `globals.css`; `Palette` and `Tone` name
 them), its settings cards (`SettingsGroup`, `SettingRow`, `Card`) and its blue as the accent.
 Everything that floats over other apps (the pill, the attachment list, the recording card, the clip review)
-is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a hairline ring (`floatingSurface`), dark
-whatever the theme. Copy is sentence case, full sentences, no em dashes.
+is a dark HUD, like the notch: Shinsa's dark canvas over Liquid Glass with a glass rim, lit along its top edge
+(`floatingSurface`, `Palette.glassEdge`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, When you
   stop, Shortcuts and General. No system toolbar. First launch opens it.
@@ -154,16 +154,22 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 Every tool takes a ticket from `SessionController.openTicket()`, stamped with the session's audio time the moment
 you start it, so a screenshot lands at the word you were saying when you pressed the key, not when you finished
 dragging. A tool used while no session runs starts one. `AnnotationLedger` (`KoeCore`) holds the tickets: a session
-you stop while a tool is open ends once the tool hands back its annotation or you cancel it.
+you finish while a tool is open never waits for another click (`ToolCoordinator.sessionStopping`): what is picked
+attaches with what you said, a clip still recording stops and attaches, and a clip in review attaches with the
+frames picked so far.
 
 - **Screenshot, ⌥⇧S.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
-  and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed: drag a
-  region, or click to take the window under the pointer. Nothing is drawn around windows: the pill names what the
+  and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed from the moment it opens,
+  and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
+  the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
+  the picture is taken when you attach. Nothing is drawn around windows: the pill names what the
   pointer is over. Once picked, the pill asks to attach it; its microphone button first hears what you say about it
   (a `VoiceSpan`), and those words become the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
 - **Comment, ⌥⇧A.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
-  what you say until you click its check is the comment. The screenshot is the window you clicked (or 640 × 400
+  what you say until you click its check is the comment. Clicking something else finishes that comment and starts
+  the next one there (`RegionPicker.onCommit`), each on its own ticket. The pill's buttons keep the session's
+  order: discard, pause, confirm; pause is the session's own pause, so the comment greys like the waveform does. The screenshot is the window you clicked (or 640 × 400
   around the spot when there is none) with a blue pin where you clicked (`PinMark`, `KoeCore`).
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
@@ -176,7 +182,8 @@ you stop while a tool is open ends once the tool hands back its annotation or yo
   `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
   stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 0.25× (`PlaybackSpeed`): play
   it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
-  "Talk about this frame": what you say until you click it again is that frame's note. Return attaches, Esc discards.
+  "Talk about this frame": what you say until you click it again is that frame's note, and the row then shows those
+  words (`SessionController.spoken(in:)`) with a button to say them again. Return attaches, Esc discards.
 - A screen recording only stores a frame when something changed, so `ClipMovie` reads the clip's real frame times
   (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
   pulled with zero tolerance, so the image you pick is the one you saw.

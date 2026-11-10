@@ -268,8 +268,7 @@ private struct NoticeView: View {
                 IconView(icon: icon, size: .small, color: tone.glyph)
             }
             .frame(width: 24, height: 24)
-            // The two lines sit at the font's own line height, no gap between them.
-            VStack(alignment: .leading, spacing: -2) {
+            VStack(alignment: .leading, spacing: -1) {
                 Text(notice.title)
                     .font(Typography.label)
                     .foregroundStyle(Palette.fg4)

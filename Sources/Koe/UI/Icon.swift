@@ -13,12 +13,13 @@ enum Icon: String, CaseIterable {
     case settings = "IconSettingsGear1"
     case permissions = "IconHand4Finger"
     case shortcuts = "command"
-    case stop = "IconStop"
     case close = "IconCrossSmall"
     case paperclip = "IconPaperclip1"
     case video = "IconVideo"
-    case play = "IconPlay"
-    case pause = "IconPause"
+    case play = "IconPlayFilled"
+    case pause = "IconPauseFilled"
+    case stop = "IconStopFilled"
+    case retake = "IconArrowRotateCounterClockwise"
     case previous = "IconChevronLeftSmall"
     case next = "IconChevronRightSmall"
     case add = "IconPlusSmall"
@@ -68,10 +69,15 @@ struct IconView: View {
     var weight: Font.Weight = .medium
 
     var body: some View {
-        Image(nsImage: icon.image(side: size.rawValue))
-            .renderingMode(.template)
-            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.foreground))
+        glyph
             .frame(width: size.rawValue, height: size.rawValue)
             .accessibilityHidden(true)
+    }
+
+    /// With no colour of its own the glyph inherits the foreground around it, as a button's label does. Setting
+    /// `.foreground` here would pin it to the primary label colour instead.
+    @ViewBuilder private var glyph: some View {
+        let image = Image(nsImage: icon.image(side: size.rawValue)).renderingMode(.template)
+        if let color { image.foregroundStyle(color) } else { image }
     }
 }

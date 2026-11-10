@@ -11,6 +11,8 @@ struct RegionChoice {
     var voice: VoiceSpan?
     /// Where a comment was pinned, in the screen's own space.
     var pin: CGPoint?
+    /// The screen wasn't frozen, so the picture is taken when this is attached.
+    var live = false
 }
 
 /// The state of one screenshot: drag a region or click a window on any frozen screen. The pill says what to do and
@@ -50,6 +52,8 @@ final class RegionPicker {
     private(set) var pin: CGPoint?
     private var picked: WindowInfo?
     @ObservationIgnored var onFinish: ((RegionChoice?) -> Void)?
+    /// A comment is done because you clicked the next thing: it is saved, and the picker carries on.
+    @ObservationIgnored var onCommit: ((RegionChoice) -> Void)?
 
     init(freeze: Freeze, purpose: Purpose = .screenshot) {
         self.freeze = freeze
@@ -69,8 +73,9 @@ final class RegionPicker {
     }
 
     func drag(from start: CGPoint, to end: CGPoint, on index: Int) {
+        // A comment is a click: dragging means nothing to it, and never drops the one you're saying.
+        guard !ScreenGeometry.isClick(from: start, to: end), purpose != .comment else { return }
         if case .noting = stage { stage = .choosing }
-        guard !ScreenGeometry.isClick(from: start, to: end) else { return }
         dragging = (index, ScreenGeometry.selection(from: start, to: end).intersection(bounds(of: index)))
     }
 
@@ -81,9 +86,12 @@ final class RegionPicker {
             let rect = window.map { local($0.frame, on: index) } ?? .zero
             if purpose == .comment {
                 // A comment works anywhere: on a window it shows that window, elsewhere the area around the spot.
+                // Clicking the next thing finishes the comment you were saying and starts another there.
+                if let choice { onCommit?(choice) }
                 pin = end
                 picked = rect.isEmpty ? nil : window
-                stage = .noting(screen: index, region: rect.isEmpty ? around(end, on: index) : rect)
+                let next = Stage.noting(screen: index, region: rect.isEmpty ? around(end, on: index) : rect)
+                if stage == next { onPicked?() } else { stage = next }
                 return
             }
             guard let window, !rect.isEmpty else { return }
@@ -114,9 +122,16 @@ final class RegionPicker {
     }
 
     func submit(voice: VoiceSpan? = nil) {
-        guard case .noting(let index, let region) = stage else { return }
-        finish(RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index),
-                            note: note, voice: voice, pin: pin))
+        guard var choice else { return }
+        choice.voice = voice
+        finish(choice)
+    }
+
+    /// What is picked now, if anything.
+    private var choice: RegionChoice? {
+        guard case .noting(let index, let region) = stage else { return nil }
+        return RegionChoice(screen: freeze.screens[index], region: region, source: source(for: region, on: index),
+                            note: note, pin: pin, live: freeze.isLive)
     }
 
     func cancel() {
@@ -156,8 +171,8 @@ final class RegionPicker {
     }
 }
 
-/// One frozen screen, dimmed except for what you're picking: the window under the pointer, the region you drag, or
-/// the region you picked with its note card.
+/// One screen, dimmed from the moment the tool opens except for what you drag or picked. Frozen, it shows the
+/// screen as it was; live, it is clear and the screen moves on underneath.
 struct RegionPickerView: View {
     let picker: RegionPicker
     let index: Int
@@ -166,9 +181,11 @@ struct RegionPickerView: View {
     var body: some View {
         let screen = picker.freeze.screens[index]
         ZStack(alignment: .topLeading) {
-            Image(decorative: screen.image, scale: CGFloat(screen.image.width) / max(1, screen.frame.width))
-                .resizable()
-            if let rect = highlight?.rect { Dim(cutout: rect) }
+            if !picker.freeze.isLive {
+                Image(decorative: screen.image, scale: CGFloat(screen.image.width) / max(1, screen.frame.width))
+                    .resizable()
+            }
+            Dim(cutout: highlight?.rect)
             if let highlight, highlight.showsSize {
                 Highlight(rect: highlight.rect)
                 SizeChip(rect: highlight.rect)
@@ -244,7 +261,7 @@ private struct Highlight: View {
 
     var body: some View {
         Rectangle()
-            .overlay(Rectangle().strokeBorder(Palette.action, lineWidth: 2))
+            .strokeBorder(Palette.action, lineWidth: 2)
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
             .allowsHitTesting(false)

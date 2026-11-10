@@ -193,6 +193,11 @@ final class SessionController {
     }
 
     /// Stamps the moment a tool starts with the session's audio time. Nil when no session is open.
+    /// What you said inside `span`, as far as the model has heard it.
+    func spoken(in span: VoiceSpan) -> String {
+        take?.transcript.text(in: span) ?? ""
+    }
+
     func openTicket() -> AnnotationLedger.Ticket? {
         guard phase.isOpen, let take else { return nil }
         return take.ledger.open(at: currentTime)

@@ -168,3 +168,21 @@ struct KeyComboTests {
         #expect(KeyCombo(keyCode: 200, modifiers: 0).displayName == "Key 200")
     }
 }
+
+struct SpokenSpanTests {
+    @Test func theWordsInsideASpanAreItsNote() {
+        var transcript = LiveTranscript()
+        transcript.apply(TranscriptUpdate(runs: [TranscriptRun("Look here this is too tight okay", start: 0, end: 6)],
+                                          isFinal: true, start: 0, end: 6))
+        let said = transcript.text(in: VoiceSpan(start: 2, end: 5))
+        #expect(!said.isEmpty)
+        #expect(said.contains("tight"))
+        #expect(!said.contains("Look"))
+    }
+
+    @Test func aSpanNobodySpokeInIsEmpty() {
+        var transcript = LiveTranscript()
+        transcript.apply(TranscriptUpdate(runs: [TranscriptRun("Hello", start: 0, end: 1)], isFinal: true, start: 0, end: 1))
+        #expect(transcript.text(in: VoiceSpan(start: 4, end: 6)).isEmpty)
+    }
+}

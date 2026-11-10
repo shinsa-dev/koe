@@ -4,7 +4,8 @@ import SwiftUI
 /// its shadow sit behind the label, so pressing deflates only the fill by Shinsa's fixed press inset; the label
 /// never moves. Hover and press change at once, with no transition, as on the web.
 struct KoeButtonStyle: ButtonStyle {
-    enum Variant { case primary, secondary, outline, destructive, bare, link }
+    /// `destructiveSoft` is Koe's own: the pill's discard, as a square button.
+    enum Variant { case primary, secondary, outline, destructive, destructiveSoft, bare, link }
     /// `tiny` 22, `small` 24, `regular` 26 and `large` 30 tall; `iconOnly` makes a square of that height.
     enum Size { case tiny, small, regular, large }
 
@@ -82,6 +83,7 @@ private struct KoeButton: View {
         switch variant {
         case .primary, .destructive: Palette.onAction
         case .outline: Palette.fg4
+        case .destructiveSoft: Tone.red.ink
         case .secondary, .bare: active ? Palette.fg4 : Palette.fg2
         case .link: Palette.actionText
         }
@@ -103,6 +105,8 @@ private struct KoeButton: View {
             } else {
                 shape.fill(color).background(shape.inset(by: -1).fill(ring))
             }
+        case .destructiveSoft:
+            shape.fill(Tone.red.tint).brightness(active ? 0.06 : 0)
         case .secondary:
             shape.fill(active ? Palette.press.opacity(0.7) : .clear)
         case .bare, .link:

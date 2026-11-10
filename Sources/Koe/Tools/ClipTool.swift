@@ -32,6 +32,9 @@ final class ClipTool {
     private var recording: Recording?
     private var stopping = false
     private var reviewPanel: ToolPanel?
+    private var reviewer: ClipReviewer?
+    /// The session finished while the clip was recording: it attaches as it is, with no review.
+    private var attachWhenStopped = false
     private var reviewKeys: Any?
     private var busy = false
     var clipFile: URL?
@@ -122,13 +125,25 @@ final class ClipTool {
             } catch {
                 Self.log.error("Clip failed: \(error.localizedDescription, privacy: .public)")
                 try? FileManager.default.removeItem(at: recording.url)
+                attachWhenStopped = false
                 fail(recording.ticket, "Koe couldn't save the clip.")
             }
         }
     }
 
+    /// The session is finishing and won't wait for a click: a clip still recording stops and attaches, and a clip
+    /// in review attaches with the frames picked so far.
+    func sessionStopping() {
+        if recording != nil {
+            attachWhenStopped = true
+            stopRecording()
+        }
+        reviewer?.finish(attach: true)
+    }
+
     /// Drops the clip in progress, recording or in review, when its session was discarded.
     func discard() {
+        attachWhenStopped = false
         if let recording {
             recording.autoStop?.cancel()
             recording.indicator?.close()
@@ -146,7 +161,15 @@ final class ClipTool {
 
     private func review(_ recording: Recording, info: ClipMovie.Info) {
         let label = recording.source.map { [$0.app, $0.window].compactMap(\.self).joined(separator: " · ") }
-        let reviewer = ClipReviewer(url: recording.url, info: info, sourceLabel: label) { [sessions] in sessions.currentTime }
+        let reviewer = ClipReviewer(url: recording.url, info: info, sourceLabel: label,
+                                    now: { [sessions] in sessions.currentTime },
+                                    spoken: { [sessions] in sessions.spoken(in: $0) })
+        if attachWhenStopped {
+            attachWhenStopped = false
+            attach(reviewer, recording: recording)
+            return
+        }
+        self.reviewer = reviewer
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
         let size = NSSize(width: ClipReviewView.width + 48, height: min(visible.height - PillPanel.cardsAbove, 720))
@@ -204,6 +227,7 @@ final class ClipTool {
         reviewKeys = nil
         reviewPanel?.close()
         reviewPanel = nil
+        reviewer = nil
     }
 
     private func attach(_ reviewer: ClipReviewer, recording: Recording) {

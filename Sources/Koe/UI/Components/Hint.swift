@@ -38,7 +38,7 @@ struct HintBubble: View {
         .padding(.vertical, shortcut == nil ? 4 : 2)
         .frame(minHeight: 24)
         .background(Palette.popover, in: shape)
-        .overlay(shape.strokeBorder(Palette.border, lineWidth: 1))
+        .overlay(shape.strokeBorder(Palette.ringHover, lineWidth: 1))
         .fixedSize()
         .padding(2)
         .scaleEffect(shown ? 1 : 0.95, anchor: .bottom)

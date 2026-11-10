@@ -9,21 +9,23 @@ import SwiftUI
 /// start it, and starts a session when none is running.
 @MainActor
 final class ToolCoordinator {
-    private let sessions: SessionController
+    let sessions: SessionController
     private let permissions: PermissionCenter
     /// Starts a session when none runs (or opens setup when it can't) and says whether one is running now.
-    private let ensureSession: () -> Bool
+    let ensureSession: () -> Bool
     private let presentSetup: () -> Void
     private var overlay: [ToolPanel] = []
     /// A screenshot's freeze is under way: its overlay isn't up yet, but a second press must not start another.
     private var freezing = false
     /// What the pill asks while a tool is open.
     let status = ToolStatus()
+    /// The setting: hold the screen still while you pick. Off, the screen keeps moving under the picker.
+    var freezesScreen: () -> Bool = { true }
     private lazy var clips = ClipTool(sessions: sessions, pickRegion: { [weak self] preset, done in
         guard let self else { return done(nil) }
         pickClipRegion(preset: preset, done: done)
     })
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "tools")
+    static let log = Logger(subsystem: "studio.shinsa.koe", category: "tools")
 
     /// Replaces the live screen capture for `--backdrop`, so captures of Koe show a known image, not your screen.
     var backdrop: CGImage?
@@ -77,12 +79,7 @@ final class ToolCoordinator {
             freezing = false
             let picker = RegionPicker(freeze: freeze, purpose: purpose)
             let voice = VoiceNote { [sessions] in sessions.currentTime }
-            prompt(picker, voice: voice)
-            picker.onFinish = { [weak self] choice in
-                self?.status.clear()
-                self?.closeOverlay()
-                self?.save(choice, ticket: ticket)
-            }
+            follow(picker, voice: voice, ticket: ticket)
             showOverlay(for: picker)
             if let preset { picker.preset(preset, note: note) }
             if let spot { picker.preset(click: spot, note: note) }
@@ -95,6 +92,25 @@ final class ToolCoordinator {
                 }
                 picker.submit(voice: voice.span())
             }
+        }
+    }
+
+    /// Saves what the picker picks on its ticket. Each comment made in one go closes its own and opens the next.
+    private func follow(_ picker: RegionPicker, voice: VoiceNote, ticket: AnnotationLedger.Ticket) {
+        let pending = Pending(ticket)
+        prompt(picker, voice: voice)
+        picker.onCommit = { [weak self] choice in
+            guard let self else { return }
+            var choice = choice
+            choice.voice = voice.span()
+            save(choice, ticket: pending.ticket)
+            voice.reset()
+            if let next = sessions.openTicket() { pending.ticket = next } else { picker.cancel() }
+        }
+        picker.onFinish = { [weak self] choice in
+            self?.status.clear()
+            self?.closeOverlay()
+            self?.save(choice, ticket: pending.ticket)
         }
     }
 
@@ -120,9 +136,9 @@ final class ToolCoordinator {
             guard let self else { return }
             status.onConfirm = { picker.submit(voice: voice.span()) }
             status.onTalk = { [weak self] in
-                if voice.isListening { voice.stop() } else { voice.begin() }
-                self?.status.prompt?.stage = voice.isListening ? .listening : .confirming
-                self?.status.prompt?.title = Self.title(comment: comment, listening: voice.isListening)
+                voice.begin()
+                self?.status.prompt?.stage = .listening
+                self?.status.prompt?.title = Self.title(comment: comment, listening: true)
             }
             // A comment is something said: it listens the moment you click.
             if comment { voice.begin() }
@@ -135,17 +151,21 @@ final class ToolCoordinator {
     }
 
     private static func title(comment: Bool, listening: Bool) -> String {
-        switch (comment, listening) {
-        case (true, true): "Say your comment"
-        case (true, false): "Comment paused"
-        case (false, true): "Say what this is about"
-        case (false, false): "Attach this screenshot?"
-        }
+        if comment { return "Say your comment" }
+        return listening ? "Say what this is about" : "Attach this screenshot?"
     }
 
     private func freeze() async throws -> Freeze {
         if let backdrop { return Freeze.backdrop(backdrop) }
-        return try await ScreenFreezer.freeze()
+        var freeze = try await ScreenFreezer.freeze()
+        freeze.isLive = !freezesScreen()
+        return freeze
+    }
+
+    /// The screen a choice is cut from: the frozen one, or the screen as it is now when it wasn't held still.
+    private func picture(for choice: RegionChoice, live: Bool) async -> FrozenScreen {
+        guard live, let fresh = try? await ScreenFreezer.freeze() else { return choice.screen }
+        return fresh.screens.first { $0.screen == choice.screen.screen } ?? choice.screen
     }
 
     private func showOverlay(for picker: RegionPicker) {
@@ -167,25 +187,30 @@ final class ToolCoordinator {
     }
 
     private func save(_ choice: RegionChoice?, ticket: AnnotationLedger.Ticket) {
-        guard let choice,
-              let pixels = ScreenGeometry.pixelRect(
-                  of: choice.region, screenSize: choice.screen.frame.size,
-                  imageSize: CGSize(width: choice.screen.image.width, height: choice.screen.image.height)
-              ),
-              let cut = choice.screen.image.cropping(to: pixels),
-              let url = try? sessions.screenshotURL()
-        else {
+        guard let choice else {
             sessions.close(ticket, with: nil)
             return
         }
-        let scale = CGFloat(choice.screen.image.width) / max(1, choice.screen.frame.width)
-        let crop = choice.pin
-            .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
-            .flatMap { PinMark.draw(on: cut, at: $0, radius: 6 * scale) } ?? cut
+        let live = choice.live
         let note = choice.note
         let voice = choice.voice
         let source = choice.source
         Task {
+            let screen = await picture(for: choice, live: live)
+            guard let pixels = ScreenGeometry.pixelRect(
+                      of: choice.region, screenSize: screen.frame.size,
+                      imageSize: CGSize(width: screen.image.width, height: screen.image.height)
+                  ),
+                  let cut = screen.image.cropping(to: pixels),
+                  let url = try? sessions.screenshotURL()
+            else {
+                sessions.close(ticket, with: nil)
+                return
+            }
+            let scale = CGFloat(screen.image.width) / max(1, screen.frame.width)
+            let crop = choice.pin
+                .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
+                .flatMap { PinMark.draw(on: cut, at: $0, radius: 6 * scale) } ?? cut
             do {
                 try await Task.detached { try PNG.write(crop, to: url) }.value
                 sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)),
@@ -215,7 +240,6 @@ final class ToolCoordinator {
         clips.begin(ticket: ticket, preset: preset)
     }
 
-    /// The session is stopping: a clip still recording stops too, and goes on to its review.
     /// Closes every tool open on a session you discarded; what they would have added goes with it.
     func sessionCancelled() {
         overlay.first?.onCancel?()
@@ -224,8 +248,15 @@ final class ToolCoordinator {
         clips.discard()
     }
 
+    /// The session is finishing: nothing waits for another click. What is picked is attached with what you said,
+    /// a clip still recording stops, and a clip in review attaches with the frames picked so far.
     func sessionStopping() {
-        if clips.isRecording { clips.stopRecording() }
+        if let confirm = status.onConfirm {
+            confirm()
+        } else if !overlay.isEmpty {
+            overlay.first?.onCancel?()
+        }
+        clips.sessionStopping()
     }
 
     /// Freezes the screen for you to pick the region a clip records, and hands it on, or nil when you cancel.
@@ -257,7 +288,9 @@ final class ToolCoordinator {
             }
         }
     }
+}
 
+extension ToolCoordinator {
     // MARK: Drop
 
     /// Files dropped on the pill, copied into the session's folder so the bundle still has them if the originals move.
@@ -281,6 +314,13 @@ final class ToolCoordinator {
             }
         }
     }
+}
+
+/// The ticket the open comment or screenshot closes: each comment made in one go takes the next.
+@MainActor
+private final class Pending {
+    var ticket: AnnotationLedger.Ticket
+    init(_ ticket: AnnotationLedger.Ticket) { self.ticket = ticket }
 }
 
 extension Freeze {

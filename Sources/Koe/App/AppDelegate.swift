@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
+        tools.freezesScreen = { [weak self] in self?.library.settings.freezeScreen ?? true }
         tools.clipFile = Launch.value(after: "--clip-file").map { URL(fileURLWithPath: $0) }
 
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {

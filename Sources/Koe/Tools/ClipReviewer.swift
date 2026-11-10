@@ -21,13 +21,16 @@ final class ClipReviewer {
     private(set) var talking: Int?
     @ObservationIgnored private var talkStart: AudioTime = 0
     @ObservationIgnored private let now: () -> AudioTime
+    @ObservationIgnored private let spoken: (VoiceSpan) -> String
     @ObservationIgnored let player: AVPlayer
     @ObservationIgnored var onFinish: ((Bool) -> Void)?
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
 
-    init(url: URL, info: ClipMovie.Info, sourceLabel: String?, now: @escaping () -> AudioTime) {
+    init(url: URL, info: ClipMovie.Info, sourceLabel: String?, now: @escaping () -> AudioTime,
+         spoken: @escaping (VoiceSpan) -> String) {
         self.now = now
+        self.spoken = spoken
         self.url = url
         self.info = info
         self.sourceLabel = sourceLabel
@@ -106,6 +109,11 @@ final class ClipReviewer {
         talkStart = now()
     }
 
+    /// What you said about a frame, as far as it has been heard; nil when you haven't spoken about it.
+    func note(for pick: PickedFrame) -> String? {
+        pick.voice.map(spoken)
+    }
+
     private func stopTalking() {
         guard let index = talking else { return }
         review.setVoice(VoiceSpan(start: talkStart, end: now()), for: index)
@@ -171,7 +179,7 @@ struct ClipReviewView: View {
         }
         .padding(16)
         .frame(width: Self.width)
-        .floatingSurface(cornerRadius: 18)
+        .floatingSurface(cornerRadius: 18, shadow: false)
     }
 
     /// The clip fitted into the window's width and at most 340 pt tall.
@@ -240,7 +248,7 @@ struct ClipReviewView: View {
     private var pickedFrames: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Frames").font(Typography.label).foregroundStyle(Palette.fg2)
-            ScrollView {
+            FadingScroll(maxHeight: 150) {
                 VStack(spacing: 6) {
                     ForEach(reviewer.review.picks) { pick in
                         row(for: pick)
@@ -248,8 +256,6 @@ struct ClipReviewView: View {
                     }
                 }
             }
-            .frame(maxHeight: 150)
-            .fixedSize(horizontal: false, vertical: true)
         }
         .animation(.spring(duration: 0.35, bounce: 0.2), value: reviewer.review.picks.map(\.index))
     }
@@ -258,6 +264,7 @@ struct ClipReviewView: View {
         let index = pick.index
         return PickedFrameRow(
             pick: pick, thumbnail: reviewer.thumbnails[index], talking: reviewer.talking == index,
+            note: { reviewer.note(for: pick) },
             talk: { reviewer.toggleTalk(index) },
             show: { reviewer.pause(); reviewer.show(index) },
             remove: { reviewer.unpick(index) }

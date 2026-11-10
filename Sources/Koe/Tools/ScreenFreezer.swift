@@ -15,6 +15,8 @@ struct Freeze {
     let screens: [FrozenScreen]
     let windows: [WindowInfo]
     let frontApp: String?
+    /// The screen wasn't held still: the picker is clear, and the picture is taken when you attach.
+    var isLive = false
 }
 
 enum ScreenFreezer {

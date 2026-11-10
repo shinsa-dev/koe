@@ -59,6 +59,11 @@ public struct LiveTranscript: Sendable, Equatable {
 
     public var text: String { (words + pending).map(\.text).joined(separator: " ") }
 
+    /// What was said inside `span`, as far as it has been heard.
+    public func text(in span: VoiceSpan) -> String {
+        (words + pending).filter(span.contains).map(\.text).joined(separator: " ")
+    }
+
     /// The end of the text, at most `limit` characters, cut at a word and led by an ellipsis when cut:
     /// what the pill shows while you talk.
     public func tail(limit: Int) -> String {

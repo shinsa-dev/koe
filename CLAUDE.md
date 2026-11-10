@@ -34,7 +34,10 @@ behaviour it describes.
   the composer moves those words onto the attachment. Never add a text field to a tool. While a tool is open the
   pill says what to do (`ToolStatus`/`ToolPrompt`); nothing is drawn on the frozen screen but your drag and pin.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
-  notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme.
+  notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme. It
+  gives every one the same glass rim; never draw a different border on a floating surface.
+- In the pill, actions keep one order everywhere: discard on the left, pause in the middle, confirm on the right.
+  Finishing a session never waits on an open tool: it attaches what is there (`sessionStopping`).
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
   bar) and back when it closes. Keep that when adding windows.
 - Copy: sentence case (buttons and titles too), full sentences, no em dashes, American spelling.

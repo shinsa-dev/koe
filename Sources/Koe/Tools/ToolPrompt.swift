@@ -54,8 +54,15 @@ final class VoiceNote {
 
     var isListening: Bool { start != nil && end == nil }
 
+    /// Starts listening, or carries on where it stopped: what you said before stays in the note.
     func begin() {
-        start = now()
+        if start == nil { start = now() }
+        end = nil
+    }
+
+    /// Forgets the note, for the next thing you comment on.
+    func reset() {
+        start = nil
         end = nil
     }
 

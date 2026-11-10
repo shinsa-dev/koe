@@ -14,6 +14,9 @@ public struct KoeSettings: Sendable, Equatable {
     public var theme: ThemeChoice = .system
     /// How many past sessions the menu lists.
     public var recentCount = 5
+    /// Hold the screen still while you pick what to screenshot or comment on. Off, the screen keeps moving and the
+    /// picture is taken when you attach it.
+    public var freezeScreen = true
 
     public static let recentChoices = [3, 5, 10]
 
@@ -22,6 +25,7 @@ public struct KoeSettings: Sendable, Equatable {
         public static let autoPaste = "autoPaste"
         public static let theme = "appearance"
         public static let recentCount = "recentCount"
+        public static let freezeScreen = "freezeScreen"
     }
 
     public init() {}
@@ -30,10 +34,12 @@ public struct KoeSettings: Sendable, Equatable {
         if let copyFiles = values[Key.copyFiles] as? Bool { self.copyFiles = copyFiles }
         if let autoPaste = values[Key.autoPaste] as? Bool { self.autoPaste = autoPaste }
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
+        if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
     }
 
     public var values: [String: Any] {
-        [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount]
+        [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
+         Key.freezeScreen: freezeScreen]
     }
 }

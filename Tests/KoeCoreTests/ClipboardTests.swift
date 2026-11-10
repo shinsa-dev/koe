@@ -68,6 +68,7 @@ struct KoeSettingsTests {
         settings.autoPaste = true
         settings.theme = .dark
         settings.recentCount = 10
+        settings.freezeScreen = false
         #expect(KoeSettings(values: settings.values) == settings)
     }
 

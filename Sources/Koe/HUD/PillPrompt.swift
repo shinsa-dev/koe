@@ -13,6 +13,7 @@ struct PromptView: View {
         HStack(spacing: 10) {
             if prompt.stage == .listening {
                 Waveform(level: { sessions.level }, live: !paused, bars: 9)
+                    .opacity(paused ? 0.35 : 1)
             } else {
                 ZStack {
                     Circle().fill(Tone.neutral.tint)
@@ -20,7 +21,7 @@ struct PromptView: View {
                 }
                 .frame(width: 24, height: 24)
             }
-            VStack(alignment: .leading, spacing: -2) {
+            VStack(alignment: .leading, spacing: -1) {
                 Text(prompt.title)
                     .font(Typography.label)
                     .foregroundStyle(Palette.fg4)
@@ -32,15 +33,17 @@ struct PromptView: View {
             }
             .lineLimit(1)
             .truncationMode(.middle)
-            .frame(minWidth: 140, maxWidth: 280, alignment: .leading)
+            .frame(minWidth: prompt.stage == .picking ? 140 : nil, maxWidth: 280, alignment: .leading)
             .fixedSize()
+            // The session's own order: discard on the left, pause in the middle, confirm on the right.
             HStack(spacing: 4) {
-                if prompt.stage != .picking, prompt.canTalk, let talk = status.onTalk {
-                    let listening = prompt.stage == .listening
-                    PillButton(icon: listening ? .muted : .microphone, tone: listening ? .neutral : .tool,
-                               label: listening ? "Stop listening" : "Say something about it", action: talk)
-                }
                 PillButton(icon: .close, tone: .destructive, label: "Cancel", shortcut: "Esc") { status.onCancel?() }
+                if prompt.stage == .listening {
+                    PillButton(icon: paused ? .play : .pause, tone: .neutral, label: paused ? "Resume" : "Pause",
+                               action: paused ? sessions.resume : sessions.pause)
+                } else if prompt.stage == .confirming, prompt.canTalk, let talk = status.onTalk {
+                    PillButton(icon: .microphone, tone: .neutral, label: "Say something about it", action: talk)
+                }
                 if prompt.stage != .picking, let confirm = status.onConfirm {
                     PillButton(icon: .checkmark, tone: .action, label: prompt.confirm, shortcut: "↩", action: confirm)
                 }

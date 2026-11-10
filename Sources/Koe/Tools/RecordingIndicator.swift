@@ -74,7 +74,7 @@ private struct RecordingCard: View {
                     .onAppear { dim = true }
             }
             .frame(width: 24, height: 24)
-            VStack(alignment: .leading, spacing: -2) {
+            VStack(alignment: .leading, spacing: -1) {
                 Text("Recording a clip")
                     .font(Typography.label)
                     .foregroundStyle(Palette.fg4)
@@ -87,12 +87,13 @@ private struct RecordingCard: View {
             Spacer(minLength: 4)
             Button(action: stop) {
                 HStack(spacing: 4) {
-                    IconView(icon: .stop, size: .small, color: nil)
-                    Text("Stop")
+                    IconView(icon: .stop, size: .small, color: Palette.fg4)
+                    Text("Stop").font(Typography.control).foregroundStyle(Palette.fg4)
                 }
-                .padding(.leading, -2)
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
             }
-            .buttonStyle(.koe(.secondary, size: .small))
+            .buttonStyle(PressDownStyle(fill: Palette.press, width: nil))
             .hint("Stop recording", shortcut: KeyCombo.clip.displayName)
         }
         .padding(.leading, 8)

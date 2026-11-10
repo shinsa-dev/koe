@@ -39,6 +39,12 @@ struct SettingsPage: View {
                     Toggle("Paste for you", isOn: binding(\.autoPaste)).toggleStyle(.koe).disabled(!canPaste)
                 }
             }
+            SettingsGroup(title: "Screenshots and comments") {
+                SettingRow(title: "Freeze the screen while you pick",
+                           detail: "Off, the screen keeps moving and the picture is taken when you attach it.") {
+                    Toggle("Freeze the screen while you pick", isOn: binding(\.freezeScreen)).toggleStyle(.koe)
+                }
+            }
             SettingsGroup(title: "Shortcuts") {
                 ForEach(Self.shortcuts, id: \.title) { shortcut in
                     SettingRow(title: shortcut.title) { Kbd(shortcut.combo.displayName) }

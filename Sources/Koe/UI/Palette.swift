@@ -70,6 +70,12 @@ enum Palette {
     static let segment = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg4))
     static let hudCanvas = Color(nsColor: Tokens.background.inDark)
     static let hudRing = Color(nsColor: Tokens.bgA3.inDark)
+    /// The rim of a pane of glass: light catches the top edge and falls away down the sides.
+    static let glassEdge = LinearGradient(
+        stops: [.init(color: highlight.opacity(0.28), location: 0), .init(color: highlight.opacity(0.06), location: 0.45),
+                .init(color: highlight.opacity(0.12), location: 1)],
+        startPoint: .top, endPoint: .bottom
+    )
 }
 
 /// State colours only, never decoration: green done, amber waiting, red failed.
@@ -111,6 +117,7 @@ enum Tone {
 /// dark canvas over Liquid Glass, a hairline light ring and a soft shadow. Content inside reads the dark tokens.
 struct HUDSurface: ViewModifier {
     let cornerRadius: CGFloat
+    var shadow = true
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -118,14 +125,15 @@ struct HUDSurface: ViewModifier {
             .background { shape.fill(Palette.hudCanvas.opacity(0.88)) }
             .glassEffect(.regular.tint(Palette.hudCanvas.opacity(0.4)), in: shape)
             .overlay(shape.strokeBorder(Palette.hudRing, lineWidth: 1))
-            .shadow(color: Palette.shadow.opacity(0.25), radius: 14, y: 6)
+            .overlay(shape.strokeBorder(Palette.glassEdge, lineWidth: 1))
+            .shadow(color: Palette.shadow.opacity(shadow ? 0.25 : 0), radius: 14, y: 6)
             .tint(Palette.action)
             .environment(\.colorScheme, .dark)
     }
 }
 
 extension View {
-    func floatingSurface(cornerRadius: CGFloat) -> some View {
-        modifier(HUDSurface(cornerRadius: cornerRadius))
+    func floatingSurface(cornerRadius: CGFloat, shadow: Bool = true) -> some View {
+        modifier(HUDSurface(cornerRadius: cornerRadius, shadow: shadow))
     }
 }
