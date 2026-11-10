@@ -253,7 +253,7 @@ final class SessionController {
     private func reserveFile(_ pick: (inout SessionFolder) -> URL) throws -> URL {
         guard let take else { throw CocoaError(.fileNoSuchFile) }
         let url = pick(&take.folder)
-        try FileManager.default.createDirectory(at: take.folder.url, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: take.folder.attachments, withIntermediateDirectories: true)
         return url
     }
 

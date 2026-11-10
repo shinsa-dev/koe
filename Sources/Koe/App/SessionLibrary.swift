@@ -12,9 +12,9 @@ final class SessionLibrary {
     @ObservationIgnored private let archive: SessionArchive
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "library")
     @ObservationIgnored var onSettingsChange: ((KoeSettings) -> Void)?
-    /// The session last put on the clipboard and the clipboard's change count right after, to tell whether it is
-    /// still there when the session's last words settle.
-    @ObservationIgnored private var lastCopy: (id: UUID, changeCount: Int)?
+    /// The session last put on the clipboard and the words it went on with, to tell whether they are still there
+    /// when the session's last words settle.
+    @ObservationIgnored private var lastCopy: (id: UUID, text: String)?
     @ObservationIgnored private let paster = BundlePaster()
     /// Whether the last copy left only the words on the clipboard, with the attachments following your ⌘V.
     @ObservationIgnored private(set) var pastesTogether = false
@@ -23,6 +23,11 @@ final class SessionLibrary {
         self.defaults = defaults
         archive = SessionArchive(root: root)
         settings = KoeSettings(values: defaults.dictionaryRepresentation())
+        // Oldest first, so the newest win when two sessions read the same.
+        for entry in archive.recent(limit: 100).reversed() {
+            paster.remember(ClipboardPlan.items(for: BundleComposer().compose(entry.session), copyFiles: true))
+        }
+        if settings.pasteTogether { paster.watch() }
     }
 
     var root: URL { archive.root }
@@ -33,6 +38,7 @@ final class SessionLibrary {
         guard next != settings else { return }
         settings = next
         for (key, value) in next.values { defaults.set(value, forKey: key) }
+        if next.pasteTogether { paster.watch() } else { paster.stop() }
         onSettingsChange?(next)
     }
 
@@ -45,7 +51,7 @@ final class SessionLibrary {
         save(session, in: folder)
         let items = copy(session)
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
-        lastCopy = (session.id, NSPasteboard.general.changeCount)
+        lastCopy = (session.id, Self.text(of: items))
         let pasted = settings.autoPaste ? await BundleWriter.paste() : false
         let summary = ClipboardPlan.summary(for: items, pasted: pasted, together: pastesTogether)
         return PillNotice(kind: .success, title: summary.title, detail: summary.detail)
@@ -56,9 +62,8 @@ final class SessionLibrary {
     func refined(_ session: Session, folder: URL) {
         save(session, in: folder)
         guard let lastCopy, lastCopy.id == session.id,
-              lastCopy.changeCount == NSPasteboard.general.changeCount || paster.holdsClipboard else { return }
-        copy(session)
-        self.lastCopy = (session.id, NSPasteboard.general.changeCount)
+              paster.clipboardReads(lastCopy.text) || paster.delivering else { return }
+        self.lastCopy = (session.id, Self.text(of: copy(session)))
     }
 
     /// Recordings Koe never finished. Read before any session starts, so the one being recorded is never among them.
@@ -107,10 +112,12 @@ final class SessionLibrary {
     func copy(_ session: Session) -> [ClipboardItem] {
         let items = ClipboardPlan.items(for: BundleComposer().compose(session), copyFiles: settings.copyFiles)
         pastesTogether = settings.pasteTogether && paster.arm(items)
-        if !pastesTogether {
-            paster.disarm()
-            BundleWriter.write(items)
-        }
+        if !pastesTogether { BundleWriter.write(items) }
         return items
+    }
+
+    private static func text(of items: [ClipboardItem]) -> String {
+        for case .text(let plain, _) in items { return plain }
+        return ""
     }
 }

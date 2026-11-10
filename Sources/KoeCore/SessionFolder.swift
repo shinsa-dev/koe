@@ -1,7 +1,7 @@
 import Foundation
 
-/// The folder a session's files live in, and the names they get. Names never repeat in a folder, and carry no spaces,
-/// so a path pasted into a terminal agent stays one word.
+/// The folder a session lives in, and the names its attachments get, in `attachments/`. Names never repeat, and
+/// carry no spaces, so a path pasted into a terminal agent stays one word.
 public struct SessionFolder: Sendable, Equatable {
     public let url: URL
     private var taken: Set<String> = []
@@ -11,6 +11,10 @@ public struct SessionFolder: Sendable, Equatable {
     public init(url: URL) {
         self.url = url
     }
+
+    /// Where the screenshots, clips, frames and dropped files go, apart from the session's own record.
+    public static let attachmentsName = "attachments"
+    public var attachments: URL { url.appendingPathComponent(Self.attachmentsName, isDirectory: true) }
 
     /// `2026-11-04-181500-1A2B`: sorts by time, and the id's start keeps two sessions in one second apart.
     public static func name(startedAt: Date, id: UUID, timeZone: TimeZone = .current) -> String {
@@ -49,7 +53,7 @@ public struct SessionFolder: Sendable, Equatable {
             counter += 1
         }
         taken.insert(candidate.lowercased())
-        return url.appendingPathComponent(candidate)
+        return attachments.appendingPathComponent(candidate)
     }
 
     static func safeName(_ name: String) -> String {

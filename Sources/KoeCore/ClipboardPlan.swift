@@ -69,3 +69,40 @@ public enum PastePlan {
         "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
     ]
 }
+
+/// Every bundle Koe copied lately, found again by its words. The clipboard may no longer be the one Koe wrote: you
+/// copied other things since, or pasted the words out of a clipboard history. As long as what you paste reads the
+/// same, its files still follow.
+public struct PasteIndex: Sendable {
+    public let limit: Int
+    private var splits: [String: PastePlan.Split] = [:]
+    private var order: [String] = []
+
+    public init(limit: Int = 200) {
+        self.limit = limit
+    }
+
+    public mutating func remember(_ split: PastePlan.Split) {
+        guard case .text(let plain, _) = split.words, let key = Self.key(plain) else { return }
+        order.removeAll { $0 == key }
+        order.append(key)
+        splits[key] = split
+        while order.count > limit { splits[order.removeFirst()] = nil }
+    }
+
+    /// The bundle whose words these are, or nil when Koe never copied them.
+    public func split(pasting text: String?) -> PastePlan.Split? {
+        text.flatMap(Self.key).flatMap { splits[$0] }
+    }
+
+    public static func matches(_ pasted: String?, _ text: String) -> Bool {
+        guard let pasted, let key = key(pasted) else { return false }
+        return key == Self.key(text)
+    }
+
+    /// A clipboard history may trim the ends or change the line endings; nothing else may differ.
+    static func key(_ text: String) -> String? {
+        let key = text.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.isEmpty ? nil : key
+    }
+}

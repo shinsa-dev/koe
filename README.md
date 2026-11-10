@@ -130,11 +130,13 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   plain text does.
 - **One ⌘V for everything** ("Paste everything with one ⌘V", on by default, needs Accessibility). A chat box given
   text and files in one paste keeps one and drops the other. So `BundlePaster` leaves only the words on the
-  clipboard and watches for your ⌘V; 220 ms after it, Koe puts the files on, presses ⌘V itself and puts the words
-  back (`PastePlan.split`). The files upload like any pasted file, so this works for a remote agent too. It stops
-  as soon as you copy something else. In a terminal (`PastePlan.takesFiles`) only the words go in: they already end
-  with every path. Without Accessibility, or with the setting off, everything goes on the clipboard at once as
-  above. Not yet tried in a real chat app.
+  clipboard and watches every ⌘V; when the text being pasted is a bundle Koe copied (`PasteIndex`, the last 200,
+  reloaded from the saved sessions at launch), 220 ms later Koe puts that bundle's files on, presses ⌘V itself and
+  puts back whatever the clipboard held (`PastePlan.split`). It goes by the words, not by who wrote the clipboard
+  last, so it still works after you copied other things, or when you paste the words out of a clipboard history;
+  any other paste is left alone. The files upload like any pasted file, so this works for a remote agent too. In a
+  terminal (`PastePlan.takesFiles`) only the words go in: they already end with every path. Without Accessibility,
+  or with the setting off, everything goes on the clipboard at once as above.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
@@ -206,8 +208,19 @@ frames picked so far.
 - Tool panels are non-activating: they take typing without bringing Koe to the front, so the app you were in keeps
   focus. Esc is caught with a local key monitor, because a text field turns it into completion before the window
   sees it.
-- A session's files live in `~/Library/Application Support/Koe/Sessions/<date-time-id>/` (`SessionFolder`), with
-  names that carry no spaces so a pasted path stays one word.
+- Each session is one folder, `~/Library/Application Support/Koe/Sessions/<date-time-id>/` (`SessionFolder`,
+  `SessionArchive`), and holds everything about it:
+
+  ```
+  2026-11-10-143200-1A2B/
+  ├── session.json     every word with its time, every attachment and note
+  ├── transcript.md    the text exactly as it was copied
+  ├── audio.caf        what you said
+  └── attachments/     screenshot-1.png, clip-1.mov, clip-1-frame-25.png, spec.pdf
+  ```
+
+  Attachment names carry no spaces so a pasted path stays one word. Sessions saved before `attachments/` keep
+  their files beside `session.json`; their paths are absolute, so they still open and paste.
 
 ## Notes
 

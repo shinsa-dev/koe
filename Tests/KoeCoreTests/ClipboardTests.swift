@@ -190,6 +190,18 @@ struct SessionArchiveTests {
         #expect(recent.first?.folder.lastPathComponent == "2026-11-04-000002-AAAA")
     }
 
+    @Test func aSavedSessionKeepsItsTranscriptAsCopied() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var session = Session()
+        session.appendTranscript("Look at this.", start: 0, end: 1)
+        let folder = root.appending(path: "2026-11-04-000000-AAAA")
+        try SessionArchive(root: root).save(session, in: folder)
+        let transcript = try String(contentsOf: folder.appending(path: "transcript.md"), encoding: .utf8)
+        #expect(transcript == BundleComposer().compose(session).text)
+        #expect(transcript.contains("Look at this."))
+    }
+
     @Test func aFolderWithoutASessionIsSkipped() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -236,5 +248,50 @@ struct SessionArchiveTests {
     @Test func aMissingRootIsEmpty() {
         let archive = SessionArchive(root: URL(fileURLWithPath: "/tmp/koe-missing-\(UUID().uuidString)"))
         #expect(archive.recent(limit: 5).isEmpty)
+    }
+}
+
+struct PasteIndexTests {
+    static func split(_ text: String, _ file: String) -> PastePlan.Split {
+        PastePlan.split([.text(plain: text, html: ""), .file(URL(fileURLWithPath: file))])!
+    }
+
+    @Test func wordsKoeCopiedBringTheirFilesHoweverOldTheCopy() {
+        var index = PasteIndex()
+        index.remember(Self.split("Look [1].", "/s/a.png"))
+        index.remember(Self.split("Then this [1].", "/s/b.png"))
+        #expect(index.split(pasting: "Look [1].")?.files == [URL(fileURLWithPath: "/s/a.png")])
+        #expect(index.split(pasting: "Then this [1].")?.files == [URL(fileURLWithPath: "/s/b.png")])
+    }
+
+    @Test func anyOtherTextBringsNothing() {
+        var index = PasteIndex()
+        index.remember(Self.split("Look [1].", "/s/a.png"))
+        #expect(index.split(pasting: "Look [1]") == nil)
+        #expect(index.split(pasting: "something else") == nil)
+        #expect(index.split(pasting: "") == nil)
+        #expect(index.split(pasting: nil) == nil)
+    }
+
+    @Test func aClipboardHistoryMayTrimTheEndsAndChangeLineEndings() {
+        var index = PasteIndex()
+        index.remember(Self.split("Look [1].\n\nAttachments:\n[1] a.png", "/s/a.png"))
+        #expect(index.split(pasting: "Look [1].\r\n\r\nAttachments:\r\n[1] a.png\n") != nil)
+        #expect(PasteIndex.matches(" Look. \n", "Look."))
+        #expect(!PasteIndex.matches(nil, "Look."))
+    }
+
+    @Test func theSameWordsAgainTakeTheNewerFiles() {
+        var index = PasteIndex()
+        index.remember(Self.split("Look [1].", "/s/a.png"))
+        index.remember(Self.split("Look [1].", "/s/b.png"))
+        #expect(index.split(pasting: "Look [1].")?.files == [URL(fileURLWithPath: "/s/b.png")])
+    }
+
+    @Test func theOldestAreForgottenPastTheLimit() {
+        var index = PasteIndex(limit: 2)
+        for name in ["one", "two", "three"] { index.remember(Self.split(name, "/s/\(name).png")) }
+        #expect(index.split(pasting: "one") == nil)
+        #expect(index.split(pasting: "two") != nil && index.split(pasting: "three") != nil)
     }
 }

@@ -3,27 +3,38 @@ import ApplicationServices
 import KoeCore
 
 /// Makes one ⌘V paste the whole bundle. Only your words sit on the clipboard; when you paste them, Koe puts the
-/// files on, pastes again for you and puts the words back, so the next ⌘V does the same. It only acts while the
-/// clipboard is still the one Koe wrote (`changeCount`), and stops for good once you copy something else.
-/// Watching for ⌘V and pressing it both need Accessibility.
+/// files on, pastes again for you and puts back what was there. It goes by the words, not by who wrote the
+/// clipboard last: any ⌘V whose text is a bundle Koe copied gets its files, from a clipboard history too
+/// (`PasteIndex`). Any other paste is left alone. Watching for ⌘V and pressing it both need Accessibility.
 @MainActor
 final class BundlePaster {
-    private var split: PastePlan.Split?
-    private var armedCount = 0
-    private var delivering = false
+    private var index = PasteIndex()
+    private(set) var delivering = false
     private var monitor: Any?
     private let pasteboard = NSPasteboard.general
 
-    /// Whether Koe's words are still what the clipboard holds.
-    var holdsClipboard: Bool { split != nil && (delivering || pasteboard.changeCount == armedCount) }
+    /// Whether the clipboard reads as these words right now.
+    func clipboardReads(_ text: String) -> Bool {
+        PasteIndex.matches(pasteboard.string(forType: .string), text)
+    }
+
+    /// Bundles from earlier sessions, so their words still bring their files after a relaunch.
+    func remember(_ items: [ClipboardItem]) {
+        if let split = PastePlan.split(items) { index.remember(split) }
+    }
 
     /// Leaves the words on the clipboard and waits for your ⌘V. False when it can't: nothing to follow with, or
     /// Accessibility isn't allowed; the caller then copies everything at once.
     func arm(_ items: [ClipboardItem]) -> Bool {
-        disarm()
-        guard AXIsProcessTrusted(), let split = PastePlan.split(items), BundleWriter.write([split.words]) else { return false }
-        self.split = split
-        armedCount = pasteboard.changeCount
+        guard watch(), let split = PastePlan.split(items), BundleWriter.write([split.words]) else { return false }
+        index.remember(split)
+        return true
+    }
+
+    @discardableResult
+    func watch() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        guard monitor == nil else { return true }
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let command = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
             guard event.keyCode == 9, command, !event.isARepeat else { return }
@@ -32,32 +43,42 @@ final class BundlePaster {
         return true
     }
 
-    func disarm() {
+    func stop() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
-        split = nil
     }
 
     private func pasted() {
-        guard let split, !delivering else { return }
-        guard pasteboard.changeCount == armedCount else { return disarm() }
-        guard PastePlan.takesFiles(appWithBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else { return }
-        let target = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard !delivering, let split = index.split(pasting: pasteboard.string(forType: .string)) else { return }
+        let files = split.files.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let front = NSWorkspace.shared.frontmostApplication
+        guard !files.isEmpty, PastePlan.takesFiles(appWithBundleID: front?.bundleIdentifier) else { return }
         delivering = true
         Task {
             defer { delivering = false }
             // The app in front reads the words first, and you let go of ⌘V.
             try? await Task.sleep(for: .milliseconds(220))
-            // Anything copied meanwhile, or another app in front, means this paste is no longer ours to finish.
-            guard pasteboard.changeCount == armedCount,
-                  NSWorkspace.shared.frontmostApplication?.processIdentifier == target else { return disarm() }
-            BundleWriter.write(split.files.map(ClipboardItem.file))
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == front?.processIdentifier else { return }
+            // A clipboard history may already have put back what was there before; whatever it is comes back after.
+            let before = Self.snapshot(pasteboard)
+            BundleWriter.write(files.map(ClipboardItem.file))
             let filesCount = pasteboard.changeCount
             Self.pressPaste()
             try? await Task.sleep(for: .milliseconds(600))
-            guard pasteboard.changeCount == filesCount else { return disarm() }
-            BundleWriter.write([split.words])
-            armedCount = pasteboard.changeCount
+            // Anything copied meanwhile is yours to keep.
+            guard pasteboard.changeCount == filesCount else { return }
+            pasteboard.clearContents()
+            pasteboard.writeObjects(before)
+        }
+    }
+
+    private static func snapshot(_ pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+        (pasteboard.pasteboardItems ?? []).map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+            }
+            return copy
         }
     }
 

@@ -20,7 +20,7 @@ struct SessionFolderTests {
     @Test func aDroppedFileKeepsItsNameWithoutSpaces() {
         var folder = SessionFolder(url: URL(fileURLWithPath: "/tmp/s"))
         let url = folder.reserve("spec sheet v2.pdf")
-        #expect(url.path == "/tmp/s/spec-sheet-v2.pdf")
+        #expect(url.path == "/tmp/s/attachments/spec-sheet-v2.pdf")
     }
 
     @Test func aRepeatedNameGetsANumber() {

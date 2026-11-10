@@ -1,13 +1,16 @@
 import Foundation
 
-/// Keeps each finished session as `session.json` in its own folder, beside its screenshots and files, so the menu
-/// can copy it again later, after a relaunch too.
+/// Keeps each session whole in its own folder, so the menu can copy it again later, after a relaunch too:
+/// `session.json` (every word with its time, every attachment and note), `transcript.md` (the text as it was
+/// copied), `audio.caf` (what you said) and `attachments/` (screenshots, clips, frames and dropped files).
 public struct SessionArchive: Sendable {
     public static let fileName = "session.json"
     /// The session so far, written each time an attachment lands, so a crash keeps them with the audio.
     public static let draftName = "draft.json"
     /// The session's audio, written as it is recorded. CAF stays readable even when Koe is killed mid-write.
     public static let audioName = "audio.caf"
+    /// The bundle's text exactly as Koe copies it, for reading without Koe.
+    public static let transcriptName = "transcript.md"
     public let root: URL
 
     public init(root: URL) {
@@ -17,6 +20,8 @@ public struct SessionArchive: Sendable {
     public func save(_ session: Session, in folder: URL) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Self.encoder.encode(session).write(to: folder.appending(path: Self.fileName), options: .atomic)
+        try Data(BundleComposer().compose(session).text.utf8)
+            .write(to: folder.appending(path: Self.transcriptName), options: .atomic)
         try? FileManager.default.removeItem(at: folder.appending(path: Self.draftName))
     }
 
