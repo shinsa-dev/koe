@@ -72,8 +72,8 @@ public enum PlaybackSpeed: Double, CaseIterable, Sendable {
     case quarter = 0.25
     case tenth = 0.1
 
-    /// The clip opens at a quarter speed: slow enough to follow most animations, quick enough to not drag.
-    public static let initial = PlaybackSpeed.quarter
+    /// The clip opens at full speed, as smooth as it was recorded; the slower speeds are one click away.
+    public static let initial = PlaybackSpeed.normal
 
     public var label: String {
         switch self {
@@ -156,5 +156,24 @@ public struct ClipReview: Sendable, Equatable {
             result.append((annotation: frame, after: recordingStart + pick.time))
         }
         return result
+    }
+}
+
+/// How a clip is recorded: every frame the screen draws, at a bit rate high enough that one frame reads clearly.
+public enum ClipQuality {
+    /// The screen's own refresh rate, between 60 and 120 frames a second.
+    public static func frameRate(ofScreen maximum: Int) -> Int {
+        min(120, max(60, maximum))
+    }
+
+    /// 0.08 bits a pixel a frame, between 6 and 32 Mbit/s: several times what the system's recorder spends.
+    public static func bitRate(width: Int, height: Int, frameRate: Int) -> Int {
+        let wanted = Double(width * height * frameRate) * 0.08
+        return Int(min(32_000_000, max(6_000_000, wanted)))
+    }
+
+    /// H.264 pastes everywhere but stops at 4096 × 2304; a larger region is recorded as HEVC.
+    public static func fitsH264(width: Int, height: Int) -> Bool {
+        width <= 4096 && height <= 2304
     }
 }

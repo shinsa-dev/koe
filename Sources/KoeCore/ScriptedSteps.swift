@@ -7,7 +7,7 @@ import Foundation
 /// `2 pin 400,300 Too tight` comments on the spot at 400,300 as if clicked; `2 pin 400,300 talk 2.5` instead takes what
 /// is said over the next 2.5 s as the comment, as the pill's listening does (a shot takes `talk` too).
 /// `shot!`, `pin!` and `clip!` open the tool and leave it open. `2 pause 3` pauses for 3 s of wall time and resumes;
-/// `4 finish` and `4 cancel` finish or discard the session.
+/// `3 list` opens the pill's list of attachments; `4 finish` and `4 cancel` finish or discard the session.
 public struct ScriptedStep: Sendable, Equatable {
     public enum Action: Sendable, Equatable {
         /// A region in the screen's own space (points from its top-left), and the note for it, or how long to listen
@@ -19,6 +19,7 @@ public struct ScriptedStep: Sendable, Equatable {
         /// A region to record for `seconds`, and the times into the clip whose frames to pick.
         case clip(CGRect, seconds: AudioTime, picks: [AudioTime])
         case pause(seconds: TimeInterval)
+        case attachments
         case finish
         case cancel
     }
@@ -84,6 +85,7 @@ public struct ScriptedStep: Sendable, Equatable {
         case "pause":
             guard let seconds = rest.flatMap({ TimeInterval($0) }), seconds > 0 else { return nil }
             return .pause(seconds: seconds)
+        case "list": return .attachments
         case "finish": return .finish
         case "cancel": return .cancel
         default: return nil

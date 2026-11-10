@@ -115,9 +115,13 @@ public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public var frame: ClipFrame?
     /// When you spoke about this attachment alone; what you said there is its note.
     public var voice: VoiceSpan?
+    /// True for a comment: a picture of what you clicked with a pin on the spot. Nil in sessions saved before
+    /// comments had a name of their own.
+    public var comment: Bool?
 
     public init(id: UUID = UUID(), time: AudioTime, kind: Kind, note: String? = nil, source: CaptureSource? = nil,
-                frame: ClipFrame? = nil, voice: VoiceSpan? = nil) {
+                frame: ClipFrame? = nil, voice: VoiceSpan? = nil, comment: Bool = false) {
+        self.comment = comment ? true : nil
         self.id = id
         self.time = max(0, time)
         self.kind = kind
@@ -126,6 +130,8 @@ public struct Annotation: Codable, Sendable, Equatable, Identifiable {
         self.frame = frame
         self.voice = voice
     }
+
+    public var isComment: Bool { comment == true }
 
     public var asset: Asset? {
         switch kind {

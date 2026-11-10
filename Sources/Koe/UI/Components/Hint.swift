@@ -3,7 +3,8 @@ import SwiftUI
 
 extension View {
     /// The web's `Hint`: a tooltip with a label and an optional key, in place of the system's `help` tag. It opens
-    /// after the pointer rests 600 ms, and the next one within 400 ms of the last opens at once.
+    /// only after the pointer rests 700 ms; moving straight on to a neighbour while one shows swaps it without the
+    /// wait. A click closes it and starts the wait over. It fades in and out.
     func hint(_ label: String, shortcut: String? = nil) -> some View {
         background(HintAnchor(label: label, shortcut: shortcut))
     }
@@ -41,9 +42,9 @@ struct HintBubble: View {
         .overlay(shape.strokeBorder(Palette.ringHover, lineWidth: 1))
         .fixedSize()
         .padding(2)
-        .scaleEffect(shown ? 1 : 0.95, anchor: .bottom)
-        .opacity(shown ? 1 : 0)
-        .onAppear { withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.15)) { shown = true } }
+        .scaleEffect(shown ? 1 : 0.96, anchor: .bottom)
+        .offset(y: shown ? 0 : 2)
+        .onAppear { withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.22)) { shown = true } }
     }
 
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 7, style: .continuous) }
@@ -85,7 +86,7 @@ final class HintAnchorView: NSView {
 
     override func mouseEntered(with event: NSEvent) { HintCenter.shared.enter(self) }
     override func mouseExited(with event: NSEvent) { HintCenter.shared.leave(self) }
-    override func mouseDown(with event: NSEvent) { HintCenter.shared.leave(self) }
+    override func mouseDown(with event: NSEvent) { HintCenter.shared.leave(self, clicked: true) }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -106,21 +107,29 @@ final class HintCenter {
     func enter(_ view: HintAnchorView) {
         anchor = view
         pending?.cancel()
-        let warm = Date().timeIntervalSince(lastClosed) < 0.4 || panel?.isVisible == true
+        let warm = Date().timeIntervalSince(lastClosed) < 0.3
         pending = Task { [weak self, weak view] in
-            if !warm { try? await Task.sleep(for: .milliseconds(600)) }
+            if !warm { try? await Task.sleep(for: .milliseconds(700)) }
             guard !Task.isCancelled, let self, let view, self.anchor === view else { return }
             self.show(for: view)
         }
     }
 
-    func leave(_ view: HintAnchorView) {
+    func leave(_ view: HintAnchorView, clicked: Bool = false) {
         guard anchor === view else { return }
         anchor = nil
         pending?.cancel()
-        if panel?.isVisible == true {
-            panel?.orderOut(nil)
-            lastClosed = Date()
+        guard let panel, panel.isVisible, panel.alphaValue > 0 else { return }
+        // Only moving off a showing hint keeps the next one warm; a click starts the wait again.
+        lastClosed = clicked ? .distantPast : Date()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.14
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                if self?.anchor == nil { panel.orderOut(nil) }
+            }
         }
     }
 
@@ -139,7 +148,13 @@ final class HintCenter {
             if origin.y + size.height > screen.maxY { origin.y = rect.minY - size.height - 2 }
         }
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        panel.alphaValue = 0
         panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
     }
 
     private func makePanel() -> NSPanel {

@@ -138,6 +138,16 @@ struct BundleComposerTests {
         #expect(bundle.assets.map(\.asset.url.lastPathComponent) == ["a.png", "b.png"])
     }
 
+    @Test func aCommentIsNamedACommentNotAnImage() {
+        let image = Asset(url: URL(fileURLWithPath: "/tmp/koe/pin.png"))
+        let pinned = Annotation(time: 1, kind: .screenshot(image), source: CaptureSource(app: "Dia", window: "Issues"),
+                                comment: true)
+        let bare = Annotation(time: 2, kind: .screenshot(image), comment: true)
+        let text = composer.compose(Session(annotations: [pinned, bare])).text
+        #expect(text.contains("[1] Comment on Dia, \"Issues\": /tmp/koe/pin.png"))
+        #expect(text.contains("[2] Comment, pinned where you clicked: /tmp/koe/pin.png"))
+    }
+
     @Test func emptySessionIsEmpty() {
         let bundle = composer.compose(Session())
         #expect(bundle.text.isEmpty)

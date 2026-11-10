@@ -175,15 +175,19 @@ frames picked so far.
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
   you spent talking about an attachment never breaks a paragraph.
 - **The list.** The paperclip count beside the tools opens what the session holds (`AttachmentList`), to check each
-  one and take any out (`SessionController.remove`).
+  one, open a picture or clip larger with a click, and take any out (`SessionController.remove`). A comment is a
+  screenshot of what you clicked with a pin on the spot (`Annotation.comment`), named "Comment" there and in the
+  bundle.
 - **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording
-  down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` records
-  it with ScreenCaptureKit's `SCRecordingOutput` at up to 60 fps, with the pointer and without Koe's windows, to
-  `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
-  stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 0.25× (`PlaybackSpeed`): play
+  down. Pick a region as for a screenshot (the pick starts recording). `ClipRecorder` takes
+  ScreenCaptureKit's frames at the screen's refresh rate and encodes them itself (`ClipQuality`: 0.08 bits a pixel
+  a frame, 6 to 32 Mbit/s, H.264 or HEVC past 4096 × 2304), since `SCRecordingOutput` has no bit rate to set and
+  its pictures were too soft to step through. With the pointer and without Koe's windows, to `clip-<n>.mov`. A dashed red outline and a card with the clock show while it records; ⌥⇧C again, the card's Stop,
+  stopping the session or 30 s (`ClipFrames.longest`) stops it. Then the clip opens at 1× (`PlaybackSpeed`): play
   it at 1×, 0.5×, 0.25× or 0.1×, step with ← and → (⇧ for ten), scrub, and press P to pick a frame. Each picked frame has
-  "Talk about this frame": what you say until you click it again is that frame's note, and the row then shows those
-  words (`SessionController.spoken(in:)`) with a button to say them again. Return attaches, Esc discards.
+  "Talk about this frame": what you say until you click it again is that frame's note, and the row then confirms it
+  ("Note recorded", then those words once heard, `SessionController.spoken(in:)`) with a button beside it to say
+  them again. Return attaches, Esc discards.
 - A screen recording only stores a frame when something changed, so `ClipMovie` reads the clip's real frame times
   (`ClipFrames`) and stepping goes from one change to the next. Seeks aim at the middle of a frame and frames are
   pulled with zero tolerance, so the image you pick is the one you saw.

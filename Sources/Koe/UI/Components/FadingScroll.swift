@@ -1,42 +1,52 @@
 import SwiftUI
 
-/// A list that scrolls inside a fixed height the way the web's lists do: no scroll bar, and the rows fade out at
-/// whichever edge has more to show.
+/// A list that scrolls inside a fixed height the way the web's lists do: never a scroll bar, and the rows melt away
+/// at whichever edge has more to show. The fade grows in with the first points of scrolling, so it never pops.
 struct FadingScroll<Content: View>: View {
     let maxHeight: CGFloat
     @ViewBuilder var content: Content
-    @State private var more = Edge.Set()
+    @State private var hidden = Hidden()
 
-    private static var fade: CGFloat { 16 }
+    private struct Hidden: Equatable {
+        var above: CGFloat = 0
+        var below: CGFloat = 0
+    }
+
+    private static var fade: CGFloat { 36 }
 
     var body: some View {
         ScrollView {
             content
         }
-        .scrollIndicators(.hidden)
-        .onScrollGeometryChange(for: Edge.Set.self) { geometry in
-            var edges = Edge.Set()
-            if geometry.contentOffset.y > 1 { edges.insert(.top) }
-            if geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 1 {
-                edges.insert(.bottom)
-            }
-            return edges
-        } action: { _, edges in
-            more = edges
+        // `.hidden` yields to "Always show scroll bars" in System Settings; `.never` does not.
+        .scrollIndicators(.never)
+        .onScrollGeometryChange(for: Hidden.self) { geometry in
+            let above = geometry.contentOffset.y + geometry.contentInsets.top
+            let below = geometry.contentSize.height - geometry.containerSize.height - above
+            return Hidden(above: max(0, above.rounded()), below: max(0, below.rounded()))
+        } action: { _, value in
+            hidden = value
         }
         .mask {
             VStack(spacing: 0) {
-                LinearGradient(colors: [Palette.shadow.opacity(more.contains(.top) ? 0 : 1), Palette.shadow],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(height: Self.fade)
+                edge(strength: hidden.above, towards: .top)
                 Palette.shadow
-                LinearGradient(colors: [Palette.shadow, Palette.shadow.opacity(more.contains(.bottom) ? 0 : 1)],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(height: Self.fade)
+                edge(strength: hidden.below, towards: .bottom)
             }
-            .animation(.easeOut(duration: 0.15), value: more)
         }
         .frame(maxHeight: maxHeight)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// An eased ramp from clear at the edge to solid, as strong as there is content hidden behind it.
+    private func edge(strength hiddenPoints: CGFloat, towards edge: VerticalEdge) -> some View {
+        let strength = min(1, hiddenPoints / Self.fade)
+        let stops = [0, 0.15, 0.35, 0.6, 1].map { position -> Gradient.Stop in
+            let eased = position * position * (3 - 2 * position)
+            return Gradient.Stop(color: Palette.shadow.opacity(1 - strength * (1 - eased)), location: position)
+        }
+        return LinearGradient(stops: stops, startPoint: edge == .top ? .top : .bottom,
+                              endPoint: edge == .top ? .bottom : .top)
+            .frame(height: Self.fade)
     }
 }

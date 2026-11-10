@@ -214,7 +214,8 @@ final class ToolCoordinator {
             do {
                 try await Task.detached { try PNG.write(crop, to: url) }.value
                 sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)),
-                                                        note: note, source: source, voice: voice))
+                                                        note: note, source: source, voice: voice,
+                                                        comment: choice.pin != nil))
             } catch {
                 sessions.post(notice: "Koe couldn't save the screenshot.")
                 sessions.close(ticket, with: nil)

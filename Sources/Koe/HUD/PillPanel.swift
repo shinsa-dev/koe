@@ -70,7 +70,7 @@ final class PillController {
     func toggleAttachments() {
         if list != nil { return closeAttachments() }
         guard !sessions.attachments.isEmpty else { return }
-        let size = NSSize(width: AttachmentList.width + 40, height: 360)
+        let size = NSSize(width: AttachmentList.width + 40, height: 440)
         let frame = panel.frame
         let list = ToolPanel(frame: NSRect(x: frame.midX - size.width / 2, y: frame.minY + PillPanel.cardsAbove - 20,
                                            width: size.width, height: size.height), level: PillPanel.level)

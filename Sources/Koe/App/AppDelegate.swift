@@ -150,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             sessions.pause()
             try? await Task.sleep(for: .seconds(seconds))
             sessions.resume()
+        case .attachments: pill.toggleAttachments()
         case .finish: sessions.finish()
         case .cancel: sessions.cancel()
         }

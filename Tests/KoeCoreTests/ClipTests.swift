@@ -53,8 +53,8 @@ struct ClipFramesTests {
         #expect(empty.fraction(of: 0) == 0)
     }
 
-    @Test func aClipOpensAtAQuarterSpeed() {
-        #expect(PlaybackSpeed.initial.rawValue == 0.25)
+    @Test func aClipOpensAtFullSpeed() {
+        #expect(PlaybackSpeed.initial == .normal)
         #expect(PlaybackSpeed.allCases.map(\.label) == ["1×", "0.5×", "0.25×", "0.1×"])
     }
 }
@@ -213,6 +213,10 @@ struct ClipScriptTests {
         #expect(throws: ScriptedStep.ParseError.self) { try ScriptedStep.parse("1 pause") }
     }
 
+    @Test func parsesOpeningTheAttachmentList() throws {
+        #expect(try ScriptedStep.parse("3 list") == [ScriptedStep(time: 3, action: .attachments)])
+    }
+
     @Test func parsesAClipWithPicks() throws {
         let steps = try ScriptedStep.parse("6 clip! 120,80,640,360 2 0.4,1.1; 2 clip 0,0,10,10 1.5")
         #expect(steps == [
@@ -225,5 +229,26 @@ struct ClipScriptTests {
     @Test(arguments: ["1 clip 0,0,10,10", "1 clip 0,0,10,10 0", "1 clip 0,0,10 2", "1 clip 0,0,10,10 2 0.1 extra"])
     func rejectsABadClip(_ script: String) {
         #expect(throws: ScriptedStep.ParseError.self) { try ScriptedStep.parse(script) }
+    }
+}
+
+struct ClipQualityTests {
+    @Test func recordsAtTheScreensRefreshRate() {
+        #expect(ClipQuality.frameRate(ofScreen: 60) == 60)
+        #expect(ClipQuality.frameRate(ofScreen: 120) == 120)
+        #expect(ClipQuality.frameRate(ofScreen: 30) == 60)
+        #expect(ClipQuality.frameRate(ofScreen: 240) == 120)
+    }
+
+    @Test func theBitRateFollowsThePictureWithinItsBounds() {
+        #expect(ClipQuality.bitRate(width: 1600, height: 1000, frameRate: 60) == 7_680_000)
+        #expect(ClipQuality.bitRate(width: 200, height: 100, frameRate: 60) == 6_000_000)
+        #expect(ClipQuality.bitRate(width: 5120, height: 2880, frameRate: 120) == 32_000_000)
+    }
+
+    @Test func aRegionPastH264sLimitIsHEVC() {
+        #expect(ClipQuality.fitsH264(width: 4096, height: 2304))
+        #expect(!ClipQuality.fitsH264(width: 5120, height: 2880))
+        #expect(!ClipQuality.fitsH264(width: 1000, height: 2400))
     }
 }

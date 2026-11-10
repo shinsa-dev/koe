@@ -81,7 +81,7 @@ public struct BundleComposer: Sendable {
         let numbers = Dictionary(uniqueKeysWithValues: assets.map { ($0.annotationID, $0.number) })
         let footer = assets.map { item in
             let annotation = byID[item.annotationID]
-            return (item, describe(item.asset, source: annotation?.source, frame: annotation?.frame, numbers: numbers))
+            return (item, describe(item.asset, of: annotation, numbers: numbers))
         }
 
         var text = paragraphs.map { $0.map(\.plain).joined(separator: " ") }.joined(separator: "\n\n")
@@ -176,14 +176,21 @@ public struct BundleComposer: Sendable {
         return paragraphs.filter { !$0.isEmpty }
     }
 
-    /// "Image of Safari, "Settings"", or for a frame picked out of clip [3], "Frame 0.42 s into [3], of Figma".
-    private func describe(_ asset: Asset, source: CaptureSource?, frame: ClipFrame?, numbers: [UUID: Int]) -> String {
+    /// "Image of Safari, "Settings"", "Comment on Safari, "Settings"" for a pinned comment, or for a frame picked
+    /// out of clip [3], "Frame 0.42 s into [3], of Figma".
+    private func describe(_ asset: Asset, of annotation: Annotation?, numbers: [UUID: Int]) -> String {
+        let source = annotation?.source
+        if annotation?.isComment == true {
+            guard let source else { return "Comment, pinned where you clicked" }
+            if let window = source.window, !window.isEmpty { return "Comment on \(source.app), \"\(window)\"" }
+            return "Comment on \(source.app)"
+        }
         var name = switch asset.kind {
         case .image: "Image"
         case .video: "Video"
         case .file: "File"
         }
-        if let frame {
+        if let frame = annotation?.frame {
             let seconds = String(format: "%.2f s", frame.time)
             name = numbers[frame.clipID].map { "Frame \(seconds) into [\($0)]" } ?? "Frame \(seconds) into a clip"
             guard let source else { return name }

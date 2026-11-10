@@ -1,10 +1,11 @@
 import Foundation
 
-/// How the pill's list names what a session holds: "Screenshot", "Frame 0.42 s into the clip", "spec.pdf", with
+/// How the pill's list names what a session holds: "Comment", "Screenshot", "Frame 0.42 s into the clip", "spec.pdf", with
 /// where it came from and when you added it beneath.
 public enum AttachmentLabel {
     public static func title(of annotation: Annotation) -> String {
         if let frame = annotation.frame { return String(format: "Frame %.2f s into the clip", frame.time) }
+        if annotation.isComment { return "Comment" }
         switch annotation.kind {
         case .screenshot: return annotation.voice != nil ? "Screenshot with what you said" : "Screenshot"
         case .clip: return "Clip"

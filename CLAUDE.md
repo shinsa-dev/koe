@@ -24,7 +24,8 @@ behaviour it describes.
   `SettingsGroup`/`SettingRow` cards, `Badge` (the web's `Badge`), `Kbd`, `TextInput` (the web's `Input`) and
   `.hint(_:shortcut:)` (the web's `Hint` tooltip; never `.help`). Each matches its React file in
   `packages/ui/src/components` size for size and variant for variant; change both together. Shortcuts live in
-  hints, never inside a button. No focus rings anywhere (`focusEffectDisabled`). Never system push buttons, switches
+  hints, never inside a button. A button that sits in a row (close, remove) is a ghost: `.secondary`, or
+  `.destructiveGhost` for remove, never a filled one. A list never shows a scroll bar: it is a `FadingScroll`. No focus rings anywhere (`focusEffectDisabled`). Never system push buttons, switches
   or segmented controls. ABC Areal through
   `Typography`, colours through `Palette`/`Tone` (`Tokens.swift` is generated: change the web token and rerun
   `scripts/tokens.py`), glyphs through `Icon`: the web's Central Icons, an SF Symbol only where Central has none.

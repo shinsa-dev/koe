@@ -2,7 +2,7 @@ import KoeCore
 import SwiftUI
 
 /// One picked frame: its picture, when it showed, and what you said about it. Before you speak it offers to
-/// listen; afterwards it shows your words, with a button to say them again.
+/// listen; afterwards it confirms the note with your words, and a button beside them to say it again.
 struct PickedFrameRow: View {
     let pick: PickedFrame
     let thumbnail: CGImage?
@@ -43,14 +43,8 @@ struct PickedFrameRow: View {
             .animation(GlyphSwap.animation, value: talking)
             .animation(GlyphSwap.animation, value: pick.voice == nil)
             Spacer(minLength: 0)
-            if pick.voice != nil, !talking {
-                Button(action: talk) { IconView(icon: .retake, size: .small, color: nil) }
-                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
-                    .hint("Say it again")
-                    .accessibilityLabel("Say this frame's note again")
-            }
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.destructiveSoft, size: .small, iconOnly: true))
+                .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true))
                 .hint("Remove this frame")
                 .accessibilityLabel("Remove frame at \(String(format: "%.2f", pick.time)) seconds")
         }
@@ -74,17 +68,25 @@ struct PickedFrameRow: View {
         .hint(talking ? "Stop and keep what you said" : "What you say next becomes this frame's note")
     }
 
-    /// Your words for this frame. The model settles them a moment after you stop, so the line keeps reading them.
+    /// Confirms the note was kept, with your words once the model has them, and the button to say it again right
+    /// beside it: the same place the listening button takes when you do.
     private var spokenNote: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-            let text = note() ?? ""
-            Text(text.isEmpty ? "Hearing what you said…" : text)
-                .font(Typography.meta)
-                .foregroundStyle(text.isEmpty ? Palette.fg2 : Palette.fg4)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .contentTransition(.opacity)
-                .animation(.snappy(duration: 0.2), value: text)
+        HStack(spacing: 6) {
+            IconView(icon: .checkmark, size: .small, color: Tone.green.ink)
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                let text = note() ?? ""
+                Text(text.isEmpty ? "Note recorded" : text)
+                    .font(Typography.meta)
+                    .foregroundStyle(Palette.fg4)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .contentTransition(.opacity)
+                    .animation(.snappy(duration: 0.2), value: text)
+            }
+            Button(action: talk) { IconView(icon: .retake, size: .small, color: nil) }
+                .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
+                .hint("Say it again")
+                .accessibilityLabel("Say this frame's note again")
         }
     }
 }
