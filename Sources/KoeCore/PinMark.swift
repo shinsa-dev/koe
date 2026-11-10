@@ -1,8 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// The pin a comment leaves on its screenshot: a blue dot ringed in white with a soft shadow, where you clicked, so
-/// the agent sees exactly what the comment is about.
+/// The pin a comment leaves on its screenshot: a blue dot ringed in white inside a wide blue halo, where you
+/// clicked, so the agent sees exactly what the comment is about.
 public enum PinMark {
     /// Shinsa's blue (`--primary-4`, light).
     static let blue = CGColor(srgbRed: 0, green: 0x7B / 255, blue: 0xFC / 255, alpha: 1)
@@ -12,6 +12,12 @@ public enum PinMark {
     public static func location(of point: CGPoint, in region: CGRect, scale: CGFloat) -> CGPoint? {
         guard region.contains(point) else { return nil }
         return CGPoint(x: (point.x - region.minX) * scale, y: (point.y - region.minY) * scale)
+    }
+
+    /// The same point as fractions of the region, for the bundle's words.
+    public static func place(of point: CGPoint, in region: CGRect) -> PinPlace? {
+        guard region.contains(point), region.width > 0, region.height > 0 else { return nil }
+        return PinPlace(x: (point.x - region.minX) / region.width, y: (point.y - region.minY) / region.height)
     }
 
     /// The image with a pin drawn at `point`, in pixels from its top left. `radius` is the dot's, in pixels.
@@ -26,6 +32,13 @@ public enum PinMark {
         // Core Graphics counts from the bottom left.
         let center = CGPoint(x: point.x, y: CGFloat(height) - point.y)
         let ring = radius * 1.35
+        let halo = radius * 3.4
+        let around = CGRect(x: center.x - halo, y: center.y - halo, width: halo * 2, height: halo * 2)
+        context.setFillColor(blue.copy(alpha: 0.16) ?? blue)
+        context.fillEllipse(in: around)
+        context.setStrokeColor(blue.copy(alpha: 0.9) ?? blue)
+        context.setLineWidth(max(1, radius * 0.3))
+        context.strokeEllipse(in: around)
         context.setShadow(offset: CGSize(width: 0, height: -radius * 0.2), blur: radius * 0.8,
                           color: CGColor(gray: 0, alpha: 0.35))
         context.setFillColor(CGColor(gray: 1, alpha: 1))

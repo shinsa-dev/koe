@@ -13,6 +13,21 @@ struct PinMarkTests {
         #expect(PinMark.location(of: CGPoint(x: 20, y: 80), in: region, scale: 2) == nil)
     }
 
+    @Test func aPointIsPlacedAsFractionsOfTheRegion() {
+        let region = CGRect(x: 100, y: 50, width: 400, height: 300)
+        let place = PinMark.place(of: CGPoint(x: 300, y: 125), in: region)
+        #expect(place == PinPlace(x: 0.5, y: 0.25))
+        #expect(place?.words == "50% across and 25% down")
+        #expect(PinMark.place(of: CGPoint(x: 20, y: 80), in: region) == nil)
+    }
+
+    @Test func theHaloTintsTheRingAroundTheDot() throws {
+        let image = try #require(Self.white(width: 200, height: 100))
+        let pinned = try #require(PinMark.draw(on: image, at: CGPoint(x: 100, y: 50), radius: 10))
+        let inHalo = try #require(Self.pixel(of: pinned, x: 125, y: 50))
+        #expect(inHalo[2] > inHalo[0])
+    }
+
     @Test func thePinIsBlueAtItsCentreAndLeavesTheRestAlone() throws {
         let image = try #require(Self.white(width: 200, height: 100))
         let pinned = try #require(PinMark.draw(on: image, at: CGPoint(x: 50, y: 30), radius: 10))

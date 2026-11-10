@@ -96,6 +96,22 @@ public struct VoiceSpan: Codable, Sendable, Equatable {
     }
 }
 
+/// Where a pin sits in a picture, as fractions of its width and height from the top left.
+public struct PinPlace: Codable, Sendable, Equatable {
+    public var x: Double
+    public var y: Double
+
+    public init(x: Double, y: Double) {
+        self.x = min(1, max(0, x))
+        self.y = min(1, max(0, y))
+    }
+
+    /// "58% across and 60% down": what an agent reads beside the picture.
+    public var words: String {
+        "\(Int((x * 100).rounded()))% across and \(Int((y * 100).rounded()))% down"
+    }
+}
+
 /// Something you added while talking, stamped with the audio time at the moment you started it.
 public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     public enum Kind: Codable, Sendable, Equatable {
@@ -118,10 +134,13 @@ public struct Annotation: Codable, Sendable, Equatable, Identifiable {
     /// True for a comment: a picture of what you clicked with a pin on the spot. Nil in sessions saved before
     /// comments had a name of their own.
     public var comment: Bool?
+    /// Where a comment's pin sits in its picture, so the bundle can say it in words too.
+    public var pin: PinPlace?
 
     public init(id: UUID = UUID(), time: AudioTime, kind: Kind, note: String? = nil, source: CaptureSource? = nil,
-                frame: ClipFrame? = nil, voice: VoiceSpan? = nil, comment: Bool = false) {
+                frame: ClipFrame? = nil, voice: VoiceSpan? = nil, comment: Bool = false, pin: PinPlace? = nil) {
         self.comment = comment ? true : nil
+        self.pin = pin
         self.id = id
         self.time = max(0, time)
         self.kind = kind

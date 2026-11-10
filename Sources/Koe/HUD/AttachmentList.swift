@@ -9,6 +9,7 @@ struct AttachmentList: View {
     let sessions: SessionController
     let open: (Annotation) -> Void
     let close: () -> Void
+    @State private var shown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -18,11 +19,13 @@ struct AttachmentList: View {
                     .foregroundStyle(Palette.fg2)
                 Spacer()
                 Button(action: close) { IconView(icon: .close, size: .small, color: nil) }
-                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
+                    .buttonStyle(.koe(.secondary, size: .small, iconOnly: true, round: true))
                     .hint("Close", shortcut: "Esc")
                     .accessibilityLabel("Close")
             }
-            .padding(.leading, 6)
+            // The same inset as a row, so the close button sits exactly above the remove buttons.
+            .padding(.horizontal, 6)
+            .padding(.top, 2)
             FadingScroll(maxHeight: 340) {
                 VStack(spacing: 2) {
                     ForEach(sessions.attachments.reversed()) { annotation in
@@ -40,6 +43,11 @@ struct AttachmentList: View {
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 16, shadow: false)
         .animation(.spring(duration: 0.3, bounce: 0.15), value: sessions.attachments.map(\.id))
+        // It grows out of the pill below it, the way the pill itself arrives.
+        .scaleEffect(shown ? 1 : 0.9, anchor: .bottom)
+        .blur(radius: shown ? 0 : 6)
+        .opacity(shown ? 1 : 0)
+        .onAppear { withAnimation(.spring(duration: 0.32, bounce: 0.2)) { shown = true } }
     }
 }
 
@@ -66,7 +74,7 @@ private struct AttachmentRow: View {
             .truncationMode(.middle)
             Spacer(minLength: 4)
             Button(action: remove) { IconView(icon: .trash, size: .small, color: nil) }
-                .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true))
+                .buttonStyle(.koe(.destructiveGhost, size: .small, iconOnly: true, round: true))
                 .hint("Take it out")
                 .accessibilityLabel("Remove \(AttachmentLabel.title(of: annotation))")
         }
@@ -85,6 +93,11 @@ private struct AttachmentThumbnail: View {
     let annotation: Annotation
     @State private var image: CGImage?
 
+    init(annotation: Annotation) {
+        self.annotation = annotation
+        _image = State(initialValue: ThumbnailCache.shared.image(for: annotation.id))
+    }
+
     var body: some View {
         ZStack {
             Palette.press
@@ -97,7 +110,10 @@ private struct AttachmentThumbnail: View {
         .frame(width: 44, height: 30)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Palette.hudRing, lineWidth: 1))
-        .task(id: annotation.id) { image = await AttachmentViewer.image(of: annotation, maxSide: 176) }
+        .task(id: annotation.id) {
+            guard image == nil else { return }
+            image = await AttachmentViewer.image(of: annotation, maxSide: ThumbnailCache.side)
+        }
     }
 
     private var icon: Icon {

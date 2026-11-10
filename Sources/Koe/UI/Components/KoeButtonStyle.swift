@@ -13,9 +13,11 @@ struct KoeButtonStyle: ButtonStyle {
     var variant: Variant = .primary
     var size: Size = .regular
     var iconOnly = false
+    /// A circle or capsule instead of the web's rounded square: for a button that sits in a round corner.
+    var round = false
 
     func makeBody(configuration: Configuration) -> some View {
-        KoeButton(configuration: configuration, variant: variant, size: size, iconOnly: iconOnly)
+        KoeButton(configuration: configuration, variant: variant, size: size, iconOnly: iconOnly, round: round)
     }
 }
 
@@ -24,6 +26,7 @@ private struct KoeButton: View {
     let variant: KoeButtonStyle.Variant
     let size: KoeButtonStyle.Size
     let iconOnly: Bool
+    let round: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var scheme
     @State private var hovering = false
@@ -38,9 +41,10 @@ private struct KoeButton: View {
     }
 
     private var radius: CGFloat {
+        if round { return height / 2 }
         switch size {
-        case .tiny, .small: 6
-        case .regular, .large: 7
+        case .tiny, .small: return 6
+        case .regular, .large: return 7
         }
     }
 
@@ -136,8 +140,9 @@ extension ButtonStyle where Self == KoeButtonStyle {
     static func koe(
         _ variant: KoeButtonStyle.Variant = .primary,
         size: KoeButtonStyle.Size = .regular,
-        iconOnly: Bool = false
+        iconOnly: Bool = false,
+        round: Bool = false
     ) -> KoeButtonStyle {
-        KoeButtonStyle(variant: variant, size: size, iconOnly: iconOnly)
+        KoeButtonStyle(variant: variant, size: size, iconOnly: iconOnly, round: round)
     }
 }

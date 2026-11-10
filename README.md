@@ -179,12 +179,16 @@ frames picked so far.
   what you say until you click its check is the comment. Clicking something else finishes that comment and starts
   the next one there (`RegionPicker.onCommit`), each on its own ticket. The pill's buttons keep the session's
   order: discard, pause, confirm; pause is the session's own pause, so the comment greys like the waveform does. The screenshot is the window you clicked (or 640 × 400
-  around the spot when there is none) with a blue pin where you clicked (`PinMark`, `KoeCore`).
+  around the spot when there is none) with a blue pin in a wide halo where you clicked (`PinMark`, `KoeCore`), and
+  the bundle says where it is in words too ("at the blue pin 58% across and 60% down", `PinPlace`), so an agent
+  that misses the dot still knows the spot.
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
   you spent talking about an attachment never breaks a paragraph.
 - **The list.** The paperclip count beside the tools opens what the session holds (`AttachmentList`), to check each
-  one, open a picture or clip larger with a click, and take any out (`SessionController.remove`). A comment is a
+  one, open a picture or clip larger with a click, and take any out (`SessionController.remove`). The viewer's card
+  is as wide as its picture; pinch or double-click zooms and a drag pans. Previews are made as things are attached
+  (`ThumbnailCache`), so the list never opens on a placeholder. A comment is a
   screenshot of what you clicked with a pin on the spot (`Annotation.comment`), named "Comment" there and in the
   bundle.
 - **Clip, ⌥⇧C.** macOS has no public way to slow other apps down, so Koe records instead and you slow the recording

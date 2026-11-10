@@ -143,7 +143,10 @@ struct BundleComposerTests {
         let pinned = Annotation(time: 1, kind: .screenshot(image), source: CaptureSource(app: "Dia", window: "Issues"),
                                 comment: true)
         let bare = Annotation(time: 2, kind: .screenshot(image), comment: true)
-        let text = composer.compose(Session(annotations: [pinned, bare])).text
+        let placed = Annotation(time: 3, kind: .screenshot(image), source: CaptureSource(app: "Dia", window: nil),
+                                comment: true, pin: PinPlace(x: 0.584, y: 0.6))
+        let text = composer.compose(Session(annotations: [pinned, bare, placed])).text
+        #expect(text.contains("[3] Comment on Dia, at the blue pin 58% across and 60% down: /tmp/koe/pin.png"))
         #expect(text.contains("[1] Comment on Dia, \"Issues\": /tmp/koe/pin.png"))
         #expect(text.contains("[2] Comment, pinned where you clicked: /tmp/koe/pin.png"))
     }

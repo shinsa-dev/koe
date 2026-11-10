@@ -32,6 +32,7 @@ struct PillView: View {
             .frame(maxWidth: .infinity)
             .animation(.spring(duration: 0.45, bounce: 0.2), value: content)
             .animation(.spring(duration: 0.35, bounce: 0.2), value: sessions.annotationCount > 0)
+            .task(id: sessions.attachments.map(\.id)) { await ThumbnailCache.shared.warm(sessions.attachments) }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Koe")
     }

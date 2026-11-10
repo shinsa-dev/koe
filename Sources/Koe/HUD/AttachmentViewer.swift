@@ -12,6 +12,12 @@ struct AttachmentViewer: View {
     @State private var image: CGImage?
     @State private var player: AVPlayer?
     @State private var shown = false
+    @State private var zoom: CGFloat = 1
+    @State private var pinch: CGFloat = 1
+    @State private var offset = CGSize.zero
+    @State private var drag = CGSize.zero
+
+    private static let zoomRange: ClosedRange<CGFloat> = 1...8
 
     static func shows(_ annotation: Annotation) -> Bool {
         switch annotation.kind {
@@ -52,17 +58,20 @@ struct AttachmentViewer: View {
                     }
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    Spacer()
+                    Spacer(minLength: 0)
                     Button(action: close) { IconView(icon: .close, size: .small, color: nil) }
-                        .buttonStyle(.koe(.secondary, size: .small, iconOnly: true))
+                        .buttonStyle(.koe(.secondary, size: .small, iconOnly: true, round: true))
                         .hint("Close", shortcut: "Esc")
                         .accessibilityLabel("Close")
                 }
+                .padding(.leading, 4)
                 content
                     .frame(width: fitted.width, height: fitted.height)
                     .background(Palette.well)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
+            // The card is as wide as its picture, never the screen.
+            .frame(width: fitted.width)
             .padding(12)
             .floatingSurface(cornerRadius: 18, shadow: false)
             .scaleEffect(shown ? 1 : 0.9)
@@ -80,6 +89,46 @@ struct AttachmentViewer: View {
             ClipPlayerView(player: player)
         } else if let image {
             Image(decorative: image, scale: 1).resizable().scaledToFit()
+                .scaleEffect(scale)
+                .offset(panned)
+                .contentShape(Rectangle())
+                .gesture(MagnifyGesture()
+                    .onChanged { pinch = $0.magnification }
+                    .onEnded { _ in
+                        zoom = scale
+                        pinch = 1
+                        settle()
+                    })
+                .simultaneousGesture(DragGesture()
+                    .onChanged { if zoom > 1 { drag = $0.translation } }
+                    .onEnded { _ in
+                        offset = panned
+                        drag = .zero
+                        settle()
+                    })
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring(duration: 0.3, bounce: 0.1)) {
+                        zoom = zoom > 1 ? 1 : 2.5
+                        offset = .zero
+                    }
+                }
+        }
+    }
+
+    private var scale: CGFloat {
+        min(Self.zoomRange.upperBound, max(Self.zoomRange.lowerBound, zoom * pinch))
+    }
+
+    private var panned: CGSize {
+        CGSize(width: offset.width + drag.width, height: offset.height + drag.height)
+    }
+
+    /// Keeps the zoomed picture from being dragged off its frame.
+    private func settle() {
+        let reach = CGSize(width: fitted.width * (zoom - 1) / 2, height: fitted.height * (zoom - 1) / 2)
+        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+            offset = CGSize(width: min(reach.width, max(-reach.width, offset.width)),
+                            height: min(reach.height, max(-reach.height, offset.height)))
         }
     }
 
@@ -93,7 +142,8 @@ struct AttachmentViewer: View {
     }
 
     private func load() async {
-        image = await Self.image(of: annotation, maxSide: 3200)
+        image = ThumbnailCache.shared.image(for: annotation.id)
+        image = await Self.image(of: annotation, maxSide: 3200) ?? image
         guard case .clip(let asset) = annotation.kind else { return }
         let player = AVPlayer(url: asset.url)
         player.isMuted = true
@@ -107,5 +157,24 @@ struct AttachmentViewer: View {
         }
         self.player = player
         player.play()
+    }
+}
+
+/// The small pictures of what a session holds, made as each thing is attached so the list never opens on a
+/// placeholder.
+@MainActor
+final class ThumbnailCache {
+    static let shared = ThumbnailCache()
+    static let side: CGFloat = 176
+    private var images: [UUID: CGImage] = [:]
+
+    func image(for id: UUID) -> CGImage? { images[id] }
+
+    func warm(_ annotations: [Annotation]) async {
+        let ids = Set(annotations.map(\.id))
+        images = images.filter { ids.contains($0.key) }
+        for annotation in annotations where images[annotation.id] == nil {
+            images[annotation.id] = await AttachmentViewer.image(of: annotation, maxSide: Self.side)
+        }
     }
 }

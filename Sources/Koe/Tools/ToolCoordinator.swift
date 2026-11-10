@@ -210,12 +210,13 @@ final class ToolCoordinator {
             let scale = CGFloat(screen.image.width) / max(1, screen.frame.width)
             let crop = choice.pin
                 .flatMap { PinMark.location(of: $0, in: choice.region, scale: scale) }
-                .flatMap { PinMark.draw(on: cut, at: $0, radius: 6 * scale) } ?? cut
+                .flatMap { PinMark.draw(on: cut, at: $0, radius: 7 * scale) } ?? cut
             do {
                 try await Task.detached { try PNG.write(crop, to: url) }.value
                 sessions.close(ticket, with: Annotation(time: ticket.time, kind: .screenshot(Asset(url: url)),
                                                         note: note, source: source, voice: voice,
-                                                        comment: choice.pin != nil))
+                                                        comment: choice.pin != nil,
+                                                        pin: choice.pin.flatMap { PinMark.place(of: $0, in: choice.region) }))
             } catch {
                 sessions.post(notice: "Koe couldn't save the screenshot.")
                 sessions.close(ticket, with: nil)
