@@ -33,7 +33,7 @@ private struct QuickPin: View {
             .blur(radius: presence.shown ? 0 : 4)
             .opacity(presence.shown ? 1 : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { withAnimation(.spring(duration: 0.2, bounce: 0.2)) { presence.shown = true } }
+            .onAppear { withAnimation(.spring(duration: 0.12, bounce: 0.15)) { presence.shown = true } }
     }
 }
 

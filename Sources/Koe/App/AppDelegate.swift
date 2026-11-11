@@ -40,15 +40,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// `--audio-file <path>` plays a recording into each session instead of the microphone.
     private let audioFile: URL? = Launch.value(after: "--audio-file").map { URL(fileURLWithPath: $0) }
 
-    /// Koe's mark, the icon's curved cut and dot, as a template the menu bar tints.
-    private static var menuBarMark: NSImage {
-        let url = Bundle.main.resourceURL?.appendingPathComponent("KoeMark.svg")
-        let image = url.flatMap(NSImage.init(contentsOf:)) ?? Icon.microphone.image(side: 16)
-        image.size = NSSize(width: 18, height: 18)
-        image.isTemplate = true
-        return image
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         Typography.registerFonts()
         applyAppearance()
@@ -276,9 +267,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         clicks.setActive(true)
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
-            statusItem?.button?.contentTintColor = Tokens.redText
+            statusItem?.button?.image = Self.recordingMark
         } else {
-            statusItem?.button?.contentTintColor = nil
+            statusItem?.button?.image = Self.menuBarMark
         }
     }
 
@@ -327,5 +318,29 @@ enum Launch {
         guard let index = CommandLine.arguments.firstIndex(of: flag), CommandLine.arguments.indices.contains(index + 1)
         else { return nil }
         return CommandLine.arguments[index + 1]
+    }
+}
+
+extension AppDelegate {
+    /// Koe's mark, the icon's curved cut and dot, as a template the menu bar tints.
+    fileprivate static var menuBarMark: NSImage {
+        let url = Bundle.main.resourceURL?.appendingPathComponent("KoeMark.svg")
+        let image = url.flatMap(NSImage.init(contentsOf:)) ?? Icon.microphone.image(side: 16)
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }
+
+    /// The mark in red while recording, drawn as its own image: a tinted template can drop out of the bar.
+    fileprivate static var recordingMark: NSImage {
+        let mark = menuBarMark
+        let image = NSImage(size: mark.size, flipped: false) { rect in
+            mark.draw(in: rect)
+            Tokens.redText.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
