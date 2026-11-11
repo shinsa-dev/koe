@@ -121,6 +121,11 @@ final class RegionPicker {
         }
     }
 
+    /// The pins of the ⌘⇧-clicks just before this one, so they stay and the new pin comes out from behind the last.
+    func carry(_ pins: [(screen: Int, point: CGPoint)]) {
+        saved = pins
+    }
+
     /// For `--script`: a click at `point` on the first screen, with its note.
     func preset(click point: CGPoint, note: String?, on index: Int = 0) {
         release(from: point, to: point, on: index)
@@ -196,12 +201,14 @@ final class RegionPicker {
 struct RegionPickerView: View {
     let picker: RegionPicker
     let index: Int
+    /// A ⌘⇧-click comment: the same marks over the live screen, which keeps every click.
+    var passive = false
     @State private var dragStart: CGPoint?
 
     var body: some View {
         let screen = picker.freeze.screens[index]
         ZStack(alignment: .topLeading) {
-            if !picker.freeze.isLive {
+            if !picker.freeze.isLive && !passive {
                 Image(decorative: screen.image, scale: CGFloat(screen.image.width) / max(1, screen.frame.width))
                     .resizable()
             }
@@ -220,7 +227,7 @@ struct RegionPickerView: View {
             }
             ForEach(Array(picker.saved.enumerated()), id: \.offset) { number, comment in
                 if comment.screen == index {
-                    Pin(number: picker.commentsBefore + number + 1, saved: true).position(comment.point).transition(.identity)
+                    Pin(number: picker.commentsBefore + number + 1).position(comment.point).transition(.identity)
                 }
             }
         }
@@ -240,6 +247,7 @@ struct RegionPickerView: View {
             }
         }
         .pointerStyle(picker.stage == .choosing ? .rectSelection : nil)
+        .allowsHitTesting(!passive)
     }
 
     /// How far back the last comment on this screen is from `pin`; nothing for the first one.
@@ -278,20 +286,19 @@ private struct Dim: View {
     }
 }
 
-/// Where a comment points, carrying its number in the session. One already saved turns quiet.
+/// Where a comment points, carrying its number in the session. Every pin looks the same, saved or being said.
 struct Pin: View {
     let number: Int
-    let saved: Bool
 
     var body: some View {
         ZStack {
             Circle().fill(Palette.onAction)
-            Circle().fill(saved ? Palette.fg2 : Palette.action).padding(2)
+            Circle().fill(Palette.action).padding(1.5)
             Text("\(number)")
-                .font(Typography.meta.weight(.semibold).monospacedDigit())
+                .font(Font(Typography.sans(10, .semibold)).monospacedDigit())
                 .foregroundStyle(Palette.onAction)
         }
-        .frame(width: 22, height: 22)
+        .frame(width: 20, height: 20)
         .allowsHitTesting(false)
     }
 }
@@ -304,7 +311,7 @@ private struct ArrivingPin: View {
     @State private var landed = false
 
     var body: some View {
-        Pin(number: number, saved: false)
+        Pin(number: number)
             .scaleEffect(landed ? 1 : 0.6)
             .opacity(landed || from != .zero ? 1 : 0)
             .offset(landed ? .zero : from)

@@ -21,6 +21,9 @@ final class ToolCoordinator {
     var savingComments = 0
     /// The comment left with ⌘⇧-click that is being said: no overlay, the screen stays yours.
     var quick: QuickComment?
+    /// Where the ⌘⇧-clicks before the open one pinned, in Quartz space; a plain click elsewhere forgets them.
+    var quickTrail: [CGPoint] = []
+    var quickLeaving: ToolPanel?
     /// What the pill asks while a tool is open.
     let status = ToolStatus()
     /// The setting: hold the screen still while you pick. Off, the screen keeps moving under the picker.

@@ -193,10 +193,12 @@ frames picked so far.
   as it was when you made it.
 - **Comment on anything, ⌘⇧-click, dictating or not.** `ClickTrigger` watches for the click all the time: with no
   session it starts one, straight on the comment's page. `ToolCoordinator.quickComment` pictures the screen at that
-  moment and pins the comment there, with no overlay: every other click and key still reaches your apps, so you can
-  move through pages and comment as you go. The pin pops in where you clicked while the pill listens; Return (held
-  system-wide meanwhile), the pill's check or your next click anywhere adds it. A click on the app under it takes
-  the pin away with a quick fade (`clickedElsewhere`), since the page it pointed at may have changed. With Accessibility allowed the click is kept from the app under it (an event tap); without,
+  moment and draws what the comment tool draws (the dimmed screen, the window you clicked, the pins) on a window
+  that lets every click and key through (`RegionPickerView` with `passive`), so you can move through pages and
+  comment as you go. Return (held system-wide meanwhile), the pill's check or your next click anywhere adds it.
+  Another ⌘⇧-click keeps the pins before it (`quickTrail`), and the new pin comes out from behind the last one, as
+  in the comment tool. A plain click on the app under it fades everything away (`clickedElsewhere`) and forgets
+  them, since the page they pointed at may have changed. With Accessibility allowed the click is kept from the app under it (an event tap); without,
   the app gets it too.
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
