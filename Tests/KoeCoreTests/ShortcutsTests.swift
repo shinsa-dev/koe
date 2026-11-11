@@ -40,7 +40,7 @@ struct ShortcutsTests {
     @Test func theToolsAreHeldOnlyWhileYouDictateAndLeaveTypingAlone() throws {
         var shortcuts = Shortcuts()
         #expect(ShortcutAction.allCases.filter(\.isSessionOnly) == [.comment, .screenshot, .clip])
-        #expect([ShortcutAction.comment, .screenshot, .clip].map { shortcuts[$0].displayName } == ["⌃⌥C", "⌃⌥S", "⌃⌥R"])
+        #expect([ShortcutAction.comment, .screenshot, .clip].map { shortcuts[$0].displayName } == ["⌥⇧C", "⌥⇧S", "⌥⇧R"])
         for key: UInt32 in [8, 53, 36, 49] {
             #expect(throws: Shortcuts.Refusal.needsModifier) { try shortcuts.set(KeyCombo(keyCode: key, modifiers: 0), for: .comment) }
         }
@@ -70,7 +70,7 @@ struct ShortcutsTests {
 
     @Test func unreadableOrClashingValuesFallBackToTheStandard() {
         let shortcuts = Shortcuts(values: [
-            "shortcut.comment": "nonsense", "shortcut.clip": "1:6144", "shortcut.screenshot": "1:0", "shortcut.toggleSession": "1:512",
+            "shortcut.comment": "nonsense", "shortcut.clip": "1:2560", "shortcut.screenshot": "1:0", "shortcut.toggleSession": "1:512",
         ])
         #expect(shortcuts == Shortcuts())
     }

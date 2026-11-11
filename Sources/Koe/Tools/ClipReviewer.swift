@@ -158,7 +158,9 @@ final class ClipReviewer {
 
     private func playerMoved(to seconds: Double) {
         guard playing, seconds.isFinite else { return }
-        current = frames.index(at: seconds)
+        // Setting the same frame again would still redraw everything that reads it.
+        let index = frames.index(at: seconds)
+        if index != current { current = index }
     }
 
     var attachTitle: String {
@@ -246,21 +248,13 @@ struct ClipReviewView: View {
                 .buttonStyle(.koe(.secondary, iconOnly: true))
                 .hint("Next frame", shortcut: "→")
                 .accessibilityLabel("Next frame")
-            Text(position)
-                .font(Typography.meta.monospacedDigit())
-                .foregroundStyle(Palette.fg2)
-                .padding(.leading, 4)
+            Position(reviewer: reviewer)
             Spacer()
             SegmentedTabs(
                 items: PlaybackSpeed.allCases.map { (value: $0, label: $0.label) },
                 selection: Binding(get: { reviewer.speed }, set: { reviewer.speed = $0 })
             )
         }
-    }
-
-    private var position: String {
-        let time = String(format: "%.2f s", reviewer.frames.time(of: reviewer.current))
-        return "\(time) · frame \(reviewer.current + 1) of \(reviewer.frames.count)"
     }
 
     private var pickedFrames: some View {
@@ -299,6 +293,19 @@ struct ClipReviewView: View {
                 reviewer.unpick(index)
             }
         )
+    }
+}
+
+/// Where the clip is. Its own view, so a playing clip redraws this line and the slider, not the whole card.
+private struct Position: View {
+    let reviewer: ClipReviewer
+
+    var body: some View {
+        let time = String(format: "%.2f s", reviewer.frames.time(of: reviewer.current))
+        Text("\(time) · frame \(reviewer.current + 1) of \(reviewer.frames.count)")
+            .font(Typography.meta.monospacedDigit())
+            .foregroundStyle(Palette.fg2)
+            .padding(.leading, 4)
     }
 }
 

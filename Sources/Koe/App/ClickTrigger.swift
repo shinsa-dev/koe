@@ -1,11 +1,13 @@
 import AppKit
 import ApplicationServices
 
-/// ⌘⇧-click anywhere, while you dictate: leaves a comment there. With Accessibility allowed the click is kept from
-/// the app under it; without, the app gets it too.
+/// ⌘⇧-click anywhere, dictating or not: leaves a comment there, starting a session when none runs. With
+/// Accessibility allowed the click is kept from the app under it; without, the app gets it too.
 @MainActor
 final class ClickTrigger {
     var onClick: ((CGPoint) -> Void)?
+    /// Any other press of a mouse button, which the app under it still gets.
+    var onOtherClick: ((CGPoint) -> Void)?
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var monitor: Any?
@@ -23,13 +25,14 @@ final class ClickTrigger {
             return
         }
         guard monitor == nil else { return }
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
-            guard flags == [.command, .shift] else { return }
+            let comments = event.type == .leftMouseDown && flags == [.command, .shift]
             MainActor.assumeIsolated {
                 let spot = NSEvent.mouseLocation
                 let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-                self?.onClick?(CGPoint(x: spot.x, y: mainHeight - spot.y))
+                let point = CGPoint(x: spot.x, y: mainHeight - spot.y)
+                if comments { self?.onClick?(point) } else { self?.onOtherClick?(point) }
             }
         }
     }
@@ -45,7 +48,8 @@ final class ClickTrigger {
     }
 
     private func installTap() -> Bool {
-        let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue | 1 << CGEventType.leftMouseUp.rawValue)
+        let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue | 1 << CGEventType.leftMouseUp.rawValue
+            | 1 << CGEventType.rightMouseDown.rawValue | 1 << CGEventType.otherMouseDown.rawValue)
         let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
             callback: { _, type, event, info in
@@ -78,7 +82,10 @@ final class ClickTrigger {
             return true
         }
         let held = flags.intersection([.maskCommand, .maskShift, .maskControl, .maskAlternate])
-        guard type == .leftMouseDown, held == [.maskCommand, .maskShift] else { return false }
+        guard type == .leftMouseDown, held == [.maskCommand, .maskShift] else {
+            if type != .leftMouseUp { onOtherClick?(location) }
+            return false
+        }
         swallowingRelease = true
         onClick?(location)
         return true

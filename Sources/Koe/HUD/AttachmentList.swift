@@ -27,17 +27,20 @@ struct AttachmentList: View {
             // The same inset as a row, so the close button sits exactly above the remove buttons.
             .padding(.horizontal, 6)
             .padding(.top, 2)
-            FadingScroll(maxHeight: 340) {
-                VStack(spacing: 2) {
+            // The list gives its own height, so it shrinks on the rows' spring with its bottom edge held.
+            FadingScroll(maxHeight: 340, height: Self.listHeight(rows: sessions.attachments.count)) {
+                VStack(spacing: Self.rowGap) {
                     ForEach(sessions.attachments.reversed()) { annotation in
                         AttachmentRow(annotation: annotation) {
                             open(annotation)
                         } remove: {
                             remove(annotation)
                         }
+                        .frame(height: Self.rowHeight)
                         .transition(RowChange.change)
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
         }
         .padding(8)
@@ -48,6 +51,13 @@ struct AttachmentList: View {
         // It grows out of the pill below it, the way the pill itself arrives.
         .growsIn(shown)
         .onAppear { withAnimation(GrowIn.animation) { shown = true } }
+    }
+
+    private static let rowHeight: CGFloat = 42
+    private static let rowGap: CGFloat = 2
+
+    private static func listHeight(rows: Int) -> CGFloat {
+        CGFloat(rows) * rowHeight + CGFloat(max(0, rows - 1)) * rowGap
     }
 
     /// Taking out the last one puts the whole list away in one motion, the row still in it.

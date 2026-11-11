@@ -341,6 +341,13 @@ extension ClipTool {
                                        title: String(format: "Frame at %.2f s", frames.time(of: index)),
                                        detail: "Say what it shows", confirm: "Keep this note", canTalk: false,
                                        cancel: "Remove this frame", canPause: false)
+        } else if reviewer.playing {
+            // The frame changes sixty times a second while it plays; the pill would redraw for each one.
+            status.prompt = ToolPrompt(
+                stage: .confirming, icon: .video, title: "Playing the clip", detail: "Pause on the frame you want",
+                confirm: reviewer.attachTitle, canTalk: false, cancel: "Discard this clip", canPause: false,
+                extra: .init(icon: .add, label: "Pick this frame and talk about it")
+            )
         } else {
             let picked = reviewer.review.isPicked(reviewer.current)
             let time = String(format: "%.2f s", frames.time(of: reviewer.current))

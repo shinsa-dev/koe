@@ -34,13 +34,13 @@ struct SettingsPage: View {
             }
             SettingsGroup(title: "Dictation", description: "Click a shortcut, then press the keys you want.") {
                 ShortcutRow(action: .toggleSession, library: library)
+                SettingRow(title: "Comment on anything",
+                           detail: "Click with these held and say the comment. It starts dictation if it is off.") {
+                    Kbd("⇧⌘ click")
+                }
             }
             SettingsGroup(title: "While you dictate",
                           description: "These shortcuts only work during a session.") {
-                SettingRow(title: "Comment without stopping",
-                           detail: "Click anything with these held, then say the comment. Return adds it.") {
-                    Kbd("⇧⌘ click")
-                }
                 ForEach(ShortcutAction.allCases.filter(\.isSessionOnly), id: \.self) { action in
                     ShortcutRow(action: action, library: library)
                 }

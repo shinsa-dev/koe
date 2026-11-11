@@ -69,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ]
         ShortcutCenter.shared.apply(library.settings.shortcuts)
         clicks.onClick = { [weak self] in self?.commentWhereClicked($0) }
+        clicks.onOtherClick = { [weak self] in self?.tools.clickedElsewhere(at: $0) }
+        clicks.setActive(true)
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
@@ -261,7 +263,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pill.show()
         }
         ShortcutCenter.shared.setDictating(phase.isOpen)
-        clicks.setActive(phase.isOpen)
+        // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
+        clicks.setActive(true)
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.contentTintColor = Tokens.redText
