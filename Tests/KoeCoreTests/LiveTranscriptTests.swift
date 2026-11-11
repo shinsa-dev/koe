@@ -155,7 +155,7 @@ struct ElapsedTests {
 }
 
 struct KeyComboTests {
-    @Test func theDefaultToggleIsOptionSpace() {
+    @Test func theDefaultToggleIsFnAlone() {
         #expect(KeyCombo.toggleSession.displayName == "fn")
     }
 

@@ -74,6 +74,12 @@ final class FnKey {
 
     var canWatch: Bool { AXIsProcessTrusted() }
 
+    /// Whether "Press 🌐 key to" in Keyboard settings does something of its own, which Koe can't keep Fn from.
+    /// Unset is the system default, which shows the emoji picker.
+    var globeDoesSomething: Bool {
+        UserDefaults(suiteName: "com.apple.HIToolbox")?.object(forKey: "AppleFnUsageType") as? Int != 0
+    }
+
     func watch(_ handler: @escaping () -> Void) {
         self.handler = handler
         guard monitors.isEmpty else { return }
@@ -130,8 +136,31 @@ final class ShortcutCenter {
     @ObservationIgnored private var ids: [ShortcutAction: UInt32] = [:]
     @ObservationIgnored private var suspended = false
     @ObservationIgnored private var dictating = false
+    @ObservationIgnored private var trustWatch: Timer?
+    @ObservationIgnored private var trusted = AXIsProcessTrusted()
+    /// Called once Accessibility is allowed or taken away, for whatever else watches input.
+    @ObservationIgnored var onTrustChange: (() -> Void)?
 
-    private init() {}
+    private init() {
+        // A monitor added before Accessibility was allowed never sees other apps' keys, so they are added again
+        // when it flips. macOS posts this as the switch changes; the timer below covers a missed one.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.accessibility.api"), object: nil, queue: .main
+        ) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { Self.shared.checkTrust() } }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { Self.shared.checkTrust() }
+        }
+    }
+
+    private func checkTrust() {
+        let now = AXIsProcessTrusted()
+        guard now != trusted else { return }
+        trusted = now
+        register()
+        onTrustChange?()
+    }
 
     func name(_ action: ShortcutAction) -> String { shortcuts[action].displayName }
 
@@ -176,5 +205,12 @@ final class ShortcutCenter {
         }
         self.taken = taken
         self.needsAccessibility = needsAccessibility
+        trustWatch?.invalidate()
+        trustWatch = nil
+        if !needsAccessibility.isEmpty {
+            trustWatch = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+                MainActor.assumeIsolated { Self.shared.checkTrust() }
+            }
+        }
     }
 }

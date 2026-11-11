@@ -45,7 +45,7 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation,
   While you dictate, When you finish and General. No system toolbar; the page fades out under the window's controls. First launch
   opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). Starting and
-  finishing (Fn alone, watched by `FnKey` as Carbon cannot hold it; it needs Accessibility) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be Fn or a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
+  finishing (Fn alone, watched by `FnKey` as Carbon cannot hold it; it needs Accessibility, and its monitors are added again once Accessibility flips, so no relaunch is needed. Koe only listens, so "Press 🌐 key to" in Keyboard settings should be Do Nothing; the shortcut row says so while it is not) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be Fn or a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
   screenshot and ⌥⇧R to record a clip, and `ShortcutCenter` holds them only while a session is open
   (`setDictating`). Every shortcut carries ⌘, ⌃ or ⌥: you type and use your apps as usual while you dictate, so a
   bare key is refused, and so is a ⌘ or ⇧⌘ combo with no ⌥ or ⌃ (`KeyCombo.belongsToApps`): apps use those

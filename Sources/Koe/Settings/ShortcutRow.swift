@@ -57,6 +57,9 @@ struct ShortcutRow: View {
         if let refusal { return refusal }
         if recording { return nil }
         if ShortcutCenter.shared.needsAccessibility.contains(action) { return "Fn needs Accessibility to work in other apps." }
+        if combo.isFn, FnKey.shared.globeDoesSomething {
+            return "In Keyboard settings, set Press 🌐 key to Do Nothing, or Fn opens the system's picker too."
+        }
         return ShortcutCenter.shared.taken.contains(action) ? "Another app already uses this shortcut." : nil
     }
 

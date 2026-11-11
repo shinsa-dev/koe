@@ -69,6 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .clip: { [weak self] in self?.recordClip() },
         ]
         ShortcutCenter.shared.apply(library.settings.shortcuts)
+        ShortcutCenter.shared.onTrustChange = { [weak self] in
+            guard let self else { return }
+            permissions.refresh()
+            clicks.setActive(false)
+            clicks.setActive(library.settings.clickToComment)
+        }
         clicks.onClick = { [weak self] in self?.commentWhereClicked($0) ?? false }
         clicks.onOtherClick = { [weak self] in self?.tools.clickedElsewhere(at: $0) }
         clicks.setActive(library.settings.clickToComment)
