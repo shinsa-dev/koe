@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreText
 import Foundation
 
-/// The pin a comment leaves on its screenshot: a blue dot ringed in white inside a wide blue halo, where you
+/// The pin a comment leaves on its screenshot: a blue dot ringed in white and a dark hairline inside a wide blue halo, where you
 /// clicked, with the comment's number in it, so the agent sees exactly what the comment is about and which it is.
 public enum PinMark {
     /// Shinsa's blue (`--primary-4`, light).
@@ -41,11 +41,12 @@ public enum PinMark {
         context.setStrokeColor(blue.copy(alpha: 0.9) ?? blue)
         context.setLineWidth(max(1, radius * 0.3))
         context.strokeEllipse(in: around)
-        context.setShadow(offset: CGSize(width: 0, height: -radius * 0.2), blur: radius * 0.8,
-                          color: CGColor(gray: 0, alpha: 0.35))
+        // A dark hairline outside the white ring, so the ring shows on white pages too.
+        let edge = ring + max(1, radius * 0.12)
+        context.setFillColor(CGColor(gray: 0, alpha: 0.45))
+        context.fillEllipse(in: CGRect(x: center.x - edge, y: center.y - edge, width: edge * 2, height: edge * 2))
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fillEllipse(in: CGRect(x: center.x - ring, y: center.y - ring, width: ring * 2, height: ring * 2))
-        context.setShadow(offset: .zero, blur: 0)
         context.setFillColor(blue)
         context.fillEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
         if let number { write(number, in: context, at: center, radius: radius) }

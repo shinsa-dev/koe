@@ -287,18 +287,20 @@ private struct Dim: View {
 }
 
 /// Where a comment points, carrying its number in the session. Every pin looks the same, saved or being said.
+/// The white ring sits inside a dark hairline, so it reads on white pages as well as dark ones.
 struct Pin: View {
     let number: Int
 
     var body: some View {
         ZStack {
-            Circle().fill(Palette.onAction)
-            Circle().fill(Palette.action).padding(1.5)
+            Circle().fill(Palette.shadow.opacity(0.45))
+            Circle().fill(Palette.onAction).padding(1)
+            Circle().fill(Palette.action).padding(2.5)
             Text("\(number)")
                 .font(Font(Typography.sans(10, .semibold)).monospacedDigit())
                 .foregroundStyle(Palette.onAction)
         }
-        .frame(width: 20, height: 20)
+        .frame(width: 22, height: 22)
         .allowsHitTesting(false)
     }
 }
