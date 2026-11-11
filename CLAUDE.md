@@ -13,7 +13,7 @@ behaviour it describes.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer
   bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, both glass layers, with a dark variant); `build.sh`
-  compiles it with `actool`. `scripts/icon.sh` renders `Resources/Koe.svg` into the fallback `Resources/Koe.icns`. `bun scripts/icons.ts`
+  compiles it with `actool`. The menu bar item is the same mark as a template, `Resources/KoeMark.svg`. `scripts/icon.sh` renders `Resources/Koe.svg` into the fallback `Resources/Koe.icns`. `bun scripts/icons.ts`
   renders every `"Icon…"` named in Swift with shinsa's own icon pipeline into `Resources/Icons` (`--check` on drift);
   run it after naming a new icon.
 
@@ -47,7 +47,7 @@ behaviour it describes.
   state is a page of the pill (`ToolPrompt`: picking, confirming, listening, recording), never a card of its own,
   and its discard cancels that tool only, never the session. Every page but a clip's recording shows the
   live waveform, so the session is seen to be listening. Return confirms on every page (held system-wide while a
-  clip records). A tool's one extra action (a clip's pick this frame) sits between discard and confirm (`ToolPrompt.extra`); its card never repeats the pill's discard or confirm. A clip's frame stepping stays in its card.
+  clip records), and so does a click anywhere once a screenshot or a comment is picked. A tool's one extra action (a clip's pick this frame) sits between discard and confirm (`ToolPrompt.extra`); its card never repeats the pill's discard or confirm. A clip's frame stepping stays in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
   finishing is global; ⌘⇧-click to comment (`ClickTrigger`) is global too and starts a session; a tool's
   shortcut (`isSessionOnly`) is held only while a session is open. Standard shortcuts use ⌥ and ⌘, never ⌃. Every shortcut carries ⌘, ⌃ or ⌥: Koe never takes a bare key from typing, apart

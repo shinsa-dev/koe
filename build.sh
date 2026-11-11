@@ -28,6 +28,7 @@ fi
 rm -rf "$ICONTMP"
 cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
 cp -R Resources/Icons "$APP/Contents/Resources/Icons"
+cp Resources/KoeMark.svg "$APP/Contents/Resources/KoeMark.svg"
 
 # macOS ties the microphone, screen recording and Accessibility grants to the signature. An ad-hoc signature
 # changes with every build, so System Settings would keep showing Koe as allowed while the new build is not.

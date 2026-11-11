@@ -73,14 +73,12 @@ final class PillController {
     func toggleAttachments() {
         if list != nil { return closeAttachments() }
         guard !sessions.attachments.isEmpty else { return }
-        let size = NSSize(width: AttachmentList.width + 40, height: 440)
+        let size = AttachmentList.stage
         let frame = panel.frame
         let list = ToolPanel(frame: NSRect(x: frame.midX - size.width / 2, y: frame.minY + PillPanel.cardsAbove - 20,
                                            width: size.width, height: size.height), level: PillPanel.level)
         list.host(AttachmentList(sessions: sessions, open: { [weak self] in self?.view($0) },
-                                 close: { [weak self] in self?.closeAttachments() })
-            .padding(.bottom, 20)
-            .frame(width: size.width, height: size.height, alignment: .bottom))
+                                 close: { [weak self] in self?.closeAttachments() }))
         list.onCancel = { [weak self] in self?.closeAttachments() }
         // Key, so the first click on a row is a click and Esc closes it.
         list.present()

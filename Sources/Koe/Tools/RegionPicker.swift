@@ -46,6 +46,8 @@ final class RegionPicker {
     @ObservationIgnored var onPicked: (() -> Void)?
     /// You went back to picking, by dragging again after a pick.
     @ObservationIgnored var onChoosing: (() -> Void)?
+    /// A click with a screenshot picked: it is attached with what you said.
+    @ObservationIgnored var onClickAttach: (() -> Void)?
     /// What the pointer is over while you pick, for the pill to name.
     @ObservationIgnored var onHover: ((String?) -> Void)?
     /// The region being dragged, on the screen at `index`.
@@ -104,9 +106,9 @@ final class RegionPicker {
                 if stage == next { onPicked?() } else { stage = next }
                 return
             }
-            // With something picked, a click beside it lets go of it; a click inside it changes nothing.
-            if case .noting(let noted, let region) = stage {
-                if noted != index || !region.contains(end) { stage = .choosing }
+            // With something picked, a click anywhere attaches it, as a click keeps a comment. Dragging picks again.
+            if case .noting = stage {
+                onClickAttach?()
                 return
             }
             guard let window, !rect.isEmpty else { return }
@@ -290,7 +292,6 @@ struct Pin: View {
                 .foregroundStyle(Palette.onAction)
         }
         .frame(width: 22, height: 22)
-        .shadow(color: Palette.shadow.opacity(0.35), radius: 3, y: 1)
         .allowsHitTesting(false)
     }
 }

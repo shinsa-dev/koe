@@ -40,12 +40,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// `--audio-file <path>` plays a recording into each session instead of the microphone.
     private let audioFile: URL? = Launch.value(after: "--audio-file").map { URL(fileURLWithPath: $0) }
 
+    /// Koe's mark, the icon's curved cut and dot, as a template the menu bar tints.
+    private static var menuBarMark: NSImage {
+        let url = Bundle.main.resourceURL?.appendingPathComponent("KoeMark.svg")
+        let image = url.flatMap(NSImage.init(contentsOf:)) ?? Icon.microphone.image(side: 16)
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Typography.registerFonts()
         applyAppearance()
         NSApp.mainMenu = MainMenu.build(target: self)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = Icon.microphone.image(side: 16)
+        item.button?.image = Self.menuBarMark
         item.button?.setAccessibilityLabel("Koe")
         let menu = NSMenu()
         menu.delegate = self

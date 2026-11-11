@@ -6,6 +6,9 @@ import SwiftUI
 /// from, and a button that takes it out. Clicking a picture or a clip opens it in the viewer; the list never grows.
 struct AttachmentList: View {
     static let width: CGFloat = 340
+    /// The window it sits at the bottom of. The placing is inside the animation, so the card's bottom edge
+    /// holds while its height changes; placed from outside, it jumped down first and shrank after.
+    static let stage = CGSize(width: width + 40, height: 440)
     let sessions: SessionController
     let open: (Annotation) -> Void
     let close: () -> Void
@@ -46,6 +49,8 @@ struct AttachmentList: View {
         .padding(8)
         .frame(width: Self.width)
         .floatingSurface(cornerRadius: 16, shadow: false)
+        .padding(.bottom, 20)
+        .frame(width: Self.stage.width, height: Self.stage.height, alignment: .bottom)
         .animation(RowChange.animation(removing: removing), value: sessions.attachments.map(\.id))
         .onChange(of: sessions.attachments.count) { removing = false }
         // It grows out of the pill below it, the way the pill itself arrives.
@@ -64,7 +69,7 @@ struct AttachmentList: View {
     private func remove(_ annotation: Annotation) {
         guard sessions.attachments.count == 1 else {
             removing = true
-            sessions.remove(annotation.id)
+            withAnimation(RowChange.animation(removing: true)) { sessions.remove(annotation.id) }
             return
         }
         withAnimation(GrowIn.exit) { shown = false } completion: {

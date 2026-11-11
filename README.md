@@ -180,7 +180,7 @@ frames picked so far.
   and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
   the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
   the picture is taken when you attach. Nothing is drawn around windows: the pill names what the
-  pointer is over. Once picked, the pill listens at once, as it does for a comment: what you say until you attach it
+  pointer is over. Once picked, the pill listens at once, as it does for a comment, and Return or a click anywhere attaches it (dragging picks again): what you say until you attach it
   (a `VoiceSpan`) becomes the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
 - **Comment, ⌥⇧C while you dictate.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
@@ -196,7 +196,7 @@ frames picked so far.
   moment and pins the comment there, with no overlay: every other click and key still reaches your apps, so you can
   move through pages and comment as you go. The pin pops in where you clicked while the pill listens; Return (held
   system-wide meanwhile), the pill's check or your next click anywhere adds it. A click on the app under it takes
-  the pin away at once (`clickedElsewhere`), since the page it pointed at may have changed; otherwise it fades out. With Accessibility allowed the click is kept from the app under it (an event tap); without,
+  the pin away with a quick fade (`clickedElsewhere`), since the page it pointed at may have changed. With Accessibility allowed the click is kept from the app under it (an event tap); without,
   the app gets it too.
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause

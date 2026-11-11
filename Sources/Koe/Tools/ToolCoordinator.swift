@@ -132,6 +132,7 @@ final class ToolCoordinator {
         status.onConfirm = nil
         status.onTalk = nil
         picker.onHover = { [weak self] label in self?.status.prompt?.detail = label }
+        picker.onClickAttach = { [weak self] in self?.status.onConfirm?() }
         picker.onChoosing = { [weak self] in
             voice.stop()
             self?.status.prompt = picking
