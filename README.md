@@ -10,7 +10,7 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 ## Status
 
 The first version, end to end: the menu bar item, a one-page settings window that asks for the microphone, screen
-recording and (optionally) Accessibility, on-device transcription with the ⌥Space hotkey and the pill with its
+recording and (optionally) Accessibility, on-device transcription with the Fn key and the pill with its
 waveform and tools, the comment, screenshot, drop and slow-motion clip tools, and the bundle on the clipboard when
 you stop, with recent sessions in the menu.
 
@@ -45,7 +45,7 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation,
   While you dictate, When you finish and General. No system toolbar; the page fades out under the window's controls. First launch
   opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). Starting and
-  finishing (⌥Space) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
+  finishing (Fn alone, watched by `FnKey` as Carbon cannot hold it; it needs Accessibility) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be Fn or a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
   screenshot and ⌥⇧R to record a clip, and `ShortcutCenter` holds them only while a session is open
   (`setDictating`). Every shortcut carries ⌘, ⌃ or ⌥: you type and use your apps as usual while you dictate, so a
   bare key is refused, and so is a ⌘ or ⇧⌘ combo with no ⌥ or ⌃ (`KeyCombo.belongsToApps`): apps use those
@@ -169,7 +169,7 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - Stopping closes the source; the session ends once the model settles the last words. A press of the hotkey while
   it finishes is ignored. A failure shows in the pill for six seconds.
 - The hotkey is Carbon's `RegisterEventHotKey`, which needs no Accessibility permission. When another app holds
-  ⌥Space, the menu says so and starting from the menu still works.
+  its shortcut, the menu says so and starting from the menu still works.
 
 ## Tools
 

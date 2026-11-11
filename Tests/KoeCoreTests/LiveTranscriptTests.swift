@@ -156,7 +156,7 @@ struct ElapsedTests {
 
 struct KeyComboTests {
     @Test func theDefaultToggleIsOptionSpace() {
-        #expect(KeyCombo.toggleSession.displayName == "⌥Space")
+        #expect(KeyCombo.toggleSession.displayName == "fn")
     }
 
     @Test func modifiersReadInTheOrderMacOSUses() {

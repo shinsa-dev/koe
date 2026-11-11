@@ -1,3 +1,5 @@
+import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 import KoeCore
 import Observation
@@ -56,6 +58,62 @@ final class HotKeys {
     }
 }
 
+/// Fn pressed and let go on its own, which no hotkey API holds. Koe watches the key itself: it fires on the
+/// release, and only when no other key went down meanwhile, so Fn with an arrow or an F-key stays the app's. Seeing
+/// keys in other apps needs Accessibility.
+@MainActor
+final class FnKey {
+    static let shared = FnKey()
+
+    private var handler: (() -> Void)?
+    private var monitors: [Any] = []
+    private var down = false
+    private var spoilt = false
+
+    private init() {}
+
+    var canWatch: Bool { AXIsProcessTrusted() }
+
+    func watch(_ handler: @escaping () -> Void) {
+        self.handler = handler
+        guard monitors.isEmpty else { return }
+        let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            MainActor.assumeIsolated { self?.seen(event) }
+        }) { monitors.append(global) }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            MainActor.assumeIsolated { self?.seen(event) }
+            return event
+        }) { monitors.append(local) }
+    }
+
+    func stop() {
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
+        handler = nil
+        down = false
+    }
+
+    private func seen(_ event: NSEvent) {
+        if event.type == .keyDown {
+            if down { spoilt = true }
+            return
+        }
+        guard event.keyCode == 63 else {
+            if down { spoilt = true }
+            return
+        }
+        let others = event.modifierFlags.intersection([.command, .option, .shift, .control])
+        if event.modifierFlags.contains(.function) {
+            down = true
+            spoilt = !others.isEmpty
+        } else if down {
+            down = false
+            if !spoilt, others.isEmpty { handler?() }
+        }
+    }
+}
+
 /// The shortcuts as they are now, registered system-wide. Views read a shortcut's name from here, so a tooltip or
 /// menu always shows the one you chose.
 @MainActor
@@ -66,6 +124,8 @@ final class ShortcutCenter {
     private(set) var shortcuts = Shortcuts()
     /// The actions whose shortcut another app already holds.
     private(set) var taken: Set<ShortcutAction> = []
+    /// The actions on Fn while Koe can't see keys in other apps yet.
+    private(set) var needsAccessibility: Set<ShortcutAction> = []
     @ObservationIgnored var handlers: [ShortcutAction: () -> Void] = [:]
     @ObservationIgnored private var ids: [ShortcutAction: UInt32] = [:]
     @ObservationIgnored private var suspended = false
@@ -101,12 +161,20 @@ final class ShortcutCenter {
     private func register() {
         ids.values.forEach(HotKeys.shared.unregister)
         ids = [:]
+        FnKey.shared.stop()
         guard !suspended else { return }
         var taken: Set<ShortcutAction> = []
+        var needsAccessibility: Set<ShortcutAction> = []
         for action in ShortcutAction.allCases where dictating || !action.isSessionOnly {
+            if shortcuts[action].isFn {
+                FnKey.shared.watch { [weak self] in self?.handlers[action]?() }
+                if !FnKey.shared.canWatch { needsAccessibility.insert(action) }
+                continue
+            }
             let id = HotKeys.shared.register(shortcuts[action]) { [weak self] in self?.handlers[action]?() }
             if let id { ids[action] = id } else { taken.insert(action) }
         }
         self.taken = taken
+        self.needsAccessibility = needsAccessibility
     }
 }

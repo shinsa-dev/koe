@@ -97,3 +97,14 @@ struct ShortcutsTests {
         #expect(KeyCombo(keyCode: 123, modifiers: KeyCombo.control | KeyCombo.option).displayName == "⌃⌥←")
     }
 }
+
+@Suite struct FnShortcutTests {
+    @Test func fnAloneStartsDictationAndCanBeSetAgain() throws {
+        var shortcuts = Shortcuts()
+        #expect(shortcuts[.toggleSession].isFn)
+        try shortcuts.set(KeyCombo(keyCode: 49, modifiers: KeyCombo.option), for: .toggleSession)
+        try shortcuts.set(.fnKey, for: .toggleSession)
+        #expect(shortcuts.isStandard(.toggleSession))
+        #expect(KeyCombo.fnKey.isUsable && !KeyCombo.fnKey.belongsToApps)
+    }
+}

@@ -50,7 +50,7 @@ behaviour it describes.
   clip records), and so does a click anywhere once a screenshot or a comment is picked. A tool's one extra action (a clip's pick this frame) sits between discard and confirm (`ToolPrompt.extra`); its card never repeats the pill's discard or confirm. A clip's frame stepping stays in its card.
 - Shortcuts are the user's (`Shortcuts` in `KoeSettings`, registered by `ShortcutCenter`). Only starting and
   finishing is global; ⌘⇧-click to comment (`ClickTrigger`) is global too and starts a session; a tool's
-  shortcut (`isSessionOnly`) is held only while a session is open. Standard shortcuts use ⌥ and ⌘, never ⌃; a ⌘ or ⇧⌘ combo without ⌥ or ⌃ is refused, as apps use those (⌘V pastes). A ⌘⇧-click Koe can't take goes on to the app, and Settings can turn it off. Every shortcut carries ⌘, ⌃ or ⌥: Koe never takes a bare key from typing, apart
+  shortcut (`isSessionOnly`) is held only while a session is open. Start and finish is Fn alone by default (`FnKey`, as Carbon cannot hold it); other standard shortcuts use ⌥ and ⌘, never ⌃; a ⌘ or ⇧⌘ combo without ⌥ or ⌃ is refused, as apps use those (⌘V pastes). A ⌘⇧-click Koe can't take goes on to the app, and Settings can turn it off. Every shortcut carries ⌘, ⌃ or ⌥: Koe never takes a bare key from typing, apart
   from Return while a tool waits for it. Never write a combo
   into a view or a menu: read its name from `ShortcutCenter.shared.name(_:)`.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu

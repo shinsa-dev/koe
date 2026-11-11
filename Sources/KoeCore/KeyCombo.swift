@@ -16,8 +16,13 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
     public static let option: UInt32 = 0x0800
     public static let control: UInt32 = 0x1000
 
-    /// ⌥Space: starts and stops a session.
-    public static let toggleSession = KeyCombo(keyCode: 49, modifiers: option)
+    /// The Fn key, pressed and let go alone. Its key code is kVK_Function and it carries no modifiers.
+    public static let fnKey = KeyCombo(keyCode: 63, modifiers: 0)
+    /// Fn alone: starts and stops a session.
+    public static let toggleSession = fnKey
+
+    /// Whether it is Fn pressed alone, which Carbon can't hold: Koe watches the key itself.
+    public var isFn: Bool { self == .fnKey }
     /// ⌥⇧S, while you dictate: freezes the screen to take a screenshot of a region or a window.
     public static let screenshot = KeyCombo(keyCode: 1, modifiers: option | shift)
     /// ⌥⇧C, while you dictate: freezes the screen to pin a comment on anything you click.
@@ -30,7 +35,7 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
     /// Whether it can be a global shortcut: it holds ⌘, ⌃ or ⌥ (⇧ alone would take a letter away from typing), or
     /// it is a function key.
     public var isUsable: Bool {
-        modifiers & (Self.command | Self.control | Self.option) != 0 || Self.functionKeys.contains(keyCode)
+        modifiers & (Self.command | Self.control | Self.option) != 0 || Self.functionKeys.contains(keyCode) || isFn
     }
 
     /// Whether apps use it themselves: ⌘ or ⇧⌘ with no ⌥ or ⌃, like ⌘V or ⇧⌘R. Koe holding one would take it from
@@ -42,6 +47,7 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
 
     /// How macOS writes it in menus: modifiers in the order ⌃⌥⇧⌘, then the key.
     public var displayName: String {
+        if isFn { return "fn" }
         var name = ""
         if modifiers & Self.control != 0 { name += "⌃" }
         if modifiers & Self.option != 0 { name += "⌥" }

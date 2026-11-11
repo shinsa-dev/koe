@@ -206,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// You finished before the model had its first words: the pill says they are on their way, and says "Copied" only
     /// once they are on the clipboard (`sessionEnded`).
     private func copyPending() {
-        sessions.post(PillNotice(kind: .neutral, title: "Copying your words", detail: "Wait a moment before you paste"))
+        sessions.post(PillNotice(kind: .neutral, title: "Copying your words", detail: "Wait a moment before you paste."))
     }
 
     @objc func copyRecent(_ sender: NSMenuItem) {
@@ -266,11 +266,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
         clicks.setActive(library.settings.clickToComment)
         if phase == .finishing { tools.sessionStopping() }
-        if case .recording = phase {
-            statusItem?.button?.image = Self.recordingMark
-        } else {
-            statusItem?.button?.image = Self.menuBarMark
-        }
     }
 
     /// The theme from settings. `-appearance light|dark` at launch pins one too, as it shares the defaults key.
@@ -330,19 +325,6 @@ extension AppDelegate {
         let image = url.flatMap(NSImage.init(contentsOf:)) ?? Icon.microphone.image(side: 16)
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
-        return image
-    }
-
-    /// The mark in red while recording, drawn as its own image: a tinted template can drop out of the bar.
-    fileprivate static var recordingMark: NSImage {
-        let mark = menuBarMark
-        let image = NSImage(size: mark.size, flipped: false) { rect in
-            mark.draw(in: rect)
-            Tokens.redText.set()
-            rect.fill(using: .sourceAtop)
-            return true
-        }
-        image.isTemplate = false
         return image
     }
 }

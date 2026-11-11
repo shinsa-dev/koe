@@ -11,6 +11,7 @@ struct ShortcutRow: View {
     @State private var refusal: String?
     @State private var monitor: Any?
     @State private var hovering = false
+    @State private var fnHeld = false
 
     private var combo: KeyCombo { library.settings.shortcuts[action] }
 
@@ -55,6 +56,7 @@ struct ShortcutRow: View {
     private var detail: String? {
         if let refusal { return refusal }
         if recording { return nil }
+        if ShortcutCenter.shared.needsAccessibility.contains(action) { return "Fn needs Accessibility to work in other apps." }
         return ShortcutCenter.shared.taken.contains(action) ? "Another app already uses this shortcut." : nil
     }
 
@@ -62,7 +64,13 @@ struct ShortcutRow: View {
         refusal = nil
         recording = true
         ShortcutCenter.shared.suspend()
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        fnHeld = false
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            if event.type == .flagsChanged {
+                flagsChanged(event)
+                return event
+            }
+            fnHeld = false
             pressed(event)
             return nil
         }
@@ -85,6 +93,21 @@ struct ShortcutRow: View {
         if flags.contains(.shift) { modifiers |= KeyCombo.shift }
         if flags.contains(.control) { modifiers |= KeyCombo.control }
         set(KeyCombo(keyCode: UInt32(event.keyCode), modifiers: modifiers))
+    }
+
+    /// Fn on its own comes as a change of flags, never a key press: it counts once let go with nothing else pressed.
+    private func flagsChanged(_ event: NSEvent) {
+        guard event.keyCode == 63 else {
+            fnHeld = false
+            return
+        }
+        let others = event.modifierFlags.intersection([.command, .option, .shift, .control])
+        if event.modifierFlags.contains(.function) {
+            fnHeld = others.isEmpty
+        } else if fnHeld {
+            fnHeld = false
+            set(.fnKey)
+        }
     }
 
     private func reset() {
