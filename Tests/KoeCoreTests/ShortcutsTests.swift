@@ -44,8 +44,19 @@ struct ShortcutsTests {
         for key: UInt32 in [8, 53, 36, 49] {
             #expect(throws: Shortcuts.Refusal.needsModifier) { try shortcuts.set(KeyCombo(keyCode: key, modifiers: 0), for: .comment) }
         }
-        try shortcuts.set(KeyCombo(keyCode: 36, modifiers: KeyCombo.command), for: .comment)
-        #expect(shortcuts[.comment].displayName == "⌘↩")
+        try shortcuts.set(KeyCombo(keyCode: 36, modifiers: KeyCombo.command | KeyCombo.option), for: .comment)
+        #expect(shortcuts[.comment].displayName == "⌥⌘↩")
+    }
+
+    @Test func aCombosAppsUseThemselvesIsRefused() {
+        var shortcuts = Shortcuts()
+        // ⌘V is how the bundle is pasted, ⇧⌘R a browser's hard reload.
+        for combo in [KeyCombo(keyCode: 9, modifiers: KeyCombo.command),
+                      KeyCombo(keyCode: 15, modifiers: KeyCombo.command | KeyCombo.shift)] {
+            #expect(throws: Shortcuts.Refusal.belongsToApps) { try shortcuts.set(combo, for: .screenshot) }
+            #expect(throws: Shortcuts.Refusal.belongsToApps) { try shortcuts.set(combo, for: .toggleSession) }
+        }
+        #expect(shortcuts == Shortcuts())
     }
 
     @Test func aFunctionKeyNeedsNoModifier() throws {
@@ -56,14 +67,14 @@ struct ShortcutsTests {
 
     @Test func settingTheStandardShortcutAgainForgetsTheChange() throws {
         var shortcuts = Shortcuts()
-        try shortcuts.set(KeyCombo(keyCode: 2, modifiers: KeyCombo.command), for: .clip)
+        try shortcuts.set(KeyCombo(keyCode: 2, modifiers: KeyCombo.option), for: .clip)
         try shortcuts.reset(.clip)
         #expect(shortcuts == Shortcuts())
     }
 
     @Test func resetIsRefusedWhileAnotherActionHoldsTheStandardShortcut() throws {
         var shortcuts = Shortcuts()
-        try shortcuts.set(KeyCombo(keyCode: 2, modifiers: KeyCombo.command), for: .clip)
+        try shortcuts.set(KeyCombo(keyCode: 2, modifiers: KeyCombo.option), for: .clip)
         try shortcuts.set(.clip, for: .comment)
         #expect(throws: Shortcuts.Refusal.usedBy(.comment)) { try shortcuts.reset(.clip) }
     }

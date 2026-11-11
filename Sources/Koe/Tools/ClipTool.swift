@@ -310,7 +310,7 @@ extension ClipTool {
     private func promptRecording(limit: AudioTime?) {
         status.prompt = ToolPrompt(stage: .recording, icon: .video, title: "Recording a clip", detail: nil,
                                    confirm: "Stop recording", canTalk: false, cancel: "Discard this clip",
-                                   clock: .init(started: Date(), limit: limit))
+                                   clock: .init(started: Date(), limit: limit), canPause: false)
         status.onCancel = { [weak self] in self?.cancelRecording() }
         status.onConfirm = { [weak self] in self?.stopRecording() }
         guard stopKeys.isEmpty else { return }

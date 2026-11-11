@@ -28,6 +28,7 @@ final class SessionLibrary {
             paster.remember(ClipboardPlan.items(for: BundleComposer().compose(entry.session), copyFiles: true))
         }
         if settings.pasteTogether { paster.watch() }
+        paster.filesAllowed = { [weak self] in self?.settings.copyFiles ?? false }
     }
 
     var root: URL { archive.root }

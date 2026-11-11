@@ -81,8 +81,9 @@ struct PastePlanTests {
         #expect(PastePlan.split([]) == nil)
     }
 
-    @Test(arguments: ["com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable"])
-    func aTerminalGetsOnlyTheWords(id: String) {
+    @Test(arguments: ["com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
+                      "com.microsoft.VSCode", "com.todesktop.230313mzl4w4u92", "dev.zed.Zed", "com.jetbrains.intellij"])
+    func aTerminalOrCodeEditorGetsOnlyTheWords(id: String) {
         #expect(!PastePlan.takesFiles(appWithBundleID: id))
     }
 
@@ -101,7 +102,7 @@ struct KoeSettingsTests {
     @Test func defaultsWhenNothingIsSet() {
         let settings = KoeSettings(values: [:])
         #expect(settings == KoeSettings())
-        #expect(settings.copyFiles && settings.pasteTogether && !settings.autoPaste)
+        #expect(settings.copyFiles && settings.pasteTogether && !settings.autoPaste && settings.clickToComment)
         #expect(settings.theme == .system && settings.recentCount == 5)
     }
 
@@ -113,6 +114,7 @@ struct KoeSettingsTests {
         settings.recentCount = 10
         settings.freezeScreen = false
         settings.pasteTogether = false
+        settings.clickToComment = false
         #expect(KoeSettings(values: settings.values) == settings)
     }
 

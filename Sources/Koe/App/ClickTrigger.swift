@@ -2,10 +2,12 @@ import AppKit
 import ApplicationServices
 
 /// ⌘⇧-click anywhere, dictating or not: leaves a comment there, starting a session when none runs. With
-/// Accessibility allowed the click is kept from the app under it; without, the app gets it too.
+/// Accessibility allowed, a click Koe takes is kept from the app under it; one it can't take (busy, a permission
+/// missing) goes on to the app as if Koe weren't there.
 @MainActor
 final class ClickTrigger {
-    var onClick: ((CGPoint) -> Void)?
+    /// Whether Koe took the click for a comment.
+    var onClick: ((CGPoint) -> Bool)?
     /// Any other press of a mouse button, which the app under it still gets.
     var onOtherClick: ((CGPoint) -> Void)?
     private var tap: CFMachPort?
@@ -32,7 +34,7 @@ final class ClickTrigger {
                 let spot = NSEvent.mouseLocation
                 let mainHeight = NSScreen.screens.first?.frame.height ?? 0
                 let point = CGPoint(x: spot.x, y: mainHeight - spot.y)
-                if comments { self?.onClick?(point) } else { self?.onOtherClick?(point) }
+                if comments { _ = self?.onClick?(point) } else { self?.onOtherClick?(point) }
             }
         }
     }
@@ -86,8 +88,8 @@ final class ClickTrigger {
             if type != .leftMouseUp { onOtherClick?(location) }
             return false
         }
+        guard onClick?(location) == true else { return false }
         swallowingRelease = true
-        onClick?(location)
         return true
     }
 }

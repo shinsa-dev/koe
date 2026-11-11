@@ -33,6 +33,13 @@ public struct KeyCombo: Sendable, Equatable, Hashable, Codable {
         modifiers & (Self.command | Self.control | Self.option) != 0 || Self.functionKeys.contains(keyCode)
     }
 
+    /// Whether apps use it themselves: ⌘ or ⇧⌘ with no ⌥ or ⌃, like ⌘V or ⇧⌘R. Koe holding one would take it from
+    /// every app, and ⌘V is how you paste the bundle.
+    public var belongsToApps: Bool {
+        modifiers & Self.command != 0 && modifiers & (Self.control | Self.option) == 0
+            && !Self.functionKeys.contains(keyCode)
+    }
+
     /// How macOS writes it in menus: modifiers in the order ⌃⌥⇧⌘, then the key.
     public var displayName: String {
         var name = ""

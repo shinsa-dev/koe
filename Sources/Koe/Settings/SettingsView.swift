@@ -34,9 +34,9 @@ struct SettingsPage: View {
             }
             SettingsGroup(title: "Dictation", description: "Click a shortcut, then press the keys you want.") {
                 ShortcutRow(action: .toggleSession, library: library)
-                SettingRow(title: "Comment on anything",
-                           detail: "Click with these held and say the comment. It starts dictation if it is off.") {
-                    Kbd("⇧⌘ click")
+                SettingRow(title: "Comment with ⇧⌘-click",
+                           detail: "Say the comment after the click. Off, the click goes to the app, such as a new tab.") {
+                    Toggle("Comment with ⇧⌘-click", isOn: binding(\.clickToComment)).toggleStyle(.koe)
                 }
             }
             SettingsGroup(title: "While you dictate",

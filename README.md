@@ -48,7 +48,8 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   finishing (⌥Space) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
   screenshot and ⌥⇧R to record a clip, and `ShortcutCenter` holds them only while a session is open
   (`setDictating`). Every shortcut carries ⌘, ⌃ or ⌥: you type and use your apps as usual while you dictate, so a
-  bare key is refused. No two actions share one (`Shortcuts`); a changed one is saved as
+  bare key is refused, and so is a ⌘ or ⇧⌘ combo with no ⌥ or ⌃ (`KeyCombo.belongsToApps`): apps use those
+  themselves, and ⌘V is how you paste the bundle. No two actions share one (`Shortcuts`); a changed one is saved as
   `shortcut.<action>` = `keyCode:modifiers`. The old shortcuts are unregistered while you press the new one.
   While it is open Koe is a regular app, in the Dock and ⌘Tab, with the standard menu bar (⌘, ⌘W ⌘Q); closing it
   makes Koe a menu bar app again. Clicking Koe in the Dock or Finder opens it.
@@ -139,12 +140,16 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **One ⌘V for everything** ("Paste everything with one ⌘V", on by default, needs Accessibility). A chat box given
   text and files in one paste keeps one and drops the other. So `BundlePaster` leaves only the words on the
   clipboard and watches every ⌘V; when the text being pasted is a bundle Koe copied (`PasteIndex`, the last 200,
-  reloaded from the saved sessions at launch), 220 ms later Koe puts that bundle's files on, presses ⌘V itself and
+  reloaded from the saved sessions at launch), once ⌘ is let go and 180 ms more, Koe puts that bundle's files on, presses ⌘V itself and
   puts back whatever the clipboard held (`PastePlan.split`). It goes by the words, not by who wrote the clipboard
   last, so it still works after you copied other things, or when you paste the words out of a clipboard history;
   any other paste is left alone. The files upload like any pasted file, so this works for a remote agent too. In a
-  terminal (`PastePlan.takesFiles`) only the words go in: they already end with every path. Without Accessibility,
-  or with the setting off, everything goes on the clipboard at once as above.
+  terminal or a code editor such as VS Code, Cursor, Zed or a JetBrains IDE (`PastePlan.takesFiles`) only the words
+  go in: they already end with every path. With "Copy attachments with the text" off no files follow, for old
+  sessions too (`filesAllowed`). Without Accessibility, or with the setting off, everything goes on the clipboard at
+  once as above.
+- Finishing before the model has any words says "Copying your words" and only says "Copied" once they are on the
+  clipboard. A model that never settles is given 10 s (`settleLimit`); then the session is copied with what it has.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
@@ -198,8 +203,11 @@ frames picked so far.
   comment as you go. Return (held system-wide meanwhile), the pill's check or your next click anywhere adds it.
   Another ⌘⇧-click keeps the pins before it (`quickTrail`), and the new pin comes out from behind the last one, as
   in the comment tool. A plain click on the app under it fades everything away (`clickedElsewhere`) and forgets
-  them, since the page they pointed at may have changed. With Accessibility allowed the click is kept from the app under it (an event tap); without,
-  the app gets it too.
+  them, since the page they pointed at may have changed. With Accessibility allowed a click Koe takes is kept from the app under it (an event tap);
+  without, the app gets it too. One Koe can't take (another tool is open, screen recording isn't allowed) goes on to
+  the app. Browsers open a link in a new tab with ⌘⇧-click, so Settings has "Comment with ⇧⌘-click" to turn it off.
+- A clip's recording page has no pause: the clip and its clock keep running, so pausing the audio would stamp the
+  frames after it later than the words said as they showed.
 - **Nothing is typed.** `BundleComposer.splitVoiceNotes` takes the words said inside each attachment's voice span out
   of the transcript and makes them its note, so `Look at this. [1: the padding is too tight] Next thing.`. A pause
   you spent talking about an attachment never breaks a paragraph.

@@ -33,6 +33,8 @@ public struct Shortcuts: Sendable, Equatable {
         /// It has no ⌘, ⌃ or ⌥, so it would take a key away from typing all the time.
         case needsModifier
         case usedBy(ShortcutAction)
+        /// A ⌘ or ⇧⌘ combo, which apps use themselves (⌘V pastes).
+        case belongsToApps
     }
 
     private var changed: [ShortcutAction: KeyCombo] = [:]
@@ -67,6 +69,7 @@ public struct Shortcuts: Sendable, Equatable {
 
     public mutating func set(_ combo: KeyCombo, for action: ShortcutAction) throws(Refusal) {
         guard combo.isUsable else { throw .needsModifier }
+        guard !combo.belongsToApps else { throw .belongsToApps }
         if let other = self.action(using: combo), other != action { throw .usedBy(other) }
         changed[action] = combo == action.standard ? nil : combo
     }

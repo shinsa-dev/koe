@@ -96,6 +96,8 @@ final class SessionController {
 
     /// How long a failure stays in the pill before it goes away by itself.
     @ObservationIgnored var failureDisplay: Duration = .seconds(6)
+    /// How long a finished session waits for the model's words before it is copied with what there is.
+    @ObservationIgnored var settleLimit: Duration = .seconds(10)
 
     init(transcriber: any Transcriber, sessionsRoot: URL = SessionController.defaultRoot,
          makeSource: @escaping () -> any AudioSource) {
@@ -324,6 +326,20 @@ final class SessionController {
             // The notice goes up before the phase changes, so the pill goes straight to it.
             onCopyPending?()
             phase = .idle
+            giveUpWaiting(on: take)
+        }
+    }
+
+    /// A model that never settles still gets the session copied, with the words it has, after `settleLimit`.
+    private func giveUpWaiting(on take: Take) {
+        let limit = settleLimit
+        Task { [weak self] in
+            try? await Task.sleep(for: limit)
+            guard let self, take.delivered == nil, !take.cancelled, !take.transcriptDone else { return }
+            Self.log.error("The model did not settle; copying what it has")
+            take.transcription?.cancel()
+            take.transcriptDone = true
+            deliver(take)
         }
     }
 

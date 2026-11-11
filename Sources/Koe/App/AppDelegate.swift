@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recoverUnfinished()
         library.onSettingsChange = { [weak self] settings in
             self?.applyAppearance()
+            self?.clicks.setActive(settings.clickToComment)
             if settings.shortcuts != ShortcutCenter.shared.shortcuts { ShortcutCenter.shared.apply(settings.shortcuts) }
         }
         ShortcutCenter.shared.handlers = [
@@ -68,9 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .clip: { [weak self] in self?.recordClip() },
         ]
         ShortcutCenter.shared.apply(library.settings.shortcuts)
-        clicks.onClick = { [weak self] in self?.commentWhereClicked($0) }
+        clicks.onClick = { [weak self] in self?.commentWhereClicked($0) ?? false }
         clicks.onOtherClick = { [weak self] in self?.tools.clickedElsewhere(at: $0) }
-        clicks.setActive(true)
+        clicks.setActive(library.settings.clickToComment)
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
@@ -202,11 +203,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// You finished before the model had its first words: the pill says it's copied at once, and the copy lands as soon
-    /// as the words do, well before you can press ⌘V.
+    /// You finished before the model had its first words: the pill says they are on their way, and says "Copied" only
+    /// once they are on the clipboard (`sessionEnded`).
     private func copyPending() {
-        let summary = ClipboardPlan.summary(for: [], pasted: false)
-        sessions.post(PillNotice(kind: .success, title: summary.title, detail: summary.detail))
+        sessions.post(PillNotice(kind: .neutral, title: "Copying your words", detail: "Wait a moment before you paste"))
     }
 
     @objc func copyRecent(_ sender: NSMenuItem) {
@@ -264,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         ShortcutCenter.shared.setDictating(phase.isOpen)
         // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
-        clicks.setActive(true)
+        clicks.setActive(library.settings.clickToComment)
         if phase == .finishing { tools.sessionStopping() }
         if case .recording = phase {
             statusItem?.button?.image = Self.recordingMark
@@ -305,9 +305,11 @@ extension AppDelegate {
         tools.clip()
     }
 
-    func commentWhereClicked(_ point: CGPoint) {
+    func commentWhereClicked(_ point: CGPoint) -> Bool {
+        guard tools.canQuickComment else { return false }
         pill.closeAttachments()
         tools.quickComment(at: point)
+        return true
     }
 }
 

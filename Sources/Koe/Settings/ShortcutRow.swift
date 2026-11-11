@@ -101,6 +101,8 @@ struct ShortcutRow: View {
             stop()
         } catch Shortcuts.Refusal.usedBy(let other) {
             refusal = "\(combo.displayName) is already the shortcut for \"\(other.title)\"."
+        } catch Shortcuts.Refusal.belongsToApps {
+            refusal = "Apps use \(combo.displayName) themselves. Add ⌥ to it."
         } catch {
             refusal = "Add ⌘, ⌃ or ⌥ to it."
         }

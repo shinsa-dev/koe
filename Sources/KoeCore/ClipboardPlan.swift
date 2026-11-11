@@ -58,7 +58,8 @@ public enum PastePlan {
         return files.isEmpty ? nil : Split(words: words, files: files)
     }
 
-    /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out.
+    /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out. So do
+    /// code editors, whose editor and built-in terminal paste a file the same way.
     public static func takesFiles(appWithBundleID id: String?) -> Bool {
         guard let id = id?.lowercased() else { return true }
         return !terminals.contains { id == $0 || id.hasPrefix($0 + ".") }
@@ -67,6 +68,9 @@ public enum PastePlan {
     private static let terminals = [
         "com.apple.terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.warp-stable", "dev.warp.warp",
         "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
+        "com.microsoft.vscode", "com.microsoft.vscodeinsiders", "com.vscodium", "com.todesktop.230313mzl4w4u92",
+        "com.exafunction.windsurf", "dev.zed.zed", "dev.zed.zed-preview", "com.jetbrains", "com.google.android.studio",
+        "com.sublimetext.4", "com.panic.nova",
     ]
 }
 

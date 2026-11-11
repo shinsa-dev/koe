@@ -42,6 +42,16 @@ extension ToolCoordinator {
     /// The comments this session has, counting the ones still being saved.
     var commentsSoFar: Int { sessions.attachments.filter(\.isComment).count + savingComments }
 
+    /// Whether a ⌘⇧-click can become a comment now. When it can't, the click belongs to the app under it.
+    var canQuickComment: Bool {
+        guard quick != nil || !isBusy else { return false }
+        guard backdrop != nil || CGPreflightScreenCaptureAccess() else {
+            presentSetup()
+            return false
+        }
+        return true
+    }
+
     /// Pins a comment at `point` (Quartz space, from the top left of the main screen) without freezing anything.
     /// What you say next is the comment, until Return, the pill's check, or your next click anywhere.
     func quickComment(at point: CGPoint) {

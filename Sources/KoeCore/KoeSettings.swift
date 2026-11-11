@@ -19,6 +19,8 @@ public struct KoeSettings: Sendable, Equatable {
     /// Hold the screen still while you pick what to screenshot or comment on. Off, the screen keeps moving and the
     /// picture is taken when you attach it.
     public var freezeScreen = true
+    /// ⌘⇧-click anywhere to comment there. Off, the click goes to the app under it, as browsers use it for new tabs.
+    public var clickToComment = true
     public var shortcuts = Shortcuts()
 
     public static let recentChoices = [3, 5, 10]
@@ -30,6 +32,7 @@ public struct KoeSettings: Sendable, Equatable {
         public static let theme = "appearance"
         public static let recentCount = "recentCount"
         public static let freezeScreen = "freezeScreen"
+        public static let clickToComment = "clickToComment"
     }
 
     public init() {}
@@ -40,13 +43,14 @@ public struct KoeSettings: Sendable, Equatable {
         if let pasteTogether = values[Key.pasteTogether] as? Bool { self.pasteTogether = pasteTogether }
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
         if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
+        if let clickToComment = values[Key.clickToComment] as? Bool { self.clickToComment = clickToComment }
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
         shortcuts = Shortcuts(values: values)
     }
 
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
-         Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether]
+         Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether, Key.clickToComment: clickToComment]
             .merging(shortcuts.values) { current, _ in current }
     }
 }

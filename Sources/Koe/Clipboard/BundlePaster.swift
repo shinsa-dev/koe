@@ -12,6 +12,8 @@ final class BundlePaster {
     private(set) var delivering = false
     private var monitor: Any?
     private let pasteboard = NSPasteboard.general
+    /// The "Copy attachments with the text" setting, read at each paste so a bundle remembered earlier follows it too.
+    var filesAllowed: () -> Bool = { true }
 
     /// Whether the clipboard reads as these words right now.
     func clipboardReads(_ text: String) -> Bool {
@@ -49,15 +51,16 @@ final class BundlePaster {
     }
 
     private func pasted() {
-        guard !delivering, let split = index.split(pasting: pasteboard.string(forType: .string)) else { return }
+        guard !delivering, filesAllowed(), let split = index.split(pasting: pasteboard.string(forType: .string)) else { return }
         let files = split.files.filter { FileManager.default.fileExists(atPath: $0.path) }
         let front = NSWorkspace.shared.frontmostApplication
         guard !files.isEmpty, PastePlan.takesFiles(appWithBundleID: front?.bundleIdentifier) else { return }
         delivering = true
         Task {
             defer { delivering = false }
-            // The app in front reads the words first, and you let go of ⌘V.
-            try? await Task.sleep(for: .milliseconds(220))
+            // You let go of ⌘V (or a clipboard history's paste ends), then the app in front reads the words first.
+            for _ in 0..<30 where Self.commandHeld { try? await Task.sleep(for: .milliseconds(50)) }
+            try? await Task.sleep(for: .milliseconds(180))
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == front?.processIdentifier else { return }
             // A clipboard history may already have put back what was there before; whatever it is comes back after.
             let before = Self.snapshot(pasteboard)
@@ -70,6 +73,10 @@ final class BundlePaster {
             pasteboard.clearContents()
             pasteboard.writeObjects(before)
         }
+    }
+
+    private static var commandHeld: Bool {
+        CGEventSource.flagsState(.combinedSessionState).contains(.maskCommand)
     }
 
     private static func snapshot(_ pasteboard: NSPasteboard) -> [NSPasteboardItem] {
