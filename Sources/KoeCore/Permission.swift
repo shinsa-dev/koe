@@ -4,15 +4,11 @@ public enum Permission: String, CaseIterable, Sendable {
     case microphone
     /// To take screenshots and record clips while you talk.
     case screenRecording
-    /// To paste the bundle for you when a session ends. Optional: you can paste yourself.
+    /// For the Fn key, ⇧⌘-click comments and pasting the files with your ⌘V. Fn is the default start key, so
+    /// without it a fresh install can't start a session from another app.
     case accessibility
 
-    public var isRequired: Bool {
-        switch self {
-        case .microphone, .screenRecording: true
-        case .accessibility: false
-        }
-    }
+    public var isRequired: Bool { true }
 }
 
 public enum PermissionStatus: Sendable, Equatable {

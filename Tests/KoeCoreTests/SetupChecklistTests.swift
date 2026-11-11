@@ -2,17 +2,20 @@ import KoeCore
 import Testing
 
 struct SetupChecklistTests {
-    @Test func readyOnceEveryRequiredPermissionIsGranted() {
-        let checklist = SetupChecklist(statuses: [.microphone: .granted, .screenRecording: .granted])
+    @Test func readyOnceEveryPermissionIsGranted() {
+        let checklist = SetupChecklist(statuses: [
+            .microphone: .granted, .screenRecording: .granted, .accessibility: .granted,
+        ])
         #expect(checklist.isReady)
-        #expect(checklist.nextStep == .accessibility)
+        #expect(checklist.nextStep == nil)
     }
 
-    @Test func optionalPermissionDoesNotBlockReady() {
+    @Test func missingAccessibilityBlocksReadyAsFnNeedsIt() {
         let checklist = SetupChecklist(statuses: [
             .microphone: .granted, .screenRecording: .granted, .accessibility: .denied,
         ])
-        #expect(checklist.isReady)
+        #expect(!checklist.isReady)
+        #expect(checklist.nextStep == .accessibility)
     }
 
     @Test func notReadyWhileARequiredPermissionIsMissing() {
@@ -21,7 +24,7 @@ struct SetupChecklistTests {
         #expect(checklist.nextStep == .screenRecording)
     }
 
-    @Test func requiredStepsComeBeforeOptionalOnes() {
+    @Test func stepsFollowTheSetupOrder() {
         let checklist = SetupChecklist(statuses: [.microphone: .granted, .accessibility: .notDetermined])
         #expect(checklist.nextStep == .screenRecording)
     }
@@ -45,7 +48,7 @@ struct SetupChecklistTests {
         #expect(checklist.action(for: .screenRecording) == .openSettings)
     }
 
-    @Test func onlyMicrophoneAndScreenRecordingAreRequired() {
-        #expect(Permission.allCases.filter(\.isRequired) == [.microphone, .screenRecording])
+    @Test func everyPermissionIsRequired() {
+        #expect(Permission.allCases.filter(\.isRequired) == Permission.allCases)
     }
 }

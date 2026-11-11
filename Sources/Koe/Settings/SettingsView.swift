@@ -26,7 +26,7 @@ struct SettingsPage: View {
                         .foregroundStyle(Palette.fg2)
                 }
             }
-            SettingsGroup(title: checklist.isReady ? "Permissions" : "Allow the microphone and screen recording to start") {
+            SettingsGroup(title: checklist.isReady ? "Permissions" : "Allow these three to start") {
                 ForEach(Permission.allCases, id: \.self) { permission in
                     PermissionRow(permission: permission, status: checklist.status(of: permission),
                                   isNext: checklist.nextStep == permission, center: permissions)
@@ -105,7 +105,6 @@ private struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(permission.title).foregroundStyle(Palette.fg4)
-                    if !permission.isRequired { Badge(title: "Optional", size: .small) }
                 }
                 Text(detail)
                     .font(Typography.meta)
@@ -170,7 +169,7 @@ extension Permission {
         switch self {
         case .microphone: "To transcribe what you say, on device."
         case .screenRecording: "To take screenshots and record clips while you talk."
-        case .accessibility: "To paste the bundle for you when a session ends."
+        case .accessibility: "To start with Fn, comment with ⇧⌘-click and paste your files with ⌘V."
         }
     }
 

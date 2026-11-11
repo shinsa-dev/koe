@@ -10,7 +10,7 @@ It transcribes on device. Nothing you say or capture leaves your Mac.
 ## Status
 
 The first version, end to end: the menu bar item, a one-page settings window that asks for the microphone, screen
-recording and (optionally) Accessibility, on-device transcription with the Fn key and the pill with its
+recording and Accessibility (all three required), on-device transcription with the Fn key and the pill with its
 waveform and tools, the comment, screenshot, drop and slow-motion clip tools, and the bundle on the clipboard when
 you stop, with recent sessions in the menu.
 
@@ -168,7 +168,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   annotation's time lines up with the words' times even when the model lags.
 - Stopping closes the source; the session ends once the model settles the last words. A press of the hotkey while
   it finishes is ignored. A failure shows in the pill for six seconds.
-- The hotkey is Carbon's `RegisterEventHotKey`, which needs no Accessibility permission. When another app holds
+- A combo hotkey is Carbon's `RegisterEventHotKey`, which needs no Accessibility permission, but Fn (the default),
+  ⇧⌘-click and the one-⌘V paste do, so setup asks for Accessibility as a required step. When another app holds
   its shortcut, the menu says so and starting from the menu still works.
 
 ## Tools
