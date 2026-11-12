@@ -24,7 +24,7 @@ public struct KoeSettings: Sendable, Equatable {
     public var shortcuts = Shortcuts()
     /// The model that transcribes. Until it is downloaded, Apple's on-device model stands in.
     public var transcriptionModel: ModelID = TranscriptionModel.standard.id
-    /// Koe downloads the standard model once, on first launch. After that a download is yours to start.
+    /// Koe downloads the standard model by itself, at each launch until it is in. After that a download is yours.
     public var startedFirstDownload = false
 
     public static let recentChoices = [3, 5, 10]

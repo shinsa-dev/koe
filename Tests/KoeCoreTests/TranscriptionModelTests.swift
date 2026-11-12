@@ -49,3 +49,46 @@ struct TranscriptionModelTests {
         #expect(!ModelInstall.failed("No network").isInstalled)
     }
 }
+
+struct TranscriberRouteTests {
+    @Test func aDownloadedModelThatLoadsRuns() {
+        let route = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true, loadError: nil)
+        #expect(route.model == .parakeetV3)
+        #expect(route.reason == nil)
+    }
+
+    @Test func appleRunsWithoutADownload() {
+        let route = TranscriberRoute.resolve(chosen: .apple, install: .notInstalled, canRun: false, loadError: nil)
+        #expect(route.model == .apple)
+        #expect(route.fallback == nil)
+    }
+
+    @Test func everyReasonTheChosenModelCantRunFallsBackToApple() {
+        struct Case {
+            let install: ModelInstall
+            var canRun = true
+            var error: String?
+            let fallback: TranscriberRoute.Fallback
+        }
+        let cases = [
+            Case(install: .notInstalled, fallback: .notDownloaded),
+            Case(install: .failed("offline"), fallback: .notDownloaded),
+            Case(install: .downloading(fraction: 0.4), fallback: .downloading),
+            Case(install: .installed, canRun: false, fallback: .needsAppleSilicon),
+            Case(install: .installed, error: "Missing file.", fallback: .failedToLoad("Missing file.")),
+        ]
+        for item in cases {
+            let route = TranscriberRoute.resolve(chosen: .whisperTurbo, install: item.install, canRun: item.canRun,
+                                                 loadError: item.error)
+            #expect(route.model == .apple)
+            #expect(route.fallback == item.fallback)
+            #expect(route.reason?.contains("Whisper large-v3 turbo") == true)
+        }
+    }
+
+    @Test func theReasonSaysWhatToExpect() {
+        let downloading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .downloading(fraction: 0.1),
+                                                   canRun: true, loadError: nil)
+        #expect(downloading.reason == "Koe uses Apple's model until Parakeet v3 finishes downloading.")
+    }
+}

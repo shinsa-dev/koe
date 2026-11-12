@@ -97,6 +97,8 @@ final class ModelStore {
     // MARK: - Fetching
 
     private nonisolated static func fetch(_ model: TranscriptionModel, into folder: URL) async throws {
+        // Files a download cut short by a quit would pass for a model and then fail to load.
+        try? FileManager.default.removeItem(at: folder)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         switch model.engine {
         case .parakeet:
