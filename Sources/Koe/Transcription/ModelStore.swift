@@ -17,8 +17,10 @@ final class ModelStore {
     /// Parakeet's and Whisper's Core ML models run only on Apple silicon.
     let canDownload: Bool
     private(set) var installs: [ModelID: ModelInstall] = [:]
-    /// Called on the main actor when a download finishes, so the transcriber can switch to the model at once.
-    @ObservationIgnored var onInstalled: ((ModelID) -> Void)?
+    /// Which model transcribes and why, as the transcriber last worked it out. Settings shows it.
+    var route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil)
+    /// Called on the main actor when a download starts, ends or is deleted, so the transcriber switches at once.
+    @ObservationIgnored var onChange: ((ModelID) -> Void)?
     @ObservationIgnored private var downloads: [ModelID: Task<Void, Never>] = [:]
 
     static var standardRoot: URL {
@@ -50,6 +52,7 @@ final class ModelStore {
         guard model.needsDownload, canDownload, downloads[id] == nil, !isInstalled(id) else { return }
         let folder = folder(for: id)
         installs[id] = .downloading(fraction: 0)
+        defer { onChange?(id) }
         downloads[id] = Task { [weak self] in
             let progress = Task { [weak self] in
                 while !Task.isCancelled {
@@ -77,7 +80,7 @@ final class ModelStore {
             guard let self else { return }
             self.downloads[id] = nil
             self.installs[id] = outcome
-            if outcome.isInstalled { self.onInstalled?(id) }
+            self.onChange?(id)
         }
     }
 
@@ -92,6 +95,7 @@ final class ModelStore {
         if let download = downloads[id] { return download.cancel() }
         try? FileManager.default.removeItem(at: folder(for: id))
         installs[id] = .notInstalled
+        onChange?(id)
     }
 
     // MARK: - Fetching

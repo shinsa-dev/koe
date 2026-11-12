@@ -8,13 +8,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     static let size = NSSize(width: 520, height: 660)
 
     private let permissions: PermissionCenter
+    private let page: SettingsPage
     private var poll: Timer?
     private var placed = false
     /// Called when the window closes, so the app can leave the Dock again.
     var onClose: (() -> Void)?
 
-    init(library: SessionLibrary, permissions: PermissionCenter, openSessions: @escaping () -> Void) {
+    init(library: SessionLibrary, permissions: PermissionCenter, models: ModelStore,
+         openSessions: @escaping () -> Void) {
         self.permissions = permissions
+        page = SettingsPage(library: library, permissions: permissions, models: models, openSessions: openSessions)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.size),
                               styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -25,7 +28,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.backgroundColor = Tokens.background
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsRoot(
-            library: library, permissions: permissions, openSessions: openSessions
+            library: library, permissions: permissions, models: models, openSessions: openSessions
         ).focusEffectDisabled())
         super.init(window: window)
         window.delegate = self
@@ -50,6 +53,28 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         startPolling()
     }
 
+    /// Draws the whole page at twice its size, as tall as it runs, in the app's appearance.
+    func snapshot(to url: URL) {
+        let view = NSHostingView(rootView: page
+            .padding(28)
+            .frame(width: Self.size.width)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(Palette.canvas)
+            .font(Typography.body)
+            .foregroundStyle(Palette.fg4)
+            .tint(Palette.action))
+        view.appearance = NSApp.effectiveAppearance
+        view.frame.size = view.fittingSize
+        view.layoutSubtreeIfNeeded()
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2), pixelsHigh: Int(view.bounds.height * 2),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0) else { return }
+        rep.size = view.bounds.size
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
     func windowWillClose(_ notification: Notification) {
         poll?.invalidate()
         poll = nil
@@ -68,11 +93,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 private struct SettingsRoot: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
+    let models: ModelStore
     let openSessions: () -> Void
 
     var body: some View {
         ScrollView {
-            SettingsPage(library: library, permissions: permissions, openSessions: openSessions)
+            SettingsPage(library: library, permissions: permissions, models: models, openSessions: openSessions)
                 .padding(.horizontal, 28)
                 .padding(.top, 52)
                 .padding(.bottom, 28)

@@ -5,7 +5,8 @@ take screenshots, write notes, record slow-motion clips and drop in files. When 
 your words with every attachment placed at the moment you added it. Pasting it into Claude, ChatGPT, Slack or a
 terminal agent brings everything in, in order, so the agent reads each screenshot where you talked about it.
 
-It transcribes on device. Nothing you say or capture leaves your Mac.
+It transcribes on device, with NVIDIA's Parakeet v3 on the Neural Engine by default. Nothing you say or capture
+leaves your Mac; the only download is the speech model itself, from Hugging Face.
 
 ## Status
 
@@ -86,7 +87,9 @@ Sources/KoeCore/   Pure logic, unit-tested: the setup checklist, AudioLevel, Ses
 Sources/Koe/App/   main, AppDelegate, the status menu, MainMenu, HotKeys (Carbon global shortcuts), SessionLibrary
 Sources/Koe/Clipboard/ BundleWriter: the bundle onto NSPasteboard, and ⌘V for you
 Sources/Koe/Settings/ The window: settings on one page
-Sources/Koe/Transcription/ Transcriber, AppleSpeechTranscriber (SpeechAnalyzer), AudioSource: microphone and file
+Sources/Koe/Transcription/ Transcriber, ActiveTranscriber (picks the model), WindowedTranscriber with Parakeet
+                   (FluidAudio) and Whisper (WhisperKit), AppleSpeechTranscriber (SpeechAnalyzer), ModelStore
+                   (downloads), AudioSource: microphone and file
 Sources/Koe/Session/ SessionController: one session at a time, from the hotkey to the finished Session
 Sources/Koe/HUD/   The pill: a non-activating panel at the bottom of the screen, its waveform, the drop target
 Sources/Koe/Tools/ ToolCoordinator, ScreenFreezer, RegionPicker (the frozen-screen overlay), NoteCard, ToolPanel;
@@ -159,8 +162,27 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 
 ## Transcription
 
-- Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26), on device. It asks for volatile results and for audio
-  time ranges, which time the words.
+- **Models.** Settings' Transcription card lists them (`TranscriptionModel.catalog`, `ModelRow`): Parakeet v3
+  (recommended and the default, 25 European languages, about 480 MB), Parakeet v2 (English, about 460 MB), Whisper
+  large-v3 turbo (99 languages, about 650 MB) and Apple's on-device model (built in). Each row downloads, cancels,
+  deletes and picks its model; the line under the card says which model runs and why when it isn't the chosen one.
+- **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
+  WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
+  <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
+  short never counts. FluidAudio reports no progress, so the row measures the folder against the expected size.
+  Nothing else goes online: audio and text never leave the Mac.
+- **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
+  transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
+  changes, without a relaunch; a session already running keeps its model. A chosen model that isn't downloaded,
+  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`).
+- **Streaming with models that don't stream.** Parakeet and Whisper read whole stretches of audio, so
+  `WindowedTranscriber` decodes again every 0.9 s from the first unsettled word to the newest audio, with 1.5 s of
+  settled audio ahead as context. Words that end 2 s or more before the newest audio settle as a final update; the
+  rest is a volatile guess the next pass replaces (`RollingWindow`). A window never grows past 14 s. Their sub-word
+  tokens join into timed words (`TokenRuns`), so attachments still land at word boundaries. A recording Koe never
+  finished is read in one pass with the active model.
+- Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
+  for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile
   one usually doesn't, so its words share the result's range. A run without a leading space ("'t" after "don")
   continues the word before it.
@@ -275,3 +297,6 @@ frames picked so far.
   image instead of capturing your screen, so captures of Koe never show what's on your screen, and `--clip-file
   <mov>` stands in for every recorded clip (a scripted one still shows the recording outline for its length). A
   script needs a session, so pair it with `--start`.
+- `-transcriptionModel parakeet-v3|parakeet-v2|whisper-large-v3-turbo|apple` at launch picks the model for that run.
+  `--download <model>` starts that model's download, and `--snapshot <png>` draws the whole settings page into a
+  PNG three seconds in, which works while the screen is locked.

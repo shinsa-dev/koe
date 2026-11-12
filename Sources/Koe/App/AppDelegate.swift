@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
-            library: library, permissions: permissions, openSessions: { [weak self] in self?.showSessions() }
+            library: library, permissions: permissions, models: models, openSessions: { [weak self] in self?.showSessions() }
         )
         // Back to a menu bar app once the window is gone.
         controller.onClose = { NSApp.setActivationPolicy(.accessory) }
@@ -83,6 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
             openSetup()
         }
+        followLaunchFlags()
+    }
+
+    /// The flags that drive Koe for screenshots and tests (README, Notes).
+    private func followLaunchFlags() {
         // For screenshots: opens the menu as if clicked, since the status item can't be clicked by script.
         if Launch.has("--open-menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.statusItem?.button?.performClick(nil) }
@@ -90,6 +95,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Launch.has("--settings") { openSettings() }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
+        // For screenshots: `--download <model>` starts a download, and `--snapshot <path>` draws the whole settings
+        // page into a PNG three seconds in, since the window scrolls and a locked screen captures nothing.
+        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.download(id) }
+        if let path = Launch.value(after: "--snapshot") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
+            }
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -329,17 +342,21 @@ extension AppDelegate {
     /// transcribes until it is in, then Koe switches to it.
     private func startTranscription() {
         let standard = TranscriptionModel.standard.id
-        models.onInstalled = { [weak self] id in
+        models.onChange = { [weak self] id in
             guard let self else { return }
-            if id == standard, !library.settings.startedFirstDownload { library.update { $0.startedFirstDownload = true } }
+            if id == standard, models.isInstalled(id), !library.settings.startedFirstDownload {
+                library.update { $0.startedFirstDownload = true }
+            }
             transcriber.update(chosen: library.settings.transcriptionModel, store: models)
         }
+        transcriber.onRouteChange = { [models] route in models.route = route }
         // Until the first download is in, every launch tries again, so quitting halfway through doesn't leave Koe
         // on Apple's model for good.
         if !library.settings.startedFirstDownload, library.settings.transcriptionModel == standard {
             models.download(standard)
         }
         transcriber.update(chosen: library.settings.transcriptionModel, store: models)
+        models.route = transcriber.currentRoute
         recoverUnfinished()
     }
 

@@ -1,11 +1,12 @@
 import KoeCore
 import SwiftUI
 
-/// Koe's settings on one page, in the order you meet them: permissions, starting, the tools while you dictate,
-/// what happens when you finish, and the rest.
+/// Koe's settings on one page, in the order you meet them: permissions, starting, the speech model, the tools while
+/// you dictate, what happens when you finish, and the rest.
 struct SettingsPage: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
+    let models: ModelStore
     let openSessions: () -> Void
 
     var body: some View {
@@ -39,6 +40,7 @@ struct SettingsPage: View {
                     Toggle("Comment with ⇧⌘-click", isOn: binding(\.clickToComment)).toggleStyle(.koe)
                 }
             }
+            TranscriptionGroup(library: library, models: models)
             SettingsGroup(title: "While you dictate",
                           description: "These shortcuts only work during a session.") {
                 ForEach(ShortcutAction.allCases.filter(\.isSessionOnly), id: \.self) { action in

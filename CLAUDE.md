@@ -56,6 +56,10 @@ behaviour it describes.
 - Koe is a menu bar app (`LSUIElement`); while its window is open it switches to a regular app (Dock, ⌘Tab, menu
   bar) and back when it closes. Keep that when adding windows.
 - Copy: sentence case (buttons and titles too), full sentences, no em dashes, American spelling.
+- A speech model plugs in behind `Transcriber`: add it to `TranscriptionModel.catalog` (KoeCore), download it in
+  `ModelStore.fetch`, and give `WindowedTranscriber` a decoder that returns timed tokens, unless it streams on its own
+  like Apple's. Every model must time its words, as `BundleComposer` places attachments at word boundaries. Only model
+  files ever go online.
 - Logic that can live without AppKit goes in `KoeCore` and gets Swift Testing tests. `Koe` holds AppKit, SwiftUI
   and system frameworks.
 - Swift 6 language mode: UI types are `@MainActor`; anything crossing to audio or capture threads is `Sendable`.
