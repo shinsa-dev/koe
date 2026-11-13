@@ -52,6 +52,14 @@ Release workflow, in a repository secret. Settings → Updates picks the channel
 channel of the build you installed (`1.2.0-beta.3` is a beta). Sparkle never goes back a version, so moving from
 Canary to Stable waits for the next stable release. A release build checks once a day, and Check now checks at once.
 
+## Releases
+
+The Release workflow builds, signs, notarizes and publishes Koe, as Shinsa's does: every tested merge to `main` is a
+canary, and stable and beta releases run from Actions → Release (`gh workflow run release.yml -f channel=beta`). Each
+release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. Lint
+(SwiftLint, actionlint, shellcheck) and Test (`swift test --filter KoeCoreTests`, the release script tests) run on
+every pull request. `docs/release.md` has the versions, the steps, the files on shinsa.dev and the secrets.
+
 ## Design
 
 Koe is a native Mac app that draws its own content in Shinsa's system. Windows and menus are the system's; inside
