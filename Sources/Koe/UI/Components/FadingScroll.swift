@@ -43,9 +43,11 @@ struct FadingScroll<Content: View>: View {
     /// An eased ramp from clear at the edge to solid, as strong as there is content hidden behind it.
     private func edge(strength hiddenPoints: CGFloat, towards edge: VerticalEdge) -> some View {
         let strength = min(1, hiddenPoints / 4)
-        let stops = [0, 0.15, 0.35, 0.6, 1].map { position -> Gradient.Stop in
-            let eased = position * position * (3 - 2 * position)
-            return Gradient.Stop(color: Palette.shadow.opacity(1 - strength * (1 - eased)), location: position)
+        let positions: [CGFloat] = [0, 0.15, 0.35, 0.6, 1]
+        let stops = positions.map { position -> Gradient.Stop in
+            let eased: CGFloat = position * position * (3 - 2 * position)
+            let opacity: CGFloat = 1 - strength * (1 - eased)
+            return Gradient.Stop(color: Palette.shadow.opacity(opacity), location: position)
         }
         return LinearGradient(stops: stops, startPoint: edge == .top ? .top : .bottom,
                               endPoint: edge == .top ? .bottom : .top)
