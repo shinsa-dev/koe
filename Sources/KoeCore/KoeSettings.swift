@@ -21,6 +21,8 @@ public struct KoeSettings: Sendable, Equatable {
     public var freezeScreen = true
     /// ⌘⇧-click anywhere to comment there. Off, the click goes to the app under it, as browsers use it for new tabs.
     public var clickToComment = true
+    /// Pause music and videos while you dictate, and play them again when you finish. Needs system audio access.
+    public var pauseMedia = true
     public var shortcuts = Shortcuts()
     /// The model that transcribes. Until it is downloaded, Apple's on-device model stands in.
     public var transcriptionModel: ModelID = TranscriptionModel.standard.id
@@ -37,6 +39,7 @@ public struct KoeSettings: Sendable, Equatable {
         public static let recentCount = "recentCount"
         public static let freezeScreen = "freezeScreen"
         public static let clickToComment = "clickToComment"
+        public static let pauseMedia = "pauseMedia"
         public static let transcriptionModel = "transcriptionModel"
         public static let startedFirstDownload = "startedFirstDownload"
     }
@@ -50,6 +53,7 @@ public struct KoeSettings: Sendable, Equatable {
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
         if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
         if let clickToComment = values[Key.clickToComment] as? Bool { self.clickToComment = clickToComment }
+        if let pauseMedia = values[Key.pauseMedia] as? Bool { self.pauseMedia = pauseMedia }
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
         if let raw = values[Key.transcriptionModel] as? String, let model = ModelID(rawValue: raw) {
             transcriptionModel = model
@@ -61,7 +65,8 @@ public struct KoeSettings: Sendable, Equatable {
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
          Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether, Key.clickToComment: clickToComment,
-         Key.transcriptionModel: transcriptionModel.rawValue, Key.startedFirstDownload: startedFirstDownload]
+         Key.pauseMedia: pauseMedia, Key.transcriptionModel: transcriptionModel.rawValue,
+         Key.startedFirstDownload: startedFirstDownload]
             .merging(shortcuts.values) { current, _ in current }
     }
 }

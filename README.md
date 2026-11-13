@@ -79,6 +79,18 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   A new input device (AirPods connecting) restarts the tap instead of ending the session. Discard is the one way a
   recording goes: it deletes the session's folder.
 
+## Pausing what plays
+
+"Pause audio while you dictate" (on by default) pauses music and videos as a session opens and plays them again
+when it closes (finished or discarded; pausing the pill keeps them paused). macOS no longer lets an app read what
+is playing, and an open output stream says nothing (simulators, a Safari tab or a player paused a minute ago keep
+one open while silent). So Koe listens: with System audio allowed (optional, `NSAudioCaptureUsageDescription`), a
+private process tap of everything but Koe measures the output's peak for 250 ms (`NowPlaying`, only when another app
+has a stream open). On sound it sends MediaRemote's explicit pause, waits 500 ms and listens 300 ms more: only when
+the pause silenced the output is it Koe's to undo, with an explicit play when the session closes (`MediaPause`).
+Koe never sends a toggle and never plays what it didn't pause, so it can't start music you had stopped. Nothing is
+recorded; the samples are only measured.
+
 ## Layout
 
 ```
@@ -284,6 +296,8 @@ frames picked so far.
 
 ## Notes
 
+- System audio is read and asked for through TCC directly (`SystemAudioAccess`), as macOS has no public call to
+  read it without asking. It is optional, so it never counts towards the three that setup needs.
 - Screen recording and Accessibility only report granted or not. Koe remembers whether it has asked
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so that row offers "Reopen Koe".

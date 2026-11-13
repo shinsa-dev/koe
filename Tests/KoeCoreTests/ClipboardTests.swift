@@ -103,6 +103,7 @@ struct KoeSettingsTests {
         let settings = KoeSettings(values: [:])
         #expect(settings == KoeSettings())
         #expect(settings.copyFiles && settings.pasteTogether && !settings.autoPaste && settings.clickToComment)
+        #expect(settings.pauseMedia)
         #expect(settings.theme == .system && settings.recentCount == 5)
     }
 
@@ -115,6 +116,7 @@ struct KoeSettingsTests {
         settings.freezeScreen = false
         settings.pasteTogether = false
         settings.clickToComment = false
+        settings.pauseMedia = false
         #expect(KoeSettings(values: settings.values) == settings)
     }
 

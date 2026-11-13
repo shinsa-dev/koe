@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         presentSetup: { [weak self] in self?.openSetup() }
     )
     private let clicks = ClickTrigger()
+    private let nowPlaying = NowPlaying()
+    /// Whether the last phase took audio, so pausing what plays follows the session opening and closing.
+    private var sessionWasOpen = false
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
@@ -261,6 +264,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pill.show()
         }
         ShortcutCenter.shared.setDictating(phase.isOpen)
+        if phase.isOpen != sessionWasOpen {
+            sessionWasOpen = phase.isOpen
+            if phase.isOpen {
+                nowPlaying.sessionOpened(enabled: library.settings.pauseMedia && audioFile == nil)
+            } else {
+                nowPlaying.sessionClosed()
+            }
+        }
         // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
         clicks.setActive(library.settings.clickToComment)
         if phase == .finishing { tools.sessionStopping() }

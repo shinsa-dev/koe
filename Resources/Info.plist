@@ -32,6 +32,8 @@
 	<string>Koe turns your voice into text on this Mac, with Apple's on-device speech model.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Koe takes the screenshots and clips you ask for while you talk.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Koe listens to what your Mac plays for a moment as you start dictating, to pause it and play it again when you finish. Nothing is recorded.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Koe, part of Shinsa</string>
 </dict>

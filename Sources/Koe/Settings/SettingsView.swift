@@ -32,6 +32,7 @@ struct SettingsPage: View {
                     PermissionRow(permission: permission, status: checklist.status(of: permission),
                                   isNext: checklist.nextStep == permission, center: permissions)
                 }
+                PermissionRow(systemAudio: permissions.systemAudio, center: permissions)
             }
             SettingsGroup(title: "Dictation", description: "Click a shortcut, then press the keys you want.") {
                 ShortcutRow(action: .toggleSession, library: library)
@@ -50,6 +51,7 @@ struct SettingsPage: View {
                            detail: "Off, the screen keeps moving and the picture is taken when you attach it.") {
                     Toggle("Freeze the screen while you pick", isOn: binding(\.freezeScreen)).toggleStyle(.koe)
                 }
+                PauseAudioRow(isOn: binding(\.pauseMedia), access: permissions.systemAudio, center: permissions)
             }
             SettingsGroup(title: "When you finish") {
                 SettingRow(title: "Copy attachments with the text",
@@ -92,21 +94,69 @@ struct SettingsPage: View {
     }
 }
 
-private struct PermissionRow: View {
-    let permission: Permission
-    let status: PermissionStatus
-    let isNext: Bool
+/// Pausing what plays needs system audio recording, the optional permission above. Turning the switch on asks for it.
+private struct PauseAudioRow: View {
+    @Binding var isOn: Bool
+    let access: PermissionStatus
     let center: PermissionCenter
 
     var body: some View {
+        SettingRow(title: "Pause audio while you dictate", detail: access == .granted
+            ? "Music and videos pause as you start and play again when you finish."
+            : "Needs System audio, above.") {
+            Toggle("Pause audio while you dictate", isOn: Binding(get: { isOn }, set: { wanted in
+                isOn = wanted
+                if wanted, access == .notDetermined { center.requestSystemAudio() }
+            })).toggleStyle(.koe)
+        }
+    }
+}
+
+private struct PermissionRow: View {
+    let icon: Icon
+    let title: String
+    let detail: String
+    var isOptional = false
+    let status: PermissionStatus
+    let isNext: Bool
+    let request: () -> Void
+    let openSettings: () -> Void
+    var relaunch: (() -> Void)?
+
+    init(permission: Permission, status: PermissionStatus, isNext: Bool, center: PermissionCenter) {
+        icon = permission.icon
+        title = permission.title
+        detail = status == .denied ? permission.deniedDetail : permission.detail
+        self.status = status
+        self.isNext = isNext
+        request = { center.request(permission) }
+        openSettings = { center.openSettings(for: permission) }
+        if permission == .screenRecording { relaunch = { center.relaunch() } }
+    }
+
+    /// System audio recording: only pausing what plays needs it, so it is optional and never the next step.
+    init(systemAudio status: PermissionStatus, center: PermissionCenter) {
+        icon = .systemAudio
+        title = "System audio"
+        let purpose = "To pause music and videos while you dictate."
+        detail = status == .denied ? "\(purpose) Turn on Koe under System Audio Recording Only in System Settings." : purpose
+        isOptional = true
+        self.status = status
+        isNext = false
+        request = { center.requestSystemAudio() }
+        openSettings = { center.openSystemAudioSettings() }
+    }
+
+    var body: some View {
         HStack(spacing: 12) {
-            IconView(icon: permission.icon, size: .small, color: status == .granted ? Tone.green.ink : Palette.icon2)
+            IconView(icon: icon, size: .small, color: status == .granted ? Tone.green.ink : Palette.icon2)
                 .frame(width: 28, height: 28)
                 .background(status == .granted ? Tone.green.tint : Palette.press,
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text(permission.title).foregroundStyle(Palette.fg4)
+                    Text(title).foregroundStyle(Palette.fg4)
+                    if isOptional { Badge(title: "Optional", size: .small) }
                 }
                 Text(detail)
                     .font(Typography.meta)
@@ -122,28 +172,17 @@ private struct PermissionRow: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var detail: String {
-        guard status == .denied else { return permission.detail }
-        return switch permission {
-        case .microphone: "\(permission.detail) Turn on Koe under Microphone in System Settings."
-        case .screenRecording: "\(permission.detail) After you turn on Koe in System Settings, reopen it."
-        case .accessibility: "\(permission.detail) Turn on Koe under Accessibility in System Settings."
-        }
-    }
-
     @ViewBuilder private var trailing: some View {
         switch status {
         case .granted:
             Badge(title: "Allowed", tone: .green, icon: .checkmark)
         case .notDetermined:
-            Button("Allow") { center.request(permission) }
-                .buttonStyle(.koe(isNext ? .primary : .outline, size: .small))
+            Button("Allow", action: request).buttonStyle(.koe(isNext ? .primary : .outline, size: .small))
         case .denied:
-            if permission == .screenRecording {
-                Button("Reopen Koe") { center.relaunch() }.buttonStyle(.koe(.outline, size: .small))
+            if let relaunch {
+                Button("Reopen Koe", action: relaunch).buttonStyle(.koe(.outline, size: .small))
             }
-            Button("Open System Settings") { center.openSettings(for: permission) }
-                .buttonStyle(.koe(.outline, size: .small))
+            Button("Open System Settings", action: openSettings).buttonStyle(.koe(.outline, size: .small))
         }
     }
 }
@@ -167,11 +206,19 @@ extension Permission {
         }
     }
 
+    var deniedDetail: String {
+        switch self {
+        case .microphone: "\(detail) Turn on Koe under Microphone in System Settings."
+        case .screenRecording: "\(detail) After you turn on Koe in System Settings, reopen it."
+        case .accessibility: "\(detail) Turn on Koe under Accessibility in System Settings."
+        }
+    }
+
     var detail: String {
         switch self {
         case .microphone: "To transcribe what you say, on device."
         case .screenRecording: "To take screenshots and record clips while you talk."
-        case .accessibility: "To start with Fn, comment with ⇧⌘-click and paste your files with ⌘V."
+        case .accessibility: "To start with Fn, comment with ⇧⌘-click and paste."
         }
     }
 
