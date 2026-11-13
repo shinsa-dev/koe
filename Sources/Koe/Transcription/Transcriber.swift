@@ -7,8 +7,9 @@ enum TranscriberEvent: Sendable, Equatable {
     case update(TranscriptUpdate)
 }
 
-/// Turns a source's audio into timed text. Apple's on-device model is the one Koe ships; WhisperKit or Parakeet
-/// would plug in here.
+/// Turns a source's audio into timed text, with a time for every word, as `BundleComposer` places attachments at word
+/// boundaries. `AppleSpeechTranscriber` streams natively; Parakeet and Whisper are `WindowDecoder`s behind
+/// `WindowedTranscriber`. `ActiveTranscriber` picks the one sessions use.
 protocol Transcriber: Sendable {
     /// Gets the model ready ahead of the first session, so a session's audio reaches it at once.
     func prewarm() async

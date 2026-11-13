@@ -6,7 +6,8 @@ import KoeCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let permissions = PermissionCenter()
-    private let transcriber = AppleSpeechTranscriber()
+    private let transcriber = ActiveTranscriber()
+    private let models = ModelStore()
     private lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
@@ -19,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
-            library: library, permissions: permissions, openSessions: { [weak self] in self?.showSessions() }
+            library: library, permissions: permissions, models: models, openSessions: { [weak self] in self?.showSessions() }
         )
         // Back to a menu bar app once the window is gone.
         controller.onClose = { NSApp.setActivationPolicy(.accessory) }
@@ -44,20 +45,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Typography.registerFonts()
         applyAppearance()
         NSApp.mainMenu = MainMenu.build(target: self)
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = Self.menuBarMark
-        item.button?.setAccessibilityLabel("Koe")
-        let menu = NSMenu()
-        menu.delegate = self
-        item.menu = menu
-        statusItem = item
+        statusItem = makeStatusItem()
 
         wireSessions()
         if audioFile == nil, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
             MicrophoneSource.prewarm()
         }
-        recoverUnfinished()
+        startTranscription()
         library.onSettingsChange = { [weak self] settings in
+            if let self { transcriber.update(chosen: settings.transcriptionModel, store: models) }
             self?.applyAppearance()
             self?.clicks.setActive(settings.clickToComment)
             if settings.shortcuts != ShortcutCenter.shared.shortcuts { ShortcutCenter.shared.apply(settings.shortcuts) }
@@ -87,13 +83,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
             openSetup()
         }
+        followLaunchFlags()
+    }
+
+    /// The flags that drive Koe for screenshots and tests (README, Notes).
+    private func followLaunchFlags() {
         // For screenshots: opens the menu as if clicked, since the status item can't be clicked by script.
         if Launch.has("--open-menu") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { item.button?.performClick(nil) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.statusItem?.button?.performClick(nil) }
         }
         if Launch.has("--settings") { openSettings() }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
+        // For screenshots: `--download <model>` picks a model as the dropdown does, and `--snapshot <path>` draws the
+        // whole settings page into a PNG three seconds in, since the window scrolls and a locked screen captures nothing.
+        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.pick(id, in: library) }
+        if let path = Launch.value(after: "--snapshot") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
+            }
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -156,23 +165,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .attachments: pill.toggleAttachments()
         case .finish: sessions.finish()
         case .cancel: sessions.cancel()
-        }
-    }
-
-    /// Readies the speech model so the first session's audio reaches it at once, then finishes any recording a crash
-    /// or quit left behind.
-    private func recoverUnfinished() {
-        let unfinished = library.unfinished()
-        Task { [transcriber, library, sessions, pill] in
-            await transcriber.prewarm()
-            let recovered = await library.recover(unfinished, using: transcriber)
-            guard recovered > 0, !sessions.phase.isActive else { return }
-            sessions.post(PillNotice(
-                kind: .success, title: "Recording saved",
-                detail: recovered == 1 ? "A recording is in Recent sessions" : "\(recovered) recordings are in Recent sessions"
-            ))
-            pill.show()
-            pill.hide(after: .seconds(4)) { sessions.phase != .idle }
         }
     }
 
@@ -332,5 +324,63 @@ extension AppDelegate {
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
         return image
+    }
+}
+
+extension AppDelegate {
+    private func makeStatusItem() -> NSStatusItem {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = Self.menuBarMark
+        item.button?.setAccessibilityLabel("Koe")
+        let menu = NSMenu()
+        menu.delegate = self
+        item.menu = menu
+        return item
+    }
+
+    /// Picks the model sessions use, and on the first launch starts downloading the recommended one; Apple's model
+    /// transcribes until it is in, then Koe switches to it.
+    private func startTranscription() {
+        let standard = TranscriptionModel.standard.id
+        models.onChange = { [weak self] id in
+            guard let self else { return }
+            if id == standard, models.isInstalled(id), !library.settings.startedFirstDownload {
+                library.update { $0.startedFirstDownload = true }
+            }
+            switch ModelPicker.settle(pending: models.pending, changed: id, install: models.install(id)) {
+            case .adopt:
+                models.pending = nil
+                library.update { $0.transcriptionModel = id }
+            case .drop: models.pending = nil
+            case .keep: break
+            }
+            transcriber.update(chosen: library.settings.transcriptionModel, store: models)
+        }
+        transcriber.onRouteChange = { [models] route in models.route = route }
+        // Until the first download is in, every launch tries again, so quitting halfway through doesn't leave Koe
+        // on Apple's model for good.
+        if !library.settings.startedFirstDownload, library.settings.transcriptionModel == standard {
+            models.download(standard)
+        }
+        transcriber.update(chosen: library.settings.transcriptionModel, store: models)
+        models.route = transcriber.currentRoute
+        recoverUnfinished()
+    }
+
+    /// Readies the speech model so the first session's audio reaches it at once, then finishes any recording a crash
+    /// or quit left behind.
+    private func recoverUnfinished() {
+        let unfinished = library.unfinished()
+        Task { [transcriber, library, sessions, pill] in
+            await transcriber.prewarm()
+            let recovered = await library.recover(unfinished, using: transcriber)
+            guard recovered > 0, !sessions.phase.isActive else { return }
+            sessions.post(PillNotice(
+                kind: .success, title: "Recording saved",
+                detail: recovered == 1 ? "A recording is in Recent sessions" : "\(recovered) recordings are in Recent sessions"
+            ))
+            pill.show()
+            pill.hide(after: .seconds(4)) { sessions.phase != .idle }
+        }
     }
 }
