@@ -66,6 +66,8 @@ final class FnKey {
     static let shared = FnKey()
 
     private var handler: (() -> Void)?
+    /// Fn went down alone, ahead of the release that fires; Koe starts hearing the Mac's output then.
+    var onPress: (() -> Void)?
     private var monitors: [Any] = []
     private var down = false
     private var spoilt = false
@@ -113,6 +115,7 @@ final class FnKey {
         if event.modifierFlags.contains(.function) {
             down = true
             spoilt = !others.isEmpty
+            if !spoilt { onPress?() }
         } else if down {
             down = false
             if !spoilt, others.isEmpty { handler?() }

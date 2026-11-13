@@ -1,0 +1,262 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [Test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Stable is a normal release marked latest; canary is a pre-release of main, as every tested merge makes
+        type: choice
+        options: [stable, canary]
+        default: stable
+      bump:
+        description: Which part of the last stable version goes up (docs/release.md); a canary ignores it
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+      channel: ${{ steps.decide.outputs.channel }}
+      sha: ${{ steps.decide.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "channel=$INPUT_CHANNEL" >> "$GITHUB_OUTPUT"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=canary" >> "$GITHUB_OUTPUT"
+            decision=$(python3 scripts/release_version.py canary)
+            echo "$decision" >> "$GITHUB_OUTPUT"
+            reason=$(sed -n 's/^reason=//p' <<<"$decision")
+            echo "$reason"
+            printf '%s\n' "$reason" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  mac:
+    needs: trigger
+    if: needs.trigger.outputs.build == 'true'
+    concurrency:
+      group: ${{ needs.trigger.outputs.channel == 'canary' && 'release-canary' || 'release' }}
+      cancel-in-progress: ${{ needs.trigger.outputs.channel == 'canary' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    # FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the job keeps to
+    # 26.3 until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    permissions:
+      contents: write
+      statuses: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      mode: ${{ steps.signing.outputs.mode }}
+    steps:
+      - name: Report the release as pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.trigger.outputs.sha }}
+          CHANNEL: ${{ needs.trigger.outputs.channel }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$RELEASE_SHA" \
+            -f state=pending -f context=Release -f description="Building the $CHANNEL release" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.trigger.outputs.sha }}
+          fetch-depth: 0
+      - name: Next version
+        id: version
+        env:
+          CHANNEL: ${{ needs.trigger.outputs.channel }}
+          BUMP: ${{ inputs.bump || 'patch' }}
+        run: |
+          plan=$(python3 scripts/release_version.py plan "$CHANNEL" "$BUMP")
+          echo "$plan" >> "$GITHUB_OUTPUT"
+          # Sparkle orders updates by build, so every release, on any channel, takes the next run number.
+          echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          version=$(sed -n 's/^version=//p' <<<"$plan")
+          printf '**Version:** %s (build %s), %s channel.\n\n' "$version" "$GITHUB_RUN_NUMBER" "$CHANNEL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Signing preflight
+        id: signing
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          missing=()
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID SPARKLE_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then missing+=("$name"); fi
+          done
+          if [ ${#missing[@]} -eq 0 ]; then
+            mode=signed
+            line="Signed with the Developer ID Application certificate and notarized by Apple: it opens without a Gatekeeper prompt and updates itself."
+          elif [ ${#missing[@]} -eq 6 ]; then
+            mode=unsigned
+            line="Not signed (ad hoc) and not notarized: no signing secrets are set. It installs, macOS asks before the first launch, and no appcast offers it, as Sparkle installs only signed updates (docs/release.md)."
+          else
+            echo "::error title=Signing::Some signing secrets are set and some are missing (${missing[*]}). Set all six or none (docs/release.md)."
+            exit 1
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Signing::$line"
+          printf '**Signing:** %s\n\n' "$line" >> "$GITHUB_STEP_SUMMARY"
+      - name: Import the certificate
+        id: keychain
+        if: steps.signing.outputs.mode == 'signed'
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          identity=$(scripts/release.sh keychain | tail -n 1)
+          if [ -z "$identity" ]; then
+            echo "::error title=Signing::CSC_LINK holds no Developer ID Application certificate (docs/release.md)."
+            exit 1
+          fi
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftpm-release-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: swiftpm-release-${{ runner.os }}-
+      - name: Build and sign the app
+        env:
+          KOE_VERSION: ${{ steps.version.outputs.version }}
+          KOE_BUILD: ${{ steps.version.outputs.build }}
+          KOE_SIGN_IDENTITY: ${{ steps.keychain.outputs.identity }}
+        run: ./build.sh
+      - name: Notarize and staple
+        if: steps.signing.outputs.mode == 'signed'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/release.sh notarize Koe.app
+      - name: Check the version and the signature
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          KOE_SIGN_IDENTITY: ${{ steps.keychain.outputs.identity }}
+        run: scripts/release.sh verify Koe.app "$VERSION"
+      - name: Pack the disk image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          KOE_SIGN_IDENTITY: ${{ steps.keychain.outputs.identity }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          mkdir -p release
+          scripts/release.sh dmg Koe.app "$VERSION" release/Koe.dmg
+      - name: Sign the update
+        if: steps.signing.outputs.mode == 'signed'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: scripts/release.sh update release/Koe.dmg "$VERSION" "$BUILD"
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ needs.trigger.outputs.channel }}
+          RELEASE_SHA: ${{ needs.trigger.outputs.sha }}
+          NOTES_START_TAG: ${{ steps.version.outputs.notes_start_tag }}
+        run: |
+          case "$CHANNEL" in
+            stable) kind=(--latest); title="Koe $VERSION"; note="**Stable release.** Koe on the Stable channel updates itself to it. Download it at https://shinsa.dev/koe/download." ;;
+            *) kind=(--prerelease --latest=false); title="Koe $VERSION"; note="**Canary build of main.** Koe on the Canary channel updates itself to it (Settings → Updates). Download it at https://shinsa.dev/koe/download/canary." ;;
+          esac
+          if [ -n "$NOTES_START_TAG" ]; then kind+=(--notes-start-tag "$NOTES_START_TAG"); fi
+          files=(release/Koe.dmg)
+          if [ -f release/update.json ]; then files+=(release/update.json); fi
+          gh release create "$TAG" --target "$RELEASE_SHA" --title "$title" --notes "$note" --generate-notes \
+            "${kind[@]}" "${files[@]}"
+          printf '**Published** [%s](%s/%s/releases/tag/%s).\n' "$title" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the keychain
+        if: always() && steps.keychain.outcome == 'success'
+        run: security delete-keychain "$RUNNER_TEMP/koe-signing.keychain-db" || true
+
+  downloads:
+    needs: [trigger, mac]
+    if: needs.mac.outputs.mode == 'signed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.trigger.outputs.sha }}
+      - name: Download the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.mac.outputs.tag }}
+        run: gh release download "$TAG" --pattern Koe.dmg --pattern update.json --dir release
+      - name: Copy it to shinsa.dev
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VERSION: ${{ needs.mac.outputs.version }}
+        run: |
+          scripts/release.sh upload release "$VERSION" | tee upload.log
+          printf '**Downloads:** %s\n' "$(tail -n 1 upload.log)" >> "$GITHUB_STEP_SUMMARY"
+
+  status:
+    needs: [trigger, mac, downloads]
+    if: ${{ always() && (needs.trigger.result == 'failure' || needs.trigger.outputs.build == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: Report the release on the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.trigger.outputs.sha || github.event.workflow_run.head_sha || github.sha }}
+          CHANNEL: ${{ needs.trigger.outputs.channel || inputs.channel || 'canary' }}
+          TAG: ${{ needs.mac.outputs.tag }}
+          TRIGGER: ${{ needs.trigger.result }}
+          MAC: ${{ needs.mac.result }}
+          DOWNLOADS: ${{ needs.downloads.result }}
+        run: |
+          case "$TRIGGER/$MAC/$DOWNLOADS" in
+            success/success/success) state=success description="Published $TAG" ;;
+            success/success/skipped) state=success description="Published $TAG, unsigned, so not on shinsa.dev" ;;
+            failure/*) state=failure description="Could not decide whether to build the $CHANNEL release" ;;
+            *cancelled*) state=error description="Cancelled" ;;
+            */success/*) state=failure description="Published $TAG, but shinsa.dev was not updated" ;;
+            *) state=failure description="The $CHANNEL release failed to build" ;;
+          esac
+          echo "Release status for $RELEASE_SHA: $state ($description)"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$RELEASE_SHA" \
+            -f state="$state" -f context=Release -f description="$description" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

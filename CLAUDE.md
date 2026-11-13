@@ -7,9 +7,15 @@ behaviour it describes.
 ## Commands
 
 - `swift build` builds; `./build.sh` assembles `Koe.app`; `./build.sh --install` puts it in `/Applications`.
+  `KOE_VERSION` and `KOE_BUILD` stamp a release; `KOE_SIGN_IDENTITY` picks the certificate (a Developer ID one is
+  timestamped for notarization). Never run a Developer ID build next to the installed one without saying so: macOS
+  sees another app and can drop the microphone grant.
 - **After every change to the app, run `./build.sh --install`** before you hand over, so the human can always test
   the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
+- Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
+  (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
+  R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer
   bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, both glass layers, with a dark variant); `build.sh`
@@ -59,7 +65,7 @@ behaviour it describes.
 - A speech model plugs in behind `Transcriber`: add it to `TranscriptionModel.catalog` (KoeCore), download it in
   `ModelStore.fetch`, and give `WindowedTranscriber` a decoder that returns timed tokens, unless it streams on its own
   like Apple's. Every model must time its words, as `BundleComposer` places attachments at word boundaries. Only model
-  files ever go online.
+  files and Koe's own updates (Sparkle, from shinsa.dev/koe) ever go online; audio, text and captures never do.
 - Logic that can live without AppKit goes in `KoeCore` and gets Swift Testing tests. `Koe` holds AppKit, SwiftUI
   and system frameworks.
 - Swift 6 language mode: UI types are `@MainActor`; anything crossing to audio or capture threads is `Sendable`.

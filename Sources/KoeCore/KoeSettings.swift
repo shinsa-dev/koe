@@ -21,6 +21,10 @@ public struct KoeSettings: Sendable, Equatable {
     public var freezeScreen = true
     /// ⌘⇧-click anywhere to comment there. Off, the click goes to the app under it, as browsers use it for new tabs.
     public var clickToComment = true
+    /// Pause music and videos while you dictate, and play them again when you finish. Needs system audio access.
+    public var pauseMedia = true
+    /// The releases Koe updates to. Unset, it follows the channel of the installed build (`UpdateChannel(version:)`).
+    public var updateChannel: UpdateChannel?
     public var shortcuts = Shortcuts()
     /// The model that transcribes. Until it is downloaded, Apple's on-device model stands in.
     public var transcriptionModel: ModelID = TranscriptionModel.standard.id
@@ -37,11 +41,18 @@ public struct KoeSettings: Sendable, Equatable {
         public static let recentCount = "recentCount"
         public static let freezeScreen = "freezeScreen"
         public static let clickToComment = "clickToComment"
+        public static let pauseMedia = "pauseMedia"
+        public static let updateChannel = "updateChannel"
         public static let transcriptionModel = "transcriptionModel"
         public static let startedFirstDownload = "startedFirstDownload"
     }
 
     public init() {}
+
+    /// The channel Koe checks: the one you picked, else the one this build came from.
+    public func updateChannel(forVersion version: String) -> UpdateChannel {
+        updateChannel ?? UpdateChannel(version: version)
+    }
 
     public init(values: [String: Any]) {
         if let copyFiles = values[Key.copyFiles] as? Bool { self.copyFiles = copyFiles }
@@ -50,6 +61,8 @@ public struct KoeSettings: Sendable, Equatable {
         if let raw = values[Key.theme] as? String, let theme = ThemeChoice(rawValue: raw) { self.theme = theme }
         if let freezeScreen = values[Key.freezeScreen] as? Bool { self.freezeScreen = freezeScreen }
         if let clickToComment = values[Key.clickToComment] as? Bool { self.clickToComment = clickToComment }
+        if let pauseMedia = values[Key.pauseMedia] as? Bool { self.pauseMedia = pauseMedia }
+        updateChannel = (values[Key.updateChannel] as? String).flatMap(UpdateChannel.init(rawValue:))
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
         if let raw = values[Key.transcriptionModel] as? String, let model = ModelID(rawValue: raw) {
             transcriptionModel = model
@@ -61,7 +74,9 @@ public struct KoeSettings: Sendable, Equatable {
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
          Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether, Key.clickToComment: clickToComment,
-         Key.transcriptionModel: transcriptionModel.rawValue, Key.startedFirstDownload: startedFirstDownload]
+         Key.pauseMedia: pauseMedia, Key.transcriptionModel: transcriptionModel.rawValue,
+         Key.startedFirstDownload: startedFirstDownload]
+            .merging(updateChannel.map { [Key.updateChannel: $0.rawValue] } ?? [:]) { current, _ in current }
             .merging(shortcuts.values) { current, _ in current }
     }
 }

@@ -6,7 +6,8 @@ your words with every attachment placed at the moment you added it. Pasting it i
 terminal agent brings everything in, in order, so the agent reads each screenshot where you talked about it.
 
 It transcribes on device, with NVIDIA's Parakeet v3 on the Neural Engine by default. Nothing you say or capture
-leaves your Mac; the only download is the speech model itself, from Hugging Face.
+leaves your Mac; the only downloads are the speech model itself, from Hugging Face, and Koe's own updates, from
+shinsa.dev.
 
 ## Status
 
@@ -22,6 +23,7 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 ```sh
 ./build.sh            # builds ./Koe.app
 ./build.sh --install  # copies it into /Applications and launches it
+KOE_VERSION=1.2.0 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
 swift test            # KoeCore's unit tests
 ```
 
@@ -31,6 +33,33 @@ across rebuilds; without one it signs ad hoc and the permissions reset on every 
 bundle, `Resources/Koe.icon` (two glass layers, the mark and the blue dot, on a light tile with a dark variant);
 `build.sh` compiles it with `actool` into `Assets.car`. `scripts/icon.sh` renders `Resources/Koe.svg` into
 `Resources/Koe.icns`, the fallback when `actool` fails.
+
+Every signed build runs under the hardened runtime with `Resources/Koe.entitlements` (audio input), and a Developer
+ID one is timestamped too, so it can be notarized. `build.sh` embeds Sparkle in `Contents/Frameworks` and signs its
+helpers inside out with the same identity. Without `KOE_VERSION` and `KOE_BUILD` a build is `0.0.0-dev`, build `0`:
+a development build that checks for updates only when you ask, so it never replaces itself.
+
+Signing with a different certificate (a Developer ID build next to your Apple Development one) is a different app to
+macOS: running it can drop the microphone grant of the other, so allow it again in Settings afterward.
+
+## Updates
+
+Koe updates itself with Sparkle 2 (`Updater`). Each channel, Stable and Canary, has its own appcast at
+`https://shinsa.dev/koe/appcast/<channel>.xml` (`UpdateChannel`), and Sparkle installs an update only when it is
+signed with the EdDSA key whose public half is `SUPublicEDKey` in `Info.plist`. The private half lives in the login
+keychain under the account `studio.shinsa.koe` (Sparkle's `generate_keys --account studio.shinsa.koe`) and, for the
+Release workflow, in a repository secret. Settings → Updates picks the channel; until you pick one, Koe follows the
+channel of the build you installed (`1.2.1-canary.3` is a canary). Sparkle never goes back a version, so moving from
+Canary to Stable waits for the next stable release. A release build checks once a day, and Check now checks at once.
+
+## Releases
+
+The Release workflow builds, signs, notarizes and publishes Koe, as Shinsa's does: every tested merge to `main` is a
+canary, and stable releases run from Actions → Release (`gh workflow run release.yml -f channel=stable`). Koe has
+no beta channel. Each
+release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. Lint
+(SwiftLint, actionlint, shellcheck) and Test (`swift test --filter KoeCoreTests`, the release script tests) run on
+every pull request. `docs/release.md` has the versions, the steps, the files on shinsa.dev and the secrets.
 
 ## Design
 
@@ -78,6 +107,20 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   `SessionLibrary.recover`). A model that fails mid-session leaves the recording running and attaches the audio.
   A new input device (AirPods connecting) restarts the tap instead of ending the session. Discard is the one way a
   recording goes: it deletes the session's folder.
+
+## Pausing what plays
+
+"Pause audio while you dictate" (on by default) pauses music and videos as a session opens and plays them again
+when it closes (finished or discarded; pausing the pill keeps them paused). macOS no longer lets an app read what
+is playing, and an open output stream says nothing (simulators, a Safari tab or a player paused a minute ago keep
+one open while silent). So Koe listens: with System audio allowed (optional, `NSAudioCaptureUsageDescription`), a
+private process tap of everything but Koe measures the output's peak (`NowPlaying`, only when another app has a
+stream open). The pause has to land as you start, so the tap is set up ahead of time, off the main thread (setting
+one up takes 0.2 to 3.5 s), and only its audio runs per session: it starts hearing as Fn goes down, so by the
+release Koe already knows, and pauses on the first sound it hears (within 250 ms of silence otherwise). It sends MediaRemote's explicit pause, waits 500 ms and listens 300 ms more: only when
+the pause silenced the output is it Koe's to undo, with an explicit play when the session closes (`MediaPause`).
+Koe never sends a toggle and never plays what it didn't pause, so it can't start music you had stopped. Nothing is
+recorded; the samples are only measured.
 
 ## Layout
 
@@ -173,7 +216,7 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
   short never counts. FluidAudio reports no progress, so the card measures the folder against the expected size.
-  Nothing else goes online: audio and text never leave the Mac.
+  Besides updates (Updates, above), nothing else goes online: audio and text never leave the Mac.
 - **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
   transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
   changes, without a relaunch; a session already running keeps its model. A chosen model that isn't downloaded,
@@ -284,6 +327,8 @@ frames picked so far.
 
 ## Notes
 
+- System audio is read and asked for through TCC directly (`SystemAudioAccess`), as macOS has no public call to
+  read it without asking. It is optional, so it never counts towards the three that setup needs.
 - Screen recording and Accessibility only report granted or not. Koe remembers whether it has asked
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so that row offers "Reopen Koe".

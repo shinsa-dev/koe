@@ -10,6 +10,9 @@ import KoeCore
 @Observable
 final class PermissionCenter {
     private(set) var checklist = SetupChecklist(statuses: [:])
+    /// System audio recording: only pausing what plays needs it, so it stays out of the checklist.
+    private(set) var systemAudio = PermissionStatus.notDetermined
+    @ObservationIgnored var onSystemAudioChange: (() -> Void)?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -21,6 +24,23 @@ final class PermissionCenter {
         let statuses = Dictionary(uniqueKeysWithValues: Permission.allCases.map { ($0, status(of: $0)) })
         let next = SetupChecklist(statuses: statuses)
         if next != checklist { checklist = next }
+        let audio = SystemAudioAccess.status
+        if audio != systemAudio {
+            systemAudio = audio
+            onSystemAudioChange?()
+        }
+    }
+
+    func requestSystemAudio() {
+        SystemAudioAccess.request { _ in
+            Task { @MainActor in self.refresh() }
+        }
+    }
+
+    func openSystemAudioSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func request(_ permission: Permission) {

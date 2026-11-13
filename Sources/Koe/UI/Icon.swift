@@ -7,6 +7,7 @@ import SwiftUI
 enum Icon: String, CaseIterable {
     case microphone = "IconMicrophone"
     case screenCapture = "IconScreenCapture"
+    case systemAudio = "IconVolumeFull"
     case cursorClick = "IconCursorClick"
     case checkmark = "IconCheckmark1"
     case accessibility = "IconHandTouch"
