@@ -1,0 +1,370 @@
+import AVFoundation
+import KoeCore
+import SwiftUI
+
+/// The state of reviewing one clip: playing it slowed down, stepping through it frame by frame, and picking the
+/// frames that become screenshots.
+@MainActor
+@Observable
+final class ClipReviewer {
+    let url: URL
+    let info: ClipMovie.Info
+    let sourceLabel: String?
+    private(set) var review: ClipReview
+    private(set) var current = 0
+    private(set) var playing = false
+    var speed = PlaybackSpeed.initial {
+        didSet { if playing { player.rate = Float(speed.rawValue) } }
+    }
+    private(set) var thumbnails: [Int: CGImage] = [:]
+    /// The frame whose spoken note is being heard now.
+    private(set) var talking: Int?
+    @ObservationIgnored private var talkStart: AudioTime = 0
+    @ObservationIgnored private let now: () -> AudioTime
+    @ObservationIgnored private let spoken: (VoiceSpan) -> String
+    @ObservationIgnored let player: AVPlayer
+    @ObservationIgnored var onFinish: ((Bool) -> Void)?
+    @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
+
+    init(url: URL, info: ClipMovie.Info, sourceLabel: String?, now: @escaping () -> AudioTime,
+         spoken: @escaping (VoiceSpan) -> String) {
+        self.now = now
+        self.spoken = spoken
+        self.url = url
+        self.info = info
+        self.sourceLabel = sourceLabel
+        review = ClipReview(frames: info.frames)
+        player = AVPlayer(url: url)
+        player.actionAtItemEnd = .pause
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 60), queue: .main) { [weak self] time in
+            MainActor.assumeIsolated { self?.playerMoved(to: time.seconds) }
+        }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification, object: player.currentItem, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.playing = false }
+        }
+        show(0)
+    }
+
+    var frames: ClipFrames { info.frames }
+
+    func togglePlay() {
+        if playing {
+            pause()
+            return
+        }
+        if current >= frames.count - 1 { show(0) }
+        playing = true
+        player.playImmediately(atRate: Float(speed.rawValue))
+    }
+
+    func pause() {
+        guard playing else { return }
+        player.pause()
+        playing = false
+        current = frames.index(at: player.currentTime().seconds)
+    }
+
+    func step(by delta: Int) {
+        pause()
+        show(frames.step(from: current, by: delta))
+    }
+
+    func scrub(to fraction: Double) {
+        pause()
+        show(frames.index(atFraction: fraction))
+    }
+
+    func show(_ index: Int) {
+        current = frames.clamp(index)
+        let time = CMTime(seconds: frames.seekTime(of: current), preferredTimescale: 6000)
+        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    /// Picks the frame on screen and starts hearing what you say about it at once. On a frame already picked it
+    /// listens again, replacing what you said before.
+    func pickCurrent() {
+        pause()
+        let index = current
+        guard review.pick(index) else {
+            if talking != index { toggleTalk(index) }
+            return
+        }
+        toggleTalk(index)
+        Task { [url, frames] in
+            let image = try? await ClipMovie.image(at: frames.seekTime(of: index), of: url, maxSide: 160)
+            thumbnails[index] = image
+        }
+    }
+
+    func unpick(_ index: Int) {
+        if talking == index { talking = nil }
+        review.unpick(index)
+        thumbnails[index] = nil
+    }
+
+    /// Starts hearing what you say about frame `index`, or stops when it is the one being heard. Starting another
+    /// frame's note ends the last one; talking about it again replaces what you said before.
+    func toggleTalk(_ index: Int) {
+        let was = talking
+        stopTalking()
+        guard was != index else { return }
+        talking = index
+        talkStart = now()
+    }
+
+    /// What you said about a frame, as far as it has been heard; nil when you haven't spoken about it.
+    func note(for pick: PickedFrame) -> String? {
+        pick.voice.map(spoken)
+    }
+
+    /// What has been heard of the note being said right now.
+    func liveNote() -> String? {
+        talking == nil ? nil : spoken(VoiceSpan(start: talkStart, end: now()))
+    }
+
+    /// Ends the note being said and keeps it.
+    func stopTalking() {
+        guard let index = talking else { return }
+        review.setVoice(VoiceSpan(start: talkStart, end: now()), for: index)
+        talking = nil
+    }
+
+    /// For `--script`: picks the frames on screen at these times into the clip.
+    func pick(at times: [AudioTime]) {
+        for time in times { review.pick(frames.index(at: time)) }
+        for pick in review.picks { show(pick.index) }
+        let picks = review.picks
+        Task { [url, frames] in
+            for pick in picks {
+                thumbnails[pick.index] = try? await ClipMovie.image(at: frames.seekTime(of: pick.index), of: url, maxSide: 160)
+            }
+        }
+    }
+
+    func finish(attach: Bool) {
+        stopTalking()
+        player.pause()
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        timeObserver = nil
+        endObserver = nil
+        let onFinish = onFinish
+        self.onFinish = nil
+        onFinish?(attach)
+    }
+
+    private func playerMoved(to seconds: Double) {
+        guard playing, seconds.isFinite else { return }
+        // Setting the same frame again would still redraw everything that reads it.
+        let index = frames.index(at: seconds)
+        if index != current { current = index }
+    }
+
+    var attachTitle: String {
+        switch review.picks.count {
+        case 0: "Attach clip"
+        case 1: "Attach clip and 1 frame"
+        default: "Attach clip and \(review.picks.count) frames"
+        }
+    }
+}
+
+/// The window a clip opens in once it stops: the clip slowed down, a scrubber with the picked frames marked on it,
+/// and the frames you picked, each with what you said about it. Pick, attach and discard are the pill's.
+struct ClipReviewView: View {
+    static let width: CGFloat = 640
+    let reviewer: ClipReviewer
+    /// Set as a row is removed, so the card closes on the slower spring.
+    @State private var removing = false
+    @State private var shown = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            ClipPlayerView(player: reviewer.player)
+                .frame(width: videoSize.width, height: videoSize.height)
+                .frame(maxWidth: .infinity)
+                .background(Palette.well, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            transport
+            Scrubber(reviewer: reviewer)
+            if !reviewer.review.picks.isEmpty { pickedFrames.transition(.opacity) }
+        }
+        .padding(16)
+        .frame(width: Self.width)
+        .floatingSurface(cornerRadius: 18, shadow: false)
+        .onChange(of: reviewer.review.picks.count) { removing = false }
+        // The card grows and shrinks with its rows, on the same spring.
+        .animation(RowChange.animation(removing: removing), value: reviewer.review.picks.count)
+        .growsIn(shown)
+        .onAppear { withAnimation(GrowIn.animation) { shown = true } }
+    }
+
+    /// The clip fitted into the window's width and at most 340 pt tall.
+    private var videoSize: CGSize {
+        let size = reviewer.info.size
+        guard size.width > 0, size.height > 0 else { return CGSize(width: Self.width - 32, height: 300) }
+        let scale = min((Self.width - 32) / size.width, 340 / size.height)
+        return CGSize(width: size.width * scale, height: size.height * scale)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Pick the frames to attach").font(Typography.title).foregroundStyle(Palette.fg4)
+                Text(subtitle).font(Typography.meta).foregroundStyle(Palette.fg2).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+        }
+    }
+
+    private var subtitle: String {
+        let length = String(format: "%.1f s", reviewer.frames.duration)
+        let frames = reviewer.frames.count == 1 ? "1 frame" : "\(reviewer.frames.count) frames"
+        return [reviewer.sourceLabel, "\(length), \(frames)"].compactMap(\.self).joined(separator: " · ")
+    }
+
+    private var transport: some View {
+        HStack(spacing: 4) {
+            Button(action: reviewer.togglePlay) {
+                ZStack {
+                    IconView(icon: reviewer.playing ? .pause : .play, size: .medium, color: nil)
+                        .id(reviewer.playing)
+                        .transition(GlyphSwap())
+                }
+                .animation(GlyphSwap.animation, value: reviewer.playing)
+            }
+            .buttonStyle(.koe(.outline, iconOnly: true))
+            .hint(reviewer.playing ? "Pause" : "Play", shortcut: "Space")
+            .accessibilityLabel(reviewer.playing ? "Pause" : "Play")
+            Button { reviewer.step(by: -1) } label: { IconView(icon: .previous, size: .medium, color: nil) }
+                .buttonStyle(.koe(.secondary, iconOnly: true))
+                .hint("Previous frame", shortcut: "←")
+                .accessibilityLabel("Previous frame")
+            Button { reviewer.step(by: 1) } label: { IconView(icon: .next, size: .medium, color: nil) }
+                .buttonStyle(.koe(.secondary, iconOnly: true))
+                .hint("Next frame", shortcut: "→")
+                .accessibilityLabel("Next frame")
+            Position(reviewer: reviewer)
+            Spacer()
+            SegmentedTabs(
+                items: PlaybackSpeed.allCases.map { (value: $0, label: $0.label) },
+                selection: Binding(get: { reviewer.speed }, set: { reviewer.speed = $0 })
+            )
+        }
+    }
+
+    private var pickedFrames: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Frames").font(Typography.label).foregroundStyle(Palette.fg2)
+            FadingScroll(maxHeight: 150, height: Self.listHeight(rows: reviewer.review.picks.count)) {
+                VStack(spacing: Self.rowGap) {
+                    ForEach(reviewer.review.picks) { pick in
+                        row(for: pick)
+                            .frame(height: Self.rowHeight)
+                            .transition(RowChange.change)
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+        }
+    }
+
+    private static let rowHeight: CGFloat = 34
+    private static let rowGap: CGFloat = 6
+
+    private static func listHeight(rows: Int) -> CGFloat {
+        CGFloat(rows) * rowHeight + CGFloat(max(0, rows - 1)) * rowGap
+    }
+
+    private func row(for pick: PickedFrame) -> PickedFrameRow {
+        let index = pick.index
+        return PickedFrameRow(
+            pick: pick, thumbnail: reviewer.thumbnails[index], talking: reviewer.talking == index,
+            note: { reviewer.note(for: pick) },
+            live: { reviewer.liveNote() },
+            talk: { reviewer.toggleTalk(index) },
+            show: { reviewer.pause(); reviewer.show(index) },
+            remove: {
+                removing = true
+                reviewer.unpick(index)
+            }
+        )
+    }
+}
+
+/// Where the clip is. Its own view, so a playing clip redraws this line and the slider, not the whole card.
+private struct Position: View {
+    let reviewer: ClipReviewer
+
+    var body: some View {
+        let time = String(format: "%.2f s", reviewer.frames.time(of: reviewer.current))
+        Text("\(time) · frame \(reviewer.current + 1) of \(reviewer.frames.count)")
+            .font(Typography.meta.monospacedDigit())
+            .foregroundStyle(Palette.fg2)
+            .padding(.leading, 4)
+    }
+}
+
+/// The review's slider: the current frame, with a tick for each picked frame.
+private struct Scrubber: View {
+    let reviewer: ClipReviewer
+
+    var body: some View {
+        SeekBar(fraction: reviewer.frames.fraction(of: reviewer.current),
+                marks: reviewer.review.picks.map { reviewer.frames.fraction(of: $0.index) },
+                seek: reviewer.scrub)
+            .accessibilityElement()
+            .accessibilityLabel("Position in the clip")
+            .accessibilityValue(String(format: "%.2f seconds", reviewer.frames.time(of: reviewer.current)))
+            .accessibilityAdjustableAction { direction in
+                reviewer.step(by: direction == .increment ? 1 : -1)
+            }
+    }
+}
+
+/// The web's slider, drawn as a bg-3 track with an accent fill to the current position, a tick at each mark, and a
+/// knob. Dragging anywhere on it seeks.
+struct SeekBar: View {
+    let fraction: Double
+    var marks: [Double] = []
+    let seek: (Double) -> Void
+    private static let knob: CGFloat = 14
+
+    var body: some View {
+        GeometryReader { geometry in
+            // The knob stays inside the track: its centre runs from 7 pt in to 7 pt short of the end.
+            let run = max(0, geometry.size.width - Self.knob)
+            let half = Self.knob / 2
+            ZStack(alignment: .leading) {
+                // Faint at the start and clearer towards the end, but seen along its whole length.
+                Capsule()
+                    .fill(LinearGradient(colors: [Palette.fg4.opacity(0.14), Palette.fg4.opacity(0.26)],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(height: 4)
+                Capsule().fill(Palette.action).frame(width: half + run * fraction, height: 4)
+                ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Palette.fg3)
+                        .frame(width: 2, height: 12)
+                        .offset(x: half + run * mark - 1)
+                }
+                Circle()
+                    .fill(Palette.card)
+                    .overlay(Circle().strokeBorder(Palette.action, lineWidth: 2))
+                    .frame(width: Self.knob, height: Self.knob)
+                    .shadow(color: Palette.shadow.opacity(0.12), radius: 1, y: 1)
+                    .offset(x: run * fraction)
+            }
+            .frame(height: 20)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                seek(run > 0 ? min(1, max(0, (value.location.x - half) / run)) : 0)
+            })
+        }
+        .frame(height: 20)
+    }
+}

@@ -1,0 +1,4 @@
+.build/
+Koe.app/
+.DS_Store
+.swiftpm/
