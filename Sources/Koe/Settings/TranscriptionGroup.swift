@@ -3,7 +3,7 @@ import KoeCore
 import SwiftUI
 
 /// The Transcription card: one dropdown of the models Koe can transcribe with, and the chosen one's download.
-/// Choosing a model that isn't on this Mac starts its download; Apple's model runs until it is ready.
+/// Choosing a model that isn't on this Mac starts its download; the model in use keeps transcribing until it is in.
 struct TranscriptionGroup: View {
     let library: SessionLibrary
     let models: ModelStore
@@ -11,8 +11,8 @@ struct TranscriptionGroup: View {
     @State private var isOpen = false
 
     var body: some View {
-        let picker = ModelPicker(chosen: library.settings.transcriptionModel, installs: models.installs,
-                                 canDownload: models.canDownload)
+        let picker = ModelPicker(chosen: library.settings.transcriptionModel, pending: models.pending,
+                                 inUse: models.route.model, installs: models.installs, canDownload: models.canDownload)
         SettingsGroup(title: "Transcription",
                       description: models.route.reason
                         ?? "Models run on this Mac. Downloads come from Hugging Face; what you say never leaves it.") {
@@ -56,13 +56,6 @@ struct TranscriptionGroup: View {
         }
     }
 
-    private func choose(_ id: ModelID) {
-        library.update { $0.transcriptionModel = id }
-        if ModelPicker.startsDownload(id, install: models.install(id), canDownload: models.canDownload) {
-            models.download(id)
-        }
-    }
-
     /// The system's menu, laid over the trigger with the chosen model where the trigger's name is, as a pop-up
     /// button opens.
     private func open(_ picker: ModelPicker) {
@@ -71,7 +64,7 @@ struct TranscriptionGroup: View {
         menu.autoenablesItems = false
         var chosenItem: NSMenuItem?
         for option in picker.options {
-            let item = ActionMenuItem(option.title) { choose(option.id) }
+            let item = ActionMenuItem(option.title) { models.pick(option.id, in: library) }
             item.subtitle = option.note
             item.state = option.isChosen ? .on : .off
             item.isEnabled = option.isEnabled

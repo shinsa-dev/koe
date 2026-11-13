@@ -17,6 +17,9 @@ final class ModelStore {
     /// Parakeet's and Whisper's Core ML models run only on Apple silicon.
     let canDownload: Bool
     private(set) var installs: [ModelID: ModelInstall] = [:]
+    /// A model picked in Settings that is still downloading. It becomes the chosen model once it is in; until then
+    /// the chosen one keeps transcribing.
+    var pending: ModelID?
     /// Which model transcribes and why, as the transcriber last worked it out. Settings shows it.
     var route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil)
     /// Called on the main actor when a download starts, ends or is deleted, so the transcriber switches at once.
@@ -81,6 +84,25 @@ final class ModelStore {
             self.downloads[id] = nil
             self.installs[id] = outcome
             self.onChange?(id)
+        }
+    }
+
+    /// Picks a model in Settings' dropdown. One that isn't on this Mac downloads first and stays pending, so the
+    /// chosen model keeps transcribing until it is in.
+    func pick(_ id: ModelID, in library: SessionLibrary) {
+        switch ModelPicker.choose(id, chosen: library.settings.transcriptionModel, install: install(id),
+                                  canDownload: canDownload) {
+        case .use:
+            pending = nil
+            library.update { $0.transcriptionModel = id }
+        case .download:
+            pending = nil
+            download(id)
+        case .downloadThenUse:
+            pending = id
+            download(id)
+        case .unavailable:
+            break
         }
     }
 

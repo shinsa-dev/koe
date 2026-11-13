@@ -166,7 +166,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   system menu with each model's state under its name: Parakeet v3 (recommended and the default, 25 European
   languages, about 480 MB), Parakeet v2 (English, about 460 MB), Whisper large-v3 turbo (99 languages, about 650 MB)
   and Apple's on-device model (built in). Choosing a model that isn't downloaded starts its download; the row shows
-  its progress with Cancel, or Try again after a failure. "Delete a download" at the foot of the menu frees a
+  its progress with Cancel, or Try again after a failure. The model in use keeps transcribing until the download is
+  in (`ModelStore.pending`), and only then becomes the chosen one, so cancelling or a failure leaves you where you were. "Delete a download" at the foot of the menu frees a
   model's disk space. The line under the card says which model runs and why when it isn't the chosen one.
 - **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/

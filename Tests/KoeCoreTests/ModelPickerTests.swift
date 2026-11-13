@@ -32,8 +32,8 @@ struct ModelPickerTests {
         #expect(models.action == .cancel)
         #expect(models.fraction == 0.5)
         let half = ByteCountFormatter.string(fromByteCount: 241_500_000, countStyle: .file)
-        #expect(models.detail == "Downloading, \(half) of 483 MB")
-        #expect(picker(.parakeetV3, [.parakeetV3: .downloading(fraction: 0)]).detail == "Starting the 483 MB download")
+        #expect(models.detail == "Downloading, \(half) of 483 MB.")
+        #expect(picker(.parakeetV3, [.parakeetV3: .downloading(fraction: 0)]).detail == "Starting the 483 MB download.")
     }
 
     @Test func aFailedDownloadSaysWhyAndOffersToTryAgain() {
@@ -68,12 +68,40 @@ struct ModelPickerTests {
         #expect(models.options[0].note == "Recommended · Needs Apple silicon")
     }
 
-    @Test func choosingAModelNotOnDiskStartsItsDownload() {
-        #expect(ModelPicker.startsDownload(.whisperTurbo, install: .notInstalled, canDownload: true))
-        #expect(ModelPicker.startsDownload(.whisperTurbo, install: .failed("x"), canDownload: true))
-        #expect(!ModelPicker.startsDownload(.whisperTurbo, install: .installed, canDownload: true))
-        #expect(!ModelPicker.startsDownload(.whisperTurbo, install: .downloading(fraction: 0.2), canDownload: true))
-        #expect(!ModelPicker.startsDownload(.whisperTurbo, install: .notInstalled, canDownload: false))
-        #expect(!ModelPicker.startsDownload(.apple, install: .notInstalled, canDownload: true))
+    @Test func pickingAModelNotOnDiskKeepsTheOneInUseUntilItIsIn() {
+        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .notInstalled, canDownload: true)
+            == .downloadThenUse)
+        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .failed("x"), canDownload: true)
+            == .downloadThenUse)
+        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .installed, canDownload: true) == .use)
+        #expect(ModelPicker.choose(.apple, chosen: .parakeetV3, install: .notInstalled, canDownload: true) == .use)
+        #expect(ModelPicker.choose(.parakeetV3, chosen: .parakeetV3, install: .notInstalled, canDownload: true)
+            == .download)
+        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .notInstalled, canDownload: false)
+            == .unavailable)
+    }
+
+    @Test func thePendingModelIsChosenOnlyOnceItsDownloadIsIn() {
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .installed) == .adopt)
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .notInstalled) == .drop)
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .failed("x")) == .keep)
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo,
+                                   install: .downloading(fraction: 0.3)) == .keep)
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .parakeetV2, install: .installed) == .keep)
+        #expect(ModelPicker.settle(pending: nil, changed: .whisperTurbo, install: .installed) == .keep)
+    }
+
+    @Test func aPendingDownloadShowsInTheDropdownAndSaysWhatRunsMeanwhile() {
+        let models = ModelPicker(chosen: .parakeetV3, pending: .whisperTurbo, inUse: .parakeetV3,
+                                 installs: [.parakeetV3: .installed, .whisperTurbo: .downloading(fraction: 0)],
+                                 canDownload: true)
+        #expect(models.chosen == .whisperTurbo)
+        #expect(models.options.map(\.isChosen) == [false, false, true, false])
+        #expect(models.action == .cancel)
+        #expect(models.detail == "Starting the 650 MB download. Koe uses Parakeet v3 until then.")
+        let failed = ModelPicker(chosen: .parakeetV3, pending: .whisperTurbo, inUse: .parakeetV3,
+                                 installs: [.whisperTurbo: .failed("The download stopped.")], canDownload: true)
+        #expect(failed.action == .retry)
+        #expect(failed.detail == "The download stopped. Koe uses Parakeet v3 until then.")
     }
 }

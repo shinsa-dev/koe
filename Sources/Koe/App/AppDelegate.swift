@@ -95,9 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Launch.has("--settings") { openSettings() }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
-        // For screenshots: `--download <model>` starts a download, and `--snapshot <path>` draws the whole settings
-        // page into a PNG three seconds in, since the window scrolls and a locked screen captures nothing.
-        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.download(id) }
+        // For screenshots: `--download <model>` picks a model as the dropdown does, and `--snapshot <path>` draws the
+        // whole settings page into a PNG three seconds in, since the window scrolls and a locked screen captures nothing.
+        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.pick(id, in: library) }
         if let path = Launch.value(after: "--snapshot") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
@@ -346,6 +346,13 @@ extension AppDelegate {
             guard let self else { return }
             if id == standard, models.isInstalled(id), !library.settings.startedFirstDownload {
                 library.update { $0.startedFirstDownload = true }
+            }
+            switch ModelPicker.settle(pending: models.pending, changed: id, install: models.install(id)) {
+            case .adopt:
+                models.pending = nil
+                library.update { $0.transcriptionModel = id }
+            case .drop: models.pending = nil
+            case .keep: break
             }
             transcriber.update(chosen: library.settings.transcriptionModel, store: models)
         }
