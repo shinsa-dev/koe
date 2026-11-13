@@ -36,9 +36,10 @@ The first releases use `bump=major`: betas `1.0.0-beta.N`, then `1.0.0`. A canar
 
 1. `trigger` (Ubuntu) decides whether to build and which commit. A run by hand always builds; after a merge,
    `release_version.py canary` builds only when something but docs changed since the last canary.
-2. `mac` (macOS 26) marks the commit's `Release` status pending, works out the version, and runs the signing
-   preflight: all six secrets set is a **signed** release, none set an **unsigned** one, and some but not all fails
-   the run naming the missing ones. Then, through `scripts/release.sh`:
+2. `mac` (macOS 26 with Xcode 26.3, as FluidAudio 0.9 fails to compile on 26.4 and later) marks the commit's
+   `Release` status pending, works out the version, and runs the signing preflight: all six secrets set is a
+   **signed** release, none set an **unsigned** one, and some but not all fails the run naming the missing ones.
+   Then, through `scripts/release.sh`:
    - `keychain` imports `CSC_LINK` into a keychain of its own and finds the Developer ID Application identity.
    - `./build.sh` with `KOE_VERSION`, `KOE_BUILD` and `KOE_SIGN_IDENTITY` builds, embeds Sparkle and signs everything
      under the hardened runtime, timestamped.

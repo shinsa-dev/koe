@@ -68,6 +68,10 @@ jobs:
       cancel-in-progress: ${{ needs.trigger.outputs.channel == 'canary' }}
     runs-on: macos-26
     timeout-minutes: 60
+    # FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the job keeps to
+    # 26.3 until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     permissions:
       contents: write
       statuses: write
