@@ -2,24 +2,23 @@
 
 Koe ships the way Shinsa does (`shinsa/docs/release.md`): a release is a GitHub release of `shinsa-dev/koe` made by
 the Release workflow (`.github/workflows/release.yml`), and nothing is bumped by hand, since the version lives in the
-tag. There are three channels: **Stable** and **Beta**, cut by hand, and **Canary**, built from every merge to `main`
-that passes the tests. All three are the same app (`studio.shinsa.koe`), so Settings → Updates switches between them
+tag. There are two channels: **Stable**, cut by hand, and **Canary**, built from every merge to `main` that passes the
+tests. There is no beta. Both are the same app (`studio.shinsa.koe`), so Settings → Updates switches between them
 and Koe updates itself in place with Sparkle, keeping its settings, sessions and model.
 
 ## Cutting a release
 
 ```sh
-gh workflow run release.yml -f channel=beta -f bump=minor
 gh workflow run release.yml -f channel=stable -f bump=minor
 ```
 
-The first releases use `bump=major`: betas `1.0.0-beta.N`, then `1.0.0`. A canary needs no run: every merge to
+The first stable release uses `bump=major`, which makes `1.0.0`; canaries before it are `0.0.1-canary.N`. A canary needs no run: every merge to
 `main` whose Test workflow passes makes one, unless it only changed docs (`*.md`, `docs/`, `.claude/`).
 `gh workflow run release.yml -f channel=canary` makes one of the current `main` by hand.
 
 | Input | Values | Default |
 |---|---|---|
-| `channel` | `stable`: a GitHub release marked latest. `beta`: a pre-release of the next version. `canary`: a pre-release of `main` | `beta` |
+| `channel` | `stable`: a GitHub release marked latest. `canary`: a pre-release of `main` | `stable` |
 | `bump` | `patch`, `minor` or `major`: which part of the **last stable** version goes up; a canary ignores it | `patch` |
 
 ## Versions
@@ -27,8 +26,7 @@ The first releases use `bump=major`: betas `1.0.0-beta.N`, then `1.0.0`. A canar
 `scripts/release_version.py` holds the rules, tested in `scripts/test_release_version.py`:
 
 - Stable is the last stable version bumped: `1.2.0` → `1.2.1`, `1.3.0` or `2.0.0`.
-- Beta is that next version with `-beta.N`, counting the betas already tagged for it.
-- Canary is the newest beta's version, or the next patch after the newest stable, with `-canary.N`.
+- Canary is the next patch after the newest stable, with `-canary.N`.
 - The build number (`CFBundleVersion`, which Sparkle compares) is the workflow's run number, so every release on any
   channel is above every one before it. The version string is what Koe shows.
 
@@ -64,9 +62,9 @@ Everything lives under `koe/` in the bucket, beside Shinsa's own files, and noth
 | `koe/channels/<channel>.json` | The channel's download: `version`, `key`, `size`, `sha256`, `publishedAt`, as Shinsa's |
 | `koe/appcast/<channel>.xml` | The channel's Sparkle appcast: one item, the release |
 
-A release moves its own channel, and a stable one moves Beta too unless a newer beta is out; no channel ever goes
-back to an older version (`release_version.py channels`). The site serves these at `https://shinsa.dev/koe`:
-`/koe/download` (and `/beta`, `/canary`) redirect to the channel's DMG, `/koe/appcast/<channel>.xml` is what Koe's
+A release moves only its own channel, and no channel ever goes back to an older version (`release_version.py channels`). The site serves these at `https://shinsa.dev/koe`:
+`/koe/download` redirects to the stable DMG (the newest canary while there is no stable) and `/koe/download/canary`
+to the canary one, `/koe/appcast/<channel>.xml` is what Koe's
 `Updater` reads, and `/koe/releases/<version>/Koe.dmg` is the appcast's enclosure. Those routes are the shinsa
 repository's (`apps/marketing`).
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds Koe.app. Pass --install to also copy it into /Applications and launch it.
-# KOE_VERSION (such as 1.2.0 or 1.2.0-beta.3) and KOE_BUILD (a number that grows with every release, which Sparkle
+# KOE_VERSION (such as 1.2.0 or 1.2.1-canary.3) and KOE_BUILD (a number that grows with every release, which Sparkle
 # compares) stamp a release; without them the build is 0.0.0-dev, build 0, and only checks for updates when asked.
 set -euo pipefail
 cd "$(dirname "$0")"

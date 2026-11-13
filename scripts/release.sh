@@ -137,7 +137,7 @@ upload() {
   export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
   echo '{}' >"$directory/pointers.json"
-  for channel in stable beta canary; do
+  for channel in stable canary; do
     if r2 cp "s3://$BUCKET/koe/channels/$channel.json" "$directory/current-$channel.json" 2>/dev/null; then
       jq --arg channel "$channel" --slurpfile pointer "$directory/current-$channel.json" \
         '.[$channel] = $pointer[0].version' "$directory/pointers.json" >"$directory/pointers.next"

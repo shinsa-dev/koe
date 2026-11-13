@@ -30,7 +30,6 @@ extension UpdateChannel {
     var label: String {
         switch self {
         case .stable: "Stable"
-        case .beta: "Beta"
         case .canary: "Canary"
         }
     }
@@ -38,7 +37,6 @@ extension UpdateChannel {
     var detail: String {
         switch self {
         case .stable: "Releases once they are tested."
-        case .beta: "The next release, before it is out."
         case .canary: "Every change as it merges. It can break."
         }
     }

@@ -18,50 +18,48 @@ SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 class PlanTests(unittest.TestCase):
     def test_first_releases_start_from_zero(self):
         self.assertEqual(release.plan([], "stable", "major")["version"], "1.0.0")
-        self.assertEqual(release.plan([], "beta", "major")["version"], "1.0.0-beta.1")
         self.assertEqual(release.plan([], "canary", "patch")["version"], "0.0.1-canary.1")
 
     def test_stable_bumps_the_last_stable_and_starts_notes_there(self):
-        tags = ["v1.2.0", "v1.1.9", "v1.3.0-beta.2", "v1.2.1-canary.3"]
+        tags = ["v1.2.0", "v1.1.9", "v1.2.1-canary.3"]
         self.assertEqual(release.plan(tags, "stable", "patch"),
                          {"version": "1.2.1", "tag": "v1.2.1", "prerelease": "false", "notes_start_tag": "v1.2.0"})
         self.assertEqual(release.plan(tags, "stable", "minor")["version"], "1.3.0")
 
-    def test_beta_counts_the_betas_of_its_version(self):
-        tags = ["v1.2.0", "v1.3.0-beta.1", "v1.3.0-beta.2"]
-        result = release.plan(tags, "beta", "minor")
-        self.assertEqual(result["version"], "1.3.0-beta.3")
+    def test_canary_is_the_next_patch_after_the_last_stable(self):
+        result = release.plan(["v1.2.0"], "canary", "major")
+        self.assertEqual(result["version"], "1.2.1-canary.1")
         self.assertEqual(result["prerelease"], "true")
-        self.assertEqual(result["notes_start_tag"], "")
-
-    def test_canary_follows_the_newest_beta_or_the_next_patch(self):
-        self.assertEqual(release.plan(["v1.2.0", "v1.3.0-beta.1"], "canary", "major")["version"], "1.3.0-canary.1")
         tags = ["v1.2.0", "v1.2.1-canary.1", "v1.2.1-canary.2"]
         result = release.plan(tags, "canary", "patch")
         self.assertEqual(result["version"], "1.2.1-canary.3")
         self.assertEqual(result["notes_start_tag"], "v1.2.1-canary.2")
 
     def test_ignores_tags_that_are_not_releases(self):
-        self.assertEqual(release.plan(["v2", "nightly", "v1.0.0-rc.1"], "stable", "patch")["version"], "0.0.1")
+        tags = ["v2", "nightly", "v1.0.0-rc.1", "v1.0.0-beta.1"]
+        self.assertEqual(release.plan(tags, "stable", "patch")["version"], "0.0.1")
 
     def test_refuses_an_unknown_channel_or_bump(self):
         with self.assertRaises(ValueError):
             release.plan([], "nightly", "patch")
         with self.assertRaises(ValueError):
-            release.plan([], "beta", "huge")
+            release.plan([], "beta", "patch")
+        with self.assertRaises(ValueError):
+            release.plan([], "stable", "huge")
 
 
 class OrderTests(unittest.TestCase):
     def test_a_prerelease_sorts_before_its_release(self):
-        ordered = ["1.2.0-beta.1", "1.2.0-beta.10", "1.2.0-canary.1", "1.2.0", "1.10.0"]
+        ordered = ["1.2.0-canary.1", "1.2.0-canary.10", "1.2.0", "1.10.0"]
         self.assertEqual(sorted(reversed(ordered), key=release.version_key), ordered)
 
     def test_channel_of_a_version(self):
         self.assertEqual(release.channel_of("1.0.0"), "stable")
-        self.assertEqual(release.channel_of("1.0.0-beta.2"), "beta")
         self.assertEqual(release.channel_of("1.0.0-canary.2"), "canary")
         with self.assertRaises(ValueError):
             release.channel_of("0.0.0-dev")
+        with self.assertRaises(ValueError):
+            release.channel_of("1.0.0-beta.2")
 
 
 class CanaryTests(unittest.TestCase):
@@ -81,16 +79,12 @@ class CanaryTests(unittest.TestCase):
 
 
 class ChannelTests(unittest.TestCase):
-    def test_stable_moves_stable_and_an_older_beta(self):
-        current = {"stable": "1.0.0", "beta": "1.1.0-beta.2", "canary": "1.1.1-canary.4"}
-        self.assertEqual(release.reached_channels("1.1.0", current), ["stable", "beta"])
-
-    def test_stable_leaves_a_newer_beta(self):
-        current = {"stable": "1.0.0", "beta": "1.2.0-beta.1"}
+    def test_stable_moves_only_stable(self):
+        current = {"stable": "1.0.0", "canary": "1.0.1-canary.4"}
         self.assertEqual(release.reached_channels("1.1.0", current), ["stable"])
+        self.assertEqual(release.reached_channels("1.1.0", {"stable": "1.2.0"}), [])
 
-    def test_each_prerelease_moves_its_own_channel_when_newer(self):
-        self.assertEqual(release.reached_channels("1.1.0-beta.1", {}), ["beta"])
+    def test_a_canary_moves_its_own_channel_when_newer(self):
         self.assertEqual(release.reached_channels("1.1.0-canary.2", {"canary": None}), ["canary"])
         self.assertEqual(release.reached_channels("1.1.0-canary.2", {"canary": "1.1.0-canary.3"}), [])
 
@@ -106,16 +100,16 @@ class FileTests(unittest.TestCase):
             release.pointer("1.0.0", 42, "nope")
 
     def test_appcast_is_one_signed_item(self):
-        text = release.appcast({"version": "1.2.0-beta.3", "build": 57, "length": 1234,
+        text = release.appcast({"version": "1.2.1-canary.3", "build": 57, "length": 1234,
                                 "edSignature": "c2ln+/=", "publishedAt": "Fri, 13 Nov 2026 09:30:00 +0000"})
         channel = ElementTree.fromstring(text).find("channel")
-        self.assertEqual(channel.findtext("title"), "Koe Beta")
+        self.assertEqual(channel.findtext("title"), "Koe Canary")
         item = channel.find("item")
         self.assertEqual(item.findtext(f"{SPARKLE}version"), "57")
-        self.assertEqual(item.findtext(f"{SPARKLE}shortVersionString"), "1.2.0-beta.3")
+        self.assertEqual(item.findtext(f"{SPARKLE}shortVersionString"), "1.2.1-canary.3")
         self.assertEqual(item.findtext(f"{SPARKLE}minimumSystemVersion"), "26.0")
         enclosure = item.find("enclosure")
-        self.assertEqual(enclosure.get("url"), "https://shinsa.dev/koe/releases/1.2.0-beta.3/Koe.dmg")
+        self.assertEqual(enclosure.get("url"), "https://shinsa.dev/koe/releases/1.2.1-canary.3/Koe.dmg")
         self.assertEqual(enclosure.get("length"), "1234")
         self.assertEqual(enclosure.get(f"{SPARKLE}edSignature"), "c2ln+/=")
 
@@ -135,8 +129,8 @@ class CommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             pointers = os.path.join(directory, "pointers.json")
             with open(pointers, "w", encoding="utf-8") as file:
-                json.dump({"stable": "1.0.0", "beta": None, "canary": None}, file)
-            self.assertEqual(self.run_main("channels", "1.0.1", pointers), (0, "stable beta\n"))
+                json.dump({"stable": "1.0.0", "canary": None}, file)
+            self.assertEqual(self.run_main("channels", "1.0.1", pointers), (0, "stable\n"))
             update = os.path.join(directory, "update.json")
             with open(update, "w", encoding="utf-8") as file:
                 json.dump({"version": "1.0.1", "build": 3, "length": 9, "edSignature": "s", "publishedAt": "now"},

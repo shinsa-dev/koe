@@ -23,7 +23,7 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 ```sh
 ./build.sh            # builds ./Koe.app
 ./build.sh --install  # copies it into /Applications and launches it
-KOE_VERSION=1.2.0-beta.3 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
+KOE_VERSION=1.2.0 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
 swift test            # KoeCore's unit tests
 ```
 
@@ -44,18 +44,19 @@ macOS: running it can drop the microphone grant of the other, so allow it again 
 
 ## Updates
 
-Koe updates itself with Sparkle 2 (`Updater`). Each channel, Stable, Beta and Canary, has its own appcast at
+Koe updates itself with Sparkle 2 (`Updater`). Each channel, Stable and Canary, has its own appcast at
 `https://shinsa.dev/koe/appcast/<channel>.xml` (`UpdateChannel`), and Sparkle installs an update only when it is
 signed with the EdDSA key whose public half is `SUPublicEDKey` in `Info.plist`. The private half lives in the login
 keychain under the account `studio.shinsa.koe` (Sparkle's `generate_keys --account studio.shinsa.koe`) and, for the
 Release workflow, in a repository secret. Settings → Updates picks the channel; until you pick one, Koe follows the
-channel of the build you installed (`1.2.0-beta.3` is a beta). Sparkle never goes back a version, so moving from
+channel of the build you installed (`1.2.1-canary.3` is a canary). Sparkle never goes back a version, so moving from
 Canary to Stable waits for the next stable release. A release build checks once a day, and Check now checks at once.
 
 ## Releases
 
 The Release workflow builds, signs, notarizes and publishes Koe, as Shinsa's does: every tested merge to `main` is a
-canary, and stable and beta releases run from Actions → Release (`gh workflow run release.yml -f channel=beta`). Each
+canary, and stable releases run from Actions → Release (`gh workflow run release.yml -f channel=stable`). Koe has
+no beta channel. Each
 release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. Lint
 (SwiftLint, actionlint, shellcheck) and Test (`swift test --filter KoeCoreTests`, the release script tests) run on
 every pull request. `docs/release.md` has the versions, the steps, the files on shinsa.dev and the secrets.

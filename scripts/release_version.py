@@ -2,7 +2,7 @@
 """Koe's release rules, as Shinsa's: the next version from the tags, whether main needs a canary, which channels a
 release reaches and the appcast Sparkle reads for each. The Release workflow calls it; docs/release.md explains it.
 
-    release_version.py plan <stable|beta|canary> <patch|minor|major>   prints version, tag, prerelease, notes_start_tag
+    release_version.py plan <stable|canary> <patch|minor|major>   prints version, tag, prerelease, notes_start_tag
     release_version.py canary                                           prints build and reason, from git
     release_version.py channels <version> <pointers.json>                prints the channels the release moves
     release_version.py pointer <version> <size> <sha256>                 prints a channel's download pointer
@@ -19,19 +19,18 @@ import sys
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape, quoteattr
 
-CHANNELS = ("stable", "beta", "canary")
+CHANNELS = ("stable", "canary")
 BUMPS = ("patch", "minor", "major")
 SITE = "https://shinsa.dev/koe"
 DMG_NAME = "Koe.dmg"
 MINIMUM_SYSTEM = "26.0"
 
 STABLE_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+(-beta\.\d+)?$")
 CANARY_TAG = re.compile(r"^v\d+\.\d+\.\d+-canary\.\d+$")
-VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-(beta|canary)\.(\d+))?$")
+VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-(canary)\.(\d+))?$")
 
-# A stable release is the newest beta too, unless a newer beta is out; a beta or a canary moves only its own channel.
-REACHED = {"stable": ("stable", "beta"), "beta": ("beta",), "canary": ("canary",)}
+# Koe ships no beta: a release moves only its own channel.
+REACHED = {"stable": ("stable",), "canary": ("canary",)}
 
 # A merge that touches only these never makes a canary: it would ship the same app again. fnmatch's * crosses
 # folders, so *.md takes every CLAUDE.md too.
@@ -39,20 +38,18 @@ CANARY_IGNORED = ("docs/*", "*.md", ".claude/*", ".github/assets/*")
 
 
 def version_key(version: str) -> tuple[int, int, int, int, int]:
-    """Orders versions as semver does for Koe's tags: a prerelease sorts before its release, beta before canary."""
+    """Orders versions as semver does for Koe's tags: a canary sorts before its release."""
     match = VERSION.match(version)
     if not match:
-        raise ValueError(f"{version!r} is not a Koe version such as 1.2.0, 1.2.0-beta.3 or 1.2.0-canary.4.")
+        raise ValueError(f"{version!r} is not a Koe version such as 1.2.0 or 1.2.0-canary.4.")
     major, minor, patch, identifier, number = match.groups()
-    rank = {"beta": 0, "canary": 1, None: 2}[identifier]
+    rank = {"canary": 0, None: 1}[identifier]
     return int(major), int(minor), int(patch), rank, int(number or 0)
 
 
 def channel_of(version: str) -> str:
     version_key(version)
-    if "-canary." in version:
-        return "canary"
-    return "beta" if "-beta." in version else "stable"
+    return "canary" if "-canary." in version else "stable"
 
 
 def newest(tags: list[str], pattern: re.Pattern[str]) -> str | None:
@@ -76,20 +73,19 @@ def count(tags: list[str], base: str, identifier: str) -> int:
 
 def plan(tags: list[str], channel: str, part: str) -> dict[str, str]:
     if channel not in CHANNELS:
-        raise ValueError(f"The channel must be stable, beta or canary, not {channel!r}.")
+        raise ValueError(f"The channel must be stable or canary, not {channel!r}.")
     if part not in BUMPS:
         raise ValueError(f"The bump must be patch, minor or major, not {part!r}.")
     last_stable = newest(tags, STABLE_TAG)
     if channel == "canary":
-        latest = newest(tags, RELEASE_TAG) or "0.0.0"
-        base = latest.split("-")[0] if "-beta." in latest else bump(latest, "patch")
+        base = bump(last_stable or "0.0.0", "patch")
         version = f"{base}-canary.{count(tags, base, 'canary') + 1}"
         last_canary = newest(tags, CANARY_TAG)
         start = f"v{last_canary}" if last_canary else ""
     else:
         base = bump(last_stable or "0.0.0", part)
-        version = base if channel == "stable" else f"{base}-beta.{count(tags, base, 'beta') + 1}"
-        start = f"v{last_stable}" if channel == "stable" and last_stable else ""
+        version = base
+        start = f"v{last_stable}" if last_stable else ""
     return {
         "version": version,
         "tag": f"v{version}",

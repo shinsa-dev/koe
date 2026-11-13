@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Stable is a normal release marked latest; beta is a pre-release of the next version; canary is a pre-release of main, as every tested merge makes
+        description: Stable is a normal release marked latest; canary is a pre-release of main, as every tested merge makes
         type: choice
-        options: [beta, stable, canary]
-        default: beta
+        options: [stable, canary]
+        default: stable
       bump:
         description: Which part of the last stable version goes up (docs/release.md); a canary ignores it
         type: choice
@@ -195,8 +195,7 @@ jobs:
           NOTES_START_TAG: ${{ steps.version.outputs.notes_start_tag }}
         run: |
           case "$CHANNEL" in
-            stable) kind=(--latest); title="Koe $VERSION"; note="**Stable release.** Koe updates itself to it on the Stable channel, and on Beta unless a newer beta is out." ;;
-            beta) kind=(--prerelease --latest=false); title="Koe $VERSION"; note="**Beta.** Koe on the Beta channel updates itself to it (Settings → Updates). Download it at https://shinsa.dev/koe/download/beta." ;;
+            stable) kind=(--latest); title="Koe $VERSION"; note="**Stable release.** Koe on the Stable channel updates itself to it. Download it at https://shinsa.dev/koe/download." ;;
             *) kind=(--prerelease --latest=false); title="Koe $VERSION"; note="**Canary build of main.** Koe on the Canary channel updates itself to it (Settings → Updates). Download it at https://shinsa.dev/koe/download/canary." ;;
           esac
           if [ -n "$NOTES_START_TAG" ]; then kind+=(--notes-start-tag "$NOTES_START_TAG"); fi
