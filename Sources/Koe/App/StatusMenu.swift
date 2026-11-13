@@ -62,13 +62,12 @@ enum StatusMenu {
 
         let quit = NSMenuItem(title: "Quit Koe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
-        // macOS adds its own symbols to items it recognises, such as a gear on "Settings…"; Koe draws none. The API
-        // is in the macOS 27 SDK (Swift 6.4); CI builds with Xcode 26.3, whose SDK lacks it.
-        #if compiler(>=6.4)
-        if #available(macOS 27, *) {
-            for item in menu.items { item.preferredImageVisibility = .hidden }
+        // macOS adds its own symbols to items it recognises, such as a gear on "Settings…"; Koe draws none. The setter
+        // is in the macOS 27 SDK only, and releases build with Xcode 26.3, so it is reached by name: 2 is `.hidden`.
+        let hideImage = NSSelectorFromString("setPreferredImageVisibility:")
+        for item in menu.items where item.responds(to: hideImage) {
+            item.setValue(2, forKey: "preferredImageVisibility")
         }
-        #endif
     }
 
     /// Past sessions under a header; clicking one copies its bundle again.
