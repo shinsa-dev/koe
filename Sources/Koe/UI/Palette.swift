@@ -65,6 +65,7 @@ enum Palette {
     static let control = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg3))
     static let popover = Color(nsColor: Tokens.popover)
     static let input = Color(nsColor: Tokens.input)
+    static let inputHover = Color(nsColor: Tokens.inputHover)
     static let ringHover = Color(nsColor: Tokens.bg4)
     static let controlPressed = Color(nsColor: .token(light: Tokens.bg1, dark: Tokens.bg4))
     static let segment = Color(nsColor: .token(light: Tokens.background, dark: Tokens.bg4))

@@ -162,14 +162,16 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 
 ## Transcription
 
-- **Models.** Settings' Transcription card lists them (`TranscriptionModel.catalog`, `ModelRow`): Parakeet v3
-  (recommended and the default, 25 European languages, about 480 MB), Parakeet v2 (English, about 460 MB), Whisper
-  large-v3 turbo (99 languages, about 650 MB) and Apple's on-device model (built in). Each row downloads, cancels,
-  deletes and picks its model; the line under the card says which model runs and why when it isn't the chosen one.
+- **Models.** Settings' Transcription card has one Model dropdown (`TranscriptionModel.catalog`, `ModelPicker`), a
+  system menu with each model's state under its name: Parakeet v3 (recommended and the default, 25 European
+  languages, about 480 MB), Parakeet v2 (English, about 460 MB), Whisper large-v3 turbo (99 languages, about 650 MB)
+  and Apple's on-device model (built in). Choosing a model that isn't downloaded starts its download; the row shows
+  its progress with Cancel, or Try again after a failure. "Delete a download" at the foot of the menu frees a
+  model's disk space. The line under the card says which model runs and why when it isn't the chosen one.
 - **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
-  short never counts. FluidAudio reports no progress, so the row measures the folder against the expected size.
+  short never counts. FluidAudio reports no progress, so the card measures the folder against the expected size.
   Nothing else goes online: audio and text never leave the Mac.
 - **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
   transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
