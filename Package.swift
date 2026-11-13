@@ -8,6 +8,8 @@ let package = Package(
         // Parakeet on the Neural Engine, and Whisper. Both download their models from Hugging Face on demand.
         .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.9.1")),
         .package(url: "https://github.com/argmaxinc/WhisperKit", .upToNextMinor(from: "1.1.1")),
+        // Updates from shinsa.dev/koe. Its framework ships in Koe.app/Contents/Frameworks (build.sh).
+        .package(url: "https://github.com/sparkle-project/Sparkle", .upToNextMinor(from: "2.10.1")),
     ],
     targets: [
         // Everything that can be decided without AppKit: the session timeline, the bundle composer,
@@ -22,8 +24,10 @@ let package = Package(
                 "KoeCore",
                 .product(name: "FluidAudio", package: "FluidAudio"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources/Koe"
+            path: "Sources/Koe",
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(
             name: "KoeCoreTests",

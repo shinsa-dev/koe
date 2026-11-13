@@ -8,7 +8,48 @@ import os
 @MainActor
 final class NowPlaying {
     private var pause = MediaPause()
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "media")
+    nonisolated private static let log = Logger(subsystem: "studio.shinsa.koe", category: "media")
+
+    /// The probe, set up ahead of time while pausing is on and allowed. Setting one up takes from a tenth of a second
+    /// to seconds, so it happens off the main thread; starting a ready one hears the output within milliseconds, so
+    /// the pause lands as the session opens.
+    private var probe: Task<OutputProbe?, Never>?
+
+    /// Sets the probe up or takes it down, to match the setting and the permission. Its audio only runs in a session.
+    func prepare(enabled: Bool) {
+        let wanted = enabled && SystemAudioAccess.status == .granted
+        guard wanted != (probe != nil) else { return }
+        if wanted {
+            probe = Task.detached {
+                do {
+                    return try OutputProbe()
+                } catch {
+                    Self.log.error("Could not set up the output probe: \(error.localizedDescription, privacy: .public)")
+                    return nil
+                }
+            }
+        } else if let probe {
+            self.probe = nil
+            Task { await probe.value?.destroy() }
+        }
+    }
+
+    /// Whether a session's listen owns the probe, so a warm-up never stops it underneath.
+    private var listening = false
+    private var warming: Task<Void, Never>?
+
+    /// Fn went down, and its release may open a session: the probe starts hearing now, so by the release Koe already
+    /// knows whether something plays and pauses it at once. Unless a session takes the probe over, it stops again.
+    func warm(enabled: Bool) {
+        guard enabled, warming == nil, let probe, SystemAudioAccess.status == .granted,
+              OutputProcesses.othersRunning() else { return }
+        warming = Task {
+            defer { warming = nil }
+            guard let output = await probe.value, output.start() else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            if !listening { output.stop() }
+        }
+    }
 
     func sessionOpened(enabled: Bool) {
         let listen = pause.sessionOpened(enabled: enabled, allowed: SystemAudioAccess.status == .granted,
@@ -21,16 +62,16 @@ final class NowPlaying {
     }
 
     private func listen() async {
-        let probe: OutputProbe
-        do {
-            probe = try OutputProbe()
-        } catch {
-            Self.log.error("Could not listen to the Mac's output: \(error.localizedDescription, privacy: .public)")
+        prepare(enabled: true)
+        listening = true
+        defer { listening = false }
+        guard let probe = await probe?.value, probe.start() else {
+            Self.log.error("Could not listen to the Mac's output")
             _ = pause.heard(peak: 0)
             return
         }
         defer { probe.stop() }
-        guard pause.heard(peak: await probe.peak(over: .milliseconds(250))) == .pause else { return }
+        guard pause.heard(peak: await probe.firstSound(within: .milliseconds(250))) == .pause else { return }
         send(.pause)
         // A player takes a moment to fade out; the peak is read once it has.
         try? await Task.sleep(for: .milliseconds(500))
@@ -106,6 +147,7 @@ private final class OutputProbe: Sendable {
     private let device: AudioObjectID
     private let ioProc: AudioDeviceIOProcID
     private let loudest: OSAllocatedUnfairLock<Float>
+    private let running = OSAllocatedUnfairLock(initialState: false)
 
     init() throws {
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: Self.ownProcessObject.map { [$0] } ?? [])
@@ -143,16 +185,39 @@ private final class OutputProbe: Sendable {
             let heard = peak
             loudest.withLock { $0 = max($0, heard) }
         }
-        guard started == noErr, let ioProc, AudioDeviceStart(device, ioProc) == noErr else {
+        guard started == noErr, let ioProc else {
             if let ioProc { AudioDeviceDestroyIOProcID(device, ioProc) }
             AudioHardwareDestroyAggregateDevice(device)
             AudioHardwareDestroyProcessTap(tap)
-            throw Failure(step: "Starting the device", status: started)
+            throw Failure(step: "Reading the device", status: started)
         }
         self.tap = tap
         self.device = device
         self.ioProc = ioProc
         self.loudest = loudest
+    }
+
+    /// Starts hearing the output, unless it already does: what a warm-up heard counts. The device is set up already,
+    /// so the first samples arrive within milliseconds.
+    func start() -> Bool {
+        running.withLock { running in
+            guard !running else { return true }
+            loudest.withLock { $0 = 0 }
+            running = AudioDeviceStart(device, ioProc) == noErr
+            return running
+        }
+    }
+
+    /// The loudest sample, as soon as one is louder than silence, or after `limit` of silence.
+    func firstSound(within limit: Duration) async -> Float {
+        let clock = ContinuousClock()
+        let deadline = clock.now + limit
+        while clock.now < deadline {
+            let heard = loudest.withLock { $0 }
+            if heard >= MediaPause.silence { return heard }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return loudest.withLock { $0 }
     }
 
     /// The loudest sample heard over the next `duration`.
@@ -163,6 +228,13 @@ private final class OutputProbe: Sendable {
     }
 
     func stop() {
+        running.withLock { running in
+            AudioDeviceStop(device, ioProc)
+            running = false
+        }
+    }
+
+    func destroy() {
         AudioDeviceStop(device, ioProc)
         AudioDeviceDestroyIOProcID(device, ioProc)
         AudioHardwareDestroyAggregateDevice(device)

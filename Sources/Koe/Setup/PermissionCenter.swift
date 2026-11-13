@@ -12,6 +12,7 @@ final class PermissionCenter {
     private(set) var checklist = SetupChecklist(statuses: [:])
     /// System audio recording: only pausing what plays needs it, so it stays out of the checklist.
     private(set) var systemAudio = PermissionStatus.notDetermined
+    @ObservationIgnored var onSystemAudioChange: (() -> Void)?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -24,7 +25,10 @@ final class PermissionCenter {
         let next = SetupChecklist(statuses: statuses)
         if next != checklist { checklist = next }
         let audio = SystemAudioAccess.status
-        if audio != systemAudio { systemAudio = audio }
+        if audio != systemAudio {
+            systemAudio = audio
+            onSystemAudioChange?()
+        }
     }
 
     func requestSystemAudio() {

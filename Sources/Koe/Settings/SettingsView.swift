@@ -7,6 +7,7 @@ struct SettingsPage: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
     let models: ModelStore
+    let updater: Updater
     let openSessions: () -> Void
 
     var body: some View {
@@ -80,6 +81,7 @@ struct SettingsPage: View {
                     Button("Show in Finder", action: openSessions).buttonStyle(.koe(.outline, size: .small))
                 }
             }
+            UpdatesGroup(updater: updater)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }

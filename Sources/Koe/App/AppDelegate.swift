@@ -8,10 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let permissions = PermissionCenter()
     private let transcriber = ActiveTranscriber()
     private let models = ModelStore()
-    private lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
+    private(set) lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
-    private lazy var tools = ToolCoordinator(
+    private(set) lazy var tools = ToolCoordinator(
         sessions: sessions, permissions: permissions,
         ensureSession: { [weak self] in self?.ensureSession() ?? false },
         presentSetup: { [weak self] in self?.openSetup() }
@@ -20,10 +20,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let nowPlaying = NowPlaying()
     /// Whether the last phase took audio, so pausing what plays follows the session opening and closing.
     private var sessionWasOpen = false
+    private var pausesMedia: Bool { library.settings.pauseMedia && audioFile == nil }
     private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
+    private lazy var updater = Updater(library: library)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
-            library: library, permissions: permissions, models: models, openSessions: { [weak self] in self?.showSessions() }
+            library: library, permissions: permissions, models: models, updater: updater,
+            openSessions: { [weak self] in self?.showSessions() }
         )
         // Back to a menu bar app once the window is gone.
         controller.onClose = { NSApp.setActivationPolicy(.accessory) }
@@ -33,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var copiesInFlight = 0
     /// The sessions the menu listed when it last opened, so a click copies the one you saw.
     private var listed: [HistoryEntry] = []
-    private lazy var pill: PillController = PillController(sessions: sessions, tools: PillTools(
+    private(set) lazy var pill: PillController = PillController(sessions: sessions, tools: PillTools(
         status: tools.status,
         comment: { [weak self] in self?.addComment() },
         screenshot: { [weak self] in self?.takeScreenshot() },
@@ -55,11 +58,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MicrophoneSource.prewarm()
         }
         startTranscription()
+        updater.start()
         library.onSettingsChange = { [weak self] settings in
             if let self { transcriber.update(chosen: settings.transcriptionModel, store: models) }
             self?.applyAppearance()
             self?.clicks.setActive(settings.clickToComment)
             if settings.shortcuts != ShortcutCenter.shared.shortcuts { ShortcutCenter.shared.apply(settings.shortcuts) }
+            if let self { nowPlaying.prepare(enabled: pausesMedia) }
+        }
+        permissions.onSystemAudioChange = { [weak self] in if let self { nowPlaying.prepare(enabled: pausesMedia) } }
+        nowPlaying.prepare(enabled: pausesMedia)
+        FnKey.shared.onPress = { [weak self] in
+            if let self, !sessions.phase.isOpen { nowPlaying.warm(enabled: pausesMedia) }
         }
         ShortcutCenter.shared.handlers = [
             .toggleSession: { [weak self] in self?.toggleSession() },
@@ -132,43 +142,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func ensureSession() -> Bool {
         if sessions.phase.toggleIntent == .start { toggleSession() }
         return sessions.phase.isActive
-    }
-
-    /// `--script`: plays `ScriptedStep`s into the session at their audio times, for trying the tools hands-free.
-    private func play(_ script: String) {
-        let steps: [ScriptedStep]
-        do {
-            steps = try ScriptedStep.parse(script)
-        } catch {
-            FileHandle.standardError.write(Data("Bad --script: \(error)\n".utf8))
-            return
-        }
-        Task { [sessions] in
-            for step in steps {
-                while sessions.phase.isActive, sessions.currentTime < step.time {
-                    try? await Task.sleep(for: .milliseconds(50))
-                }
-                guard sessions.phase.isActive else { return }
-                await run(step)
-            }
-        }
-    }
-
-    private func run(_ step: ScriptedStep) async {
-        switch step.action {
-        case .screenshot(let rect, let note, let talk): tools.screenshot(preset: rect, note: note, talk: talk, holds: step.holds)
-        case .comment(let spot, let note, let talk): tools.comment(at: spot, note: note, talk: talk, holds: step.holds)
-        case .drop(let path): tools.drop([URL(fileURLWithPath: path)])
-        case .clip(let rect, let seconds, let picks):
-            tools.clip(preset: ClipScript(region: rect, seconds: seconds, picks: picks, holds: step.holds))
-        case .pause(let seconds):
-            sessions.pause()
-            try? await Task.sleep(for: .seconds(seconds))
-            sessions.resume()
-        case .attachments: pill.toggleAttachments()
-        case .finish: sessions.finish()
-        case .cancel: sessions.cancel()
-        }
     }
 
     /// Saves and copies the session, then shows what was copied in the pill for a moment.
@@ -267,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if phase.isOpen != sessionWasOpen {
             sessionWasOpen = phase.isOpen
             if phase.isOpen {
-                nowPlaying.sessionOpened(enabled: library.settings.pauseMedia && audioFile == nil)
+                nowPlaying.sessionOpened(enabled: pausesMedia)
             } else {
                 nowPlaying.sessionClosed()
             }

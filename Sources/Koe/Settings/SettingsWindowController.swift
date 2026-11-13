@@ -14,10 +14,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     /// Called when the window closes, so the app can leave the Dock again.
     var onClose: (() -> Void)?
 
-    init(library: SessionLibrary, permissions: PermissionCenter, models: ModelStore,
+    init(library: SessionLibrary, permissions: PermissionCenter, models: ModelStore, updater: Updater,
          openSessions: @escaping () -> Void) {
         self.permissions = permissions
-        page = SettingsPage(library: library, permissions: permissions, models: models, openSessions: openSessions)
+        page = SettingsPage(library: library, permissions: permissions, models: models, updater: updater, openSessions: openSessions)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.size),
                               styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -28,7 +28,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.backgroundColor = Tokens.background
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SettingsRoot(
-            library: library, permissions: permissions, models: models, openSessions: openSessions
+            library: library, permissions: permissions, models: models, updater: updater, openSessions: openSessions
         ).focusEffectDisabled())
         super.init(window: window)
         window.delegate = self
@@ -94,11 +94,12 @@ private struct SettingsRoot: View {
     let library: SessionLibrary
     let permissions: PermissionCenter
     let models: ModelStore
+    let updater: Updater
     let openSessions: () -> Void
 
     var body: some View {
         ScrollView {
-            SettingsPage(library: library, permissions: permissions, models: models, openSessions: openSessions)
+            SettingsPage(library: library, permissions: permissions, models: models, updater: updater, openSessions: openSessions)
                 .padding(.horizontal, 28)
                 .padding(.top, 52)
                 .padding(.bottom, 28)
