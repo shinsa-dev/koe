@@ -123,7 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         listed = library.recent()
         StatusMenu.build(menu, state: StatusMenu.State(
             checklist: permissions.checklist, phase: sessions.phase, recordingClip: tools.isRecordingClip,
-            shortcuts: ShortcutCenter.shared.shortcuts, takenHotKeys: ShortcutCenter.shared.taken, recent: listed
+            shortcuts: ShortcutCenter.shared.shortcuts, takenHotKeys: ShortcutCenter.shared.taken,
+            clickToComment: library.settings.clickToComment, recent: listed
         ), target: self)
     }
 
