@@ -105,6 +105,8 @@ final class RegionPicker {
     func release(from start: CGPoint, to end: CGPoint, on index: Int) {
         defer {
             dragging = nil
+            // Hovering stops while you drag, so a press that picks nothing frames what is under the pointer now.
+            if stage == .choosing { hover(at: end, on: index) }
             if pressing {
                 pressing = false
                 onPressEnded?(stage != .choosing)
