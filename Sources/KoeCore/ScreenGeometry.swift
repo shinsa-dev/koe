@@ -20,6 +20,13 @@ public enum ScreenGeometry {
         abs(end.x - start.x) < clickTolerance && abs(end.y - start.y) < clickTolerance
     }
 
+    /// `rect` in the own space of the screen at `screen`, clipped to it; nil when none of it is on that screen.
+    public static func local(_ rect: CGRect, on screen: CGRect) -> CGRect? {
+        let moved = rect.offsetBy(dx: -screen.minX, dy: -screen.minY)
+            .intersection(CGRect(origin: .zero, size: screen.size))
+        return moved.isNull || moved.isEmpty ? nil : moved
+    }
+
     /// The pixels of an image captured from a screen `screenSize` points large that show `rect` (in the screen's own
     /// space), on whole pixels and inside the image. Nil when nothing of it is on the screen.
     public static func pixelRect(of rect: CGRect, screenSize: CGSize, imageSize: CGSize) -> CGRect? {
@@ -86,6 +93,13 @@ extension [WindowInfo] {
     /// The frontmost normal window under `point`: what a click on the frozen screen picks.
     public func topmost(at point: CGPoint) -> WindowInfo? {
         first { $0.layer == 0 && $0.frame.contains(point) }
+    }
+
+    /// The frame of the window under `point` (in the screen's own space) on the screen at `screen`, in that
+    /// screen's own space and clipped to it: what the picker frames while you hover.
+    public func frame(at point: CGPoint, on screen: CGRect) -> CGRect? {
+        topmost(at: CGPoint(x: point.x + screen.minX, y: point.y + screen.minY))
+            .flatMap { ScreenGeometry.local($0.frame, on: screen) }
     }
 
     /// The window a region was taken from: the frontmost one under its centre.

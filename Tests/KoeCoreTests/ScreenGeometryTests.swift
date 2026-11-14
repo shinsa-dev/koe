@@ -65,6 +65,24 @@ struct ScreenGeometryTests {
         let origin = ScreenGeometry.cardOrigin(for: CGRect(x: 900, y: 100, width: 90, height: 50), cardSize: card, in: screen)
         #expect(origin.x == 688)
     }
+
+    @Test func theHoveredWindowIsFramedInTheScreensOwnSpaceAndClippedToIt() {
+        let second = CGRect(x: 1000, y: 0, width: 800, height: 600)
+        let windows = [
+            WindowInfo(app: "Menu", frame: CGRect(x: 1000, y: 0, width: 800, height: 600), layer: 25),
+            WindowInfo(app: "Safari", frame: CGRect(x: 1100, y: 100, width: 300, height: 200)),
+            WindowInfo(app: "Finder", frame: CGRect(x: 600, y: 300, width: 600, height: 500)),
+        ]
+        #expect(windows.frame(at: CGPoint(x: 150, y: 150), on: second) == CGRect(x: 100, y: 100, width: 300, height: 200))
+        #expect(windows.frame(at: CGPoint(x: 50, y: 400), on: second) == CGRect(x: 0, y: 300, width: 200, height: 300))
+    }
+
+    @Test func nothingIsFramedOffEveryWindow() {
+        let windows = [WindowInfo(app: "Safari", frame: CGRect(x: 100, y: 100, width: 300, height: 200))]
+        let screen = CGRect(x: 0, y: 0, width: 800, height: 600)
+        #expect(windows.frame(at: CGPoint(x: 700, y: 500), on: screen) == nil)
+        #expect(ScreenGeometry.local(CGRect(x: 900, y: 0, width: 50, height: 50), on: screen) == nil)
+    }
 }
 
 struct WindowInfoTests {

@@ -17,8 +17,8 @@ struct RegionChoice {
     var live = false
 }
 
-/// The state of one screenshot: drag a region or click a window on any frozen screen. The pill says what to do and
-/// what the pointer is over; nothing is drawn around windows.
+/// The state of one screenshot: drag a region or click a window on any frozen screen. The window under the pointer
+/// is framed, and the pill says what to do and what the pointer is over.
 @MainActor
 @Observable
 final class RegionPicker {
@@ -52,6 +52,9 @@ final class RegionPicker {
     @ObservationIgnored var onHover: ((String?) -> Void)?
     /// The region being dragged, on the screen at `index`.
     private(set) var dragging: (index: Int, rect: CGRect)?
+    /// The window under the pointer while you pick, on the screen at `index` and clipped to it. A comment frames
+    /// nothing: it shows the window only once you click.
+    private(set) var hovered: (index: Int, rect: CGRect)?
     private var hoveredLabel: String?
     var note = ""
     /// The spot a comment is about, on the screen being noted.
@@ -71,6 +74,8 @@ final class RegionPicker {
 
     func hover(at point: CGPoint?, on index: Int) {
         guard stage == .choosing, dragging == nil else { return }
+        let frame = purpose == .comment ? nil : point.flatMap { freeze.windows.frame(at: $0, on: freeze.screens[index].frame) }
+        if frame != hovered?.rect || index != hovered?.index { hovered = frame.map { (index, $0) } }
         let label = point.flatMap { freeze.windows.topmost(at: quartz($0, on: index)) }.map { Self.label($0.source) }
         guard label != hoveredLabel else { return }
         hoveredLabel = label
@@ -190,9 +195,7 @@ final class RegionPicker {
     }
 
     private func local(_ rect: CGRect, on index: Int) -> CGRect {
-        let origin = freeze.screens[index].frame.origin
-        let moved = rect.offsetBy(dx: -origin.x, dy: -origin.y).intersection(bounds(of: index))
-        return moved.isNull ? .zero : moved
+        ScreenGeometry.local(rect, on: freeze.screens[index].frame) ?? .zero
     }
 }
 
@@ -204,6 +207,8 @@ struct RegionPickerView: View {
     /// A ⌘⇧-click comment: the same marks over the live screen, which keeps every click.
     var passive = false
     @State private var dragStart: CGPoint?
+    /// The mark as drawn: it springs from one rect to the next, so the window's frame shrinks into a drag.
+    @State private var shown: Mark?
 
     var body: some View {
         let screen = picker.freeze.screens[index]
@@ -212,10 +217,10 @@ struct RegionPickerView: View {
                 Image(decorative: screen.image, scale: CGFloat(screen.image.width) / max(1, screen.frame.width))
                     .resizable()
             }
-            Dim(cutout: highlight?.rect)
-            if let highlight {
-                Highlight(rect: highlight.rect)
-                if highlight.showsSize { SizeChip(rect: highlight.rect) }
+            Dim(cutout: shown?.rect)
+            if let shown {
+                Highlight(rect: shown.rect)
+                if shown.showsSize { SizeChip(rect: shown.rect) }
             }
             if case .noting(let screenIndex, _) = picker.stage, screenIndex == index, let pin = picker.pin {
                 // A new pin each time, drawn under the saved ones: it comes out from behind the comment before
@@ -232,6 +237,14 @@ struct RegionPickerView: View {
             }
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
+        .onChange(of: highlight, initial: true) { old, new in
+            // Only a mark that moves springs; one that appears or goes does so at once, never from a corner.
+            if old != nil, new != nil, old != new {
+                withAnimation(.spring(duration: 0.22, bounce: 0)) { shown = new }
+            } else {
+                shown = new
+            }
+        }
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
@@ -256,7 +269,7 @@ struct RegionPickerView: View {
         return CGSize(width: last.point.x - pin.x, height: last.point.y - pin.y)
     }
 
-    private struct Mark {
+    private struct Mark: Equatable {
         var rect: CGRect
         var showsSize = false
     }
@@ -266,12 +279,18 @@ struct RegionPickerView: View {
             return screenIndex == index ? Mark(rect: region) : nil
         }
         if let dragging = picker.dragging { return dragging.index == index ? Mark(rect: dragging.rect, showsSize: true) : nil }
+        if !passive, let hovered = picker.hovered, hovered.index == index { return Mark(rect: hovered.rect) }
         return nil
     }
 }
 
-private struct Dim: View {
-    let cutout: CGRect?
+private struct Dim: View, Animatable {
+    var cutout: CGRect?
+
+    nonisolated var animatableData: CGRect.AnimatableData {
+        get { cutout?.animatableData ?? CGRect.zero.animatableData }
+        set { cutout?.animatableData = newValue }
+    }
 
     var body: some View {
         Canvas { context, size in
