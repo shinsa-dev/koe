@@ -150,9 +150,12 @@ struct DeliveryTests {
         #expect(Delivery.decide(openTools: 1, hasContent: true, transcriptDone: true, waitedForWords: true) == .wait)
     }
 
-    @Test func waitsWhenTheModelHasNoWordYetButIsStillWorking() {
+    @Test func waitsBrieflyEvenBeforeTheFirstWord() {
         #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false, waitedForWords: false)
-            == .whenSettled)
+            == .waitForWords)
+    }
+
+    @Test func endsTheSessionWhenTheModelHasNoWordAfterTheWait() {
         #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false, waitedForWords: true)
             == .whenSettled)
     }

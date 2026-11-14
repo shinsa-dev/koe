@@ -43,15 +43,16 @@ public enum Delivery: Sendable, Equatable {
     case waitForWords
     /// Copy now. `final` when the transcript is settled, so no refinement follows.
     case deliver(final: Bool)
-    /// Nothing heard yet and the model is still catching up: the session ends now and copies once it has the words.
+    /// The short wait is over, nothing is heard yet and the model is still catching up: the session ends now and
+    /// copies once it has the words.
     case whenSettled
 
     public static func decide(openTools: Int, hasContent: Bool, transcriptDone: Bool, waitedForWords: Bool)
         -> Delivery {
         guard openTools == 0 else { return .wait }
         if transcriptDone { return .deliver(final: true) }
-        guard hasContent else { return .whenSettled }
-        return waitedForWords ? .deliver(final: false) : .waitForWords
+        guard waitedForWords else { return .waitForWords }
+        return hasContent ? .deliver(final: false) : .whenSettled
     }
 }
 
