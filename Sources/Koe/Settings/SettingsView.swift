@@ -37,9 +37,9 @@ struct SettingsPage: View {
             }
             SettingsGroup(title: "Dictation", description: "Click a shortcut, then press the keys you want.") {
                 ShortcutRow(action: .toggleSession, library: library)
-                SettingRow(title: "Comment with ⇧⌘-click",
+                SettingRow(title: "Comment with \(ClickGesture.comment.displayName)",
                            detail: "Say the comment after the click. Off, the click goes to the app, such as a new tab.") {
-                    Toggle("Comment with ⇧⌘-click", isOn: binding(\.clickToComment)).toggleStyle(.koe)
+                    Toggle("Comment with \(ClickGesture.comment.displayName)", isOn: binding(\.clickToComment)).toggleStyle(.koe)
                 }
             }
             TranscriptionGroup(library: library, models: models)
