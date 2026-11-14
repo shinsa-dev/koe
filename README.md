@@ -97,9 +97,10 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
   the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
   assets, format) is worked out at launch and kept.
-- **Finishing copies at once** (`Delivery`): the words heard so far, the model's latest guess included, go on the
-  clipboard the moment you finish. When the last words settle a moment later, the session is saved again and the
-  clipboard is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Koe waits only for a
+- **Finishing copies the settled words** (`Delivery`): when you finish, Koe waits up to 1.5 s (`finalWait`) for the
+  model's last words to settle, whichever model runs, so a quick paste gets them. Past that it copies what it has,
+  the model's latest guess included; when the last words settle later, the session is saved again and the clipboard
+  is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
 - **Nothing is lost.** The audio is on disk as it is recorded (CAF stays readable when Koe is killed mid-write) and
   `draft.json` lists the attachments so far. At launch, a folder with audio and no `session.json` is a recording Koe

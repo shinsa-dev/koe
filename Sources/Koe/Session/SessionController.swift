@@ -59,8 +59,8 @@ private final class Take {
 }
 
 /// Runs one dictation session at a time. Recording starts the moment you ask: the microphone opens at once and the
-/// model catches up on what it missed. Finishing copies at once with what has been heard, and refines the copy when
-/// the last words settle.
+/// model catches up on what it missed. Finishing waits up to `finalWait` for the last words, copies what has been
+/// heard, and refines the copy if they settle later.
 @MainActor
 @Observable
 final class SessionController {
