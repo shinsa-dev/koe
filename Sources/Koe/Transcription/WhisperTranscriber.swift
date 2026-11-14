@@ -20,16 +20,17 @@ actor WhisperDecoder: WindowDecoder {
         _ = try await gate.run { try await self.loaded() }
     }
 
-    func decode(_ samples: [Float]) async throws -> [TimedToken] {
+    func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow {
         try await gate.run {
             let whisper = try await self.loaded()
             let options = DecodingOptions(
-                task: .transcribe, detectLanguage: true, skipSpecialTokens: true, wordTimestamps: true,
-                chunkingStrategy: .vad
+                task: .transcribe, language: language, detectLanguage: language == nil, skipSpecialTokens: true,
+                wordTimestamps: true, chunkingStrategy: .vad
             )
             let results = try await whisper.value.transcribe(audioArray: samples, decodeOptions: options)
-            return results.flatMap(\.segments).flatMap { $0.words ?? [] }
+            let tokens = results.flatMap(\.segments).flatMap { $0.words ?? [] }
                 .map { TimedToken($0.word, start: Double($0.start), end: Double($0.end)) }
+            return DecodedWindow(tokens: tokens, language: language == nil ? results.first?.language : nil)
         }
     }
 

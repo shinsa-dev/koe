@@ -190,10 +190,16 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
   the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
   those last words before copying (`finalWait`).
+- **Whisper's language.** Whisper finds the language itself, but guessing it on every 0.9 s pass costs a decoder
+  step and can flip on a short or quiet window. A session settles it once, from the first pass that read at least
+  4 s of audio (`LanguageLock`), and every later pass decodes in it. A whole recording read back is detected afresh.
 - **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
-  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3. It prints whether each
-  ends with the same three words as one decode of the whole recording (`TailScore`), and the total. It reads only
-  local recordings; none is in the repository.
+  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3, or the model
+  `--model <id>` names (Parakeet v3, Parakeet v2 or Whisper; Apple's streams on its own and can't be replayed). It
+  prints whether each ends with the same three words as one decode of the whole recording (`TailScore`), and the
+  total; how long the model took to load; and for each recording and in all, how long the passes took against the
+  0.9 s they have and how long the whole decode took (`StepTimings`). It reads only local recordings; none is in the
+  repository.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile

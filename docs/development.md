@@ -13,6 +13,7 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 KOE_VERSION=1.2.0 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
 swift test            # KoeCore's unit tests
 .build/debug/Koe --bench  # replays your newest recordings and scores how often their endings are complete
+.build/debug/Koe --bench --model whisper-large-v3-turbo 3  # the same with another model, newest three recordings
 ```
 
 `scripts/sandbox.sh` runs a debug Koe for tests without getting in your way: `--background` leaves out the menu bar
