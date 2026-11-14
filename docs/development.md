@@ -15,6 +15,19 @@ swift test            # KoeCore's unit tests
 .build/debug/Koe --bench  # replays your newest recordings and scores how often their endings are complete
 ```
 
+`scripts/sandbox.sh` runs a debug Koe for tests without getting in your way: `--background` leaves out the menu bar
+item, windows, the pill, shortcuts, ⌘⇧-click, the clipboard, media pausing and updates, and never takes focus. It runs
+in its own home (`$TMPDIR/koe-sandbox`, or `KOE_SANDBOX`) with its own settings, so it never touches the installed
+Koe's sessions, models or preferences.
+
+```sh
+scripts/sandbox.sh --fresh --with-models --snapshots /tmp/shots --download whisper-large-v3-turbo
+scripts/sandbox.sh --with-models --audio-file session.caf --start --print-session
+```
+
+`--snapshots <folder>` draws the settings page into the folder each time it changes and prints which model runs and
+each model's install state when that changes.
+
 There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with
 `KOE_SIGN_IDENTITY` or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions
 across rebuilds; without one it signs ad hoc and the permissions reset on every build. The icon is an Icon Composer

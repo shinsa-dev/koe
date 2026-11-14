@@ -11,7 +11,8 @@ if let flag = CommandLine.arguments.firstIndex(of: "--bench") {
 }
 
 let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
+// A background run never joins the Dock, ⌘Tab or the menu bar, and never takes focus.
+app.setActivationPolicy(Launch.isBackground ? .prohibited : .accessory)
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()

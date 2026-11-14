@@ -12,6 +12,12 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   sees another app and can drop the microphone grant.
 - **After every change to the app, run `./build.sh --install`** before you hand over, so the human can always test
   the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
+- **Test in the background, never with the installed Koe.** `scripts/sandbox.sh` runs a debug Koe with `--background`:
+  no menu bar item, window, pill, shortcut, clipboard, focus or media pausing, and its own home for settings, sessions,
+  models and the Neural Engine cache (`--fresh` empties it, `--with-models` clones your models in). Drive it with
+  `--audio-file <caf> --start --print-session` for a session, and `--snapshots <folder>` for the settings page as PNGs
+  each time it changes, with the models' state on stdout. Never launch, quit, click or screenshot the installed app
+  or open a window to test.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
   `.build/debug/Koe --bench` replays your newest recorded sessions and scores how often their endings are complete;
   run it after any change to transcription.

@@ -18,16 +18,19 @@ final class SessionLibrary {
     @ObservationIgnored private let paster = BundlePaster()
     /// Whether the last copy left only the words on the clipboard, with the attachments following your ⌘V.
     @ObservationIgnored private(set) var pastesTogether = false
+    /// Off for `--background`, so a test run never writes to, pastes from or watches your clipboard.
+    @ObservationIgnored private let touchesClipboard: Bool
 
-    init(root: URL, defaults: UserDefaults = .standard) {
+    init(root: URL, defaults: UserDefaults = .standard, touchesClipboard: Bool = true) {
         self.defaults = defaults
+        self.touchesClipboard = touchesClipboard
         archive = SessionArchive(root: root)
         settings = KoeSettings(values: defaults.dictionaryRepresentation())
         // Oldest first, so the newest win when two sessions read the same.
         for entry in archive.recent(limit: 100).reversed() {
             paster.remember(ClipboardPlan.items(for: BundleComposer().compose(entry.session), copyFiles: true))
         }
-        if settings.pasteTogether { paster.watch() }
+        if settings.pasteTogether, touchesClipboard { paster.watch() }
         paster.filesAllowed = { [weak self] in self?.settings.copyFiles ?? false }
     }
 
@@ -41,7 +44,7 @@ final class SessionLibrary {
         let values = next.values
         for (key, value) in values { defaults.set(value, forKey: key) }
         for key in ShortcutAction.allCases.map(Shortcuts.key) where values[key] == nil { defaults.removeObject(forKey: key) }
-        if next.pasteTogether { paster.watch() } else { paster.stop() }
+        if next.pasteTogether, touchesClipboard { paster.watch() } else { paster.stop() }
         onSettingsChange?(next)
     }
 
@@ -55,7 +58,7 @@ final class SessionLibrary {
         let items = copy(session)
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
         lastCopy = (session.id, Self.text(of: items))
-        let pasted = settings.autoPaste ? await BundleWriter.paste() : false
+        let pasted = settings.autoPaste && touchesClipboard ? await BundleWriter.paste() : false
         let summary = ClipboardPlan.summary(for: items, pasted: pasted, together: pastesTogether)
         return PillNotice(kind: .success, title: summary.title, detail: summary.detail)
     }
@@ -114,6 +117,7 @@ final class SessionLibrary {
     @discardableResult
     func copy(_ session: Session) -> [ClipboardItem] {
         let items = ClipboardPlan.items(for: BundleComposer().compose(session), copyFiles: settings.copyFiles)
+        guard touchesClipboard else { return items }
         pastesTogether = settings.pasteTogether && paster.arm(items)
         if !pastesTogether { BundleWriter.write(items) }
         return items

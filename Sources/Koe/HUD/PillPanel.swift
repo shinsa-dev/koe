@@ -130,6 +130,7 @@ final class PillController {
     var isVisible: Bool { panel.isVisible }
 
     func show() {
+        guard !Launch.isBackground else { return }
         pendingHide?.cancel()
         if !panel.isVisible {
             let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main

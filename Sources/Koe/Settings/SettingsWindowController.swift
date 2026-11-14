@@ -53,8 +53,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         startPolling()
     }
 
-    /// Draws the whole page at twice its size, as tall as it runs, in the app's appearance.
     func snapshot(to url: URL) {
+        try? snapshotPNG()?.write(to: url)
+    }
+
+    /// The whole page drawn at twice its size, as tall as it runs, in the app's appearance.
+    func snapshotPNG() -> Data? {
         let view = NSHostingView(rootView: page
             .padding(28)
             .frame(width: Self.size.width)
@@ -69,10 +73,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2), pixelsHigh: Int(view.bounds.height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 0, bitsPerPixel: 0) else { return }
+            bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
         rep.size = view.bounds.size
         view.cacheDisplay(in: view.bounds, to: rep)
-        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+        return rep.representation(using: .png, properties: [:])
     }
 
     func windowWillClose(_ notification: Notification) {
