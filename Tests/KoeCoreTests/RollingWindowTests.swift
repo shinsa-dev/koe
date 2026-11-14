@@ -115,6 +115,27 @@ struct RollingWindowTests {
         #expect(final?.runs.map(\.text) == [" you", " know", " what", " I", " mean?"])
     }
 
+    @Test func aGuessedWordTheFinalDecodeTimesEarlierIsNotRepeated() {
+        var window = RollingWindow()
+        _ = window.take([word("gone", 29.32, 29.8), word("now", 29.8, 29.88)], heard: 30, ended: false)
+        let (final, _) = window.take([word("gone", 29.29, 29.69), word("now.", 29.69, 29.77)], heard: 30.1, ended: true)
+        #expect(final?.runs.map(\.text) == [" gone", " now."])
+    }
+
+    @Test func theGuessPicksUpAfterTheNearestMatchingWord() {
+        var window = RollingWindow()
+        _ = window.take([word("I", 1.3, 1.4), word("mean", 1.5, 1.7), word("I", 1.9, 2.0)], heard: 2.5, ended: false)
+        let (final, _) = window.take([word("I", 1.28, 1.42)], heard: 2.7, ended: true)
+        #expect(final?.runs.map(\.text) == [" I", " mean", " I"])
+    }
+
+    @Test func aGuessWithNoWordTheDecodeEndedOnKeepsWhatFollowsIt() {
+        var window = RollingWindow()
+        _ = window.take([word("one", 0.2, 0.5), word("two", 0.8, 1.1)], heard: 2, ended: false)
+        let (final, _) = window.take([word("won", 0.2, 0.55)], heard: 2.2, ended: true)
+        #expect(final?.runs.map(\.text) == [" won", " two"])
+    }
+
     @Test func aSettledWordTimedLongerIsNotRepeated() {
         var window = RollingWindow()
         _ = window.take([word("differences?", 75.76, 76.8)], heard: 79, ended: false)

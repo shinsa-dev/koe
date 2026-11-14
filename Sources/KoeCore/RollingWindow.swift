@@ -52,9 +52,7 @@ public struct RollingWindow: Sendable, Equatable {
         let repeatEdge = lastSettled.map { ($0.start + $0.end) / 2 } ?? -.infinity
         var words = words.filter { ($0.start + $0.end) / 2 >= windowStart && $0.start >= repeatEdge }
         guard !ended else {
-            // A decode that stops short of the guess missed its end: the guess was heard, so keep it.
-            let heardUpTo = words.last?.end ?? windowStart
-            words += pending.filter { $0.start >= heardUpTo }
+            words += Self.unheard(pending, after: words.last)
             start = max(start, heard)
             pending = []
             lastSettled = words.last ?? lastSettled
@@ -87,5 +85,25 @@ public struct RollingWindow: Sendable, Equatable {
         let final = settled.isEmpty ? nil
             : TranscriptUpdate(runs: settled, isFinal: true, start: windowStart, end: start)
         return (final, TranscriptUpdate(runs: rest, isFinal: false, start: start, end: max(start, heard)))
+    }
+
+    /// The end of the guess a final decode that stopped short of it missed: the guess was heard, so it is kept. The
+    /// guess picks up after its word that the decode ended on, matched by text and the nearest start as the two time
+    /// it differently; with none, after the decode's last word ends.
+    static func unheard(_ guess: [TranscriptRun], after last: TranscriptRun?) -> [TranscriptRun] {
+        guard let last else { return guess }
+        let key = Self.key(last.text)
+        let match = guess.indices
+            .filter { Self.key(guess[$0].text) == key && abs(guess[$0].start - last.start) < matchReach }
+            .min { abs(guess[$0].start - last.start) < abs(guess[$1].start - last.start) }
+        if let match { return Array(guess[(match + 1)...]) }
+        return guess.filter { $0.start >= last.end }
+    }
+
+    /// How far from the decode's last word the guess may have timed the same word.
+    private static let matchReach: AudioTime = 1
+
+    private static func key(_ text: String) -> String {
+        text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 }

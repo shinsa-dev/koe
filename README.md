@@ -227,6 +227,15 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   rest is a volatile guess the next pass replaces (`RollingWindow`). A window never grows past 14 s. Their sub-word
   tokens join into timed words (`TokenRuns`), so attachments still land at word boundaries. A recording Koe never
   finished is read in one pass with the active model.
+- **Keeping the last words.** Parakeet sometimes hears nothing in a few seconds of speech, which is what the end of a
+  session looks like. So an empty pass never drops the guess: mid-session the same audio is decoded again, and the
+  last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
+  the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
+  those last words before copying (`finalWait`).
+- **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
+  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3. It prints whether each
+  ends with the same three words as one decode of the whole recording (`TailScore`), and the total. It reads only
+  local recordings; none is in the repository.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile

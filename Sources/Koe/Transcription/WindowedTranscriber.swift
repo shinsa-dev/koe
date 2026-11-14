@@ -104,6 +104,8 @@ final class SampleBuffer: @unchecked Sendable {
         lock.withLock { samples.append(contentsOf: new) }
     }
 
+    func append(_ new: [Float]) { lock.withLock { samples.append(contentsOf: new) } }
+
     func end() { lock.withLock { ended = true } }
 
     var isEnded: Bool { lock.withLock { ended } }
@@ -157,7 +159,9 @@ final class SampleBuffer: @unchecked Sendable {
         }
         let buffer = SampleBuffer()
         let chunk = AVAudioFrameCount(file.processingFormat.sampleRate)
-        while let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk) {
+        // Reading at the end of a file throws rather than returning no frames.
+        while file.framePosition < file.length,
+              let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk) {
             try file.read(into: input, frameCount: chunk)
             guard input.frameLength > 0 else { break }
             if let converted = AudioConversion.convert(input, with: converter, to: CaptureStream.format) {
