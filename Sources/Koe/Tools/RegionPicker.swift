@@ -50,6 +50,11 @@ final class RegionPicker {
     @ObservationIgnored var onClickAttach: (() -> Void)?
     /// What the pointer is over while you pick, for the pill to name.
     @ObservationIgnored var onHover: ((String?) -> Void)?
+    /// The mouse went down to pick: what you say from here is about what you pick, not only once you let go.
+    @ObservationIgnored var onPress: (() -> Void)?
+    /// The mouse came up, and whether something is picked now.
+    @ObservationIgnored var onPressEnded: ((Bool) -> Void)?
+    @ObservationIgnored private var pressing = false
     /// The region being dragged, on the screen at `index`.
     private(set) var dragging: (index: Int, rect: CGRect)?
     /// The window under the pointer while you pick, on the screen at `index` and clipped to it. A comment frames
@@ -87,6 +92,10 @@ final class RegionPicker {
     }
 
     func drag(from start: CGPoint, to end: CGPoint, on index: Int) {
+        if !pressing {
+            pressing = true
+            onPress?()
+        }
         // A comment is a click: dragging means nothing to it, and never drops the one you're saying.
         guard !ScreenGeometry.isClick(from: start, to: end), purpose != .comment else { return }
         if case .noting = stage { stage = .choosing }
@@ -94,7 +103,13 @@ final class RegionPicker {
     }
 
     func release(from start: CGPoint, to end: CGPoint, on index: Int) {
-        defer { dragging = nil }
+        defer {
+            dragging = nil
+            if pressing {
+                pressing = false
+                onPressEnded?(stage != .choosing)
+            }
+        }
         if ScreenGeometry.isClick(from: start, to: end) {
             let window = freeze.windows.topmost(at: quartz(end, on: index))
             let rect = window.map { local($0.frame, on: index) } ?? .zero

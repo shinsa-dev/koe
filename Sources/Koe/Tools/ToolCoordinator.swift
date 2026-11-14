@@ -122,49 +122,6 @@ final class ToolCoordinator {
         }
     }
 
-    /// Keeps the pill in step with the picker: what to do while picking, then attach, or listen for a comment.
-    private func prompt(_ picker: RegionPicker, voice: VoiceNote) {
-        let comment = picker.purpose == .comment
-        let picking = ToolPrompt(
-            stage: .picking, icon: comment ? .comment : .screenCapture,
-            title: comment ? "Click anything to comment on it" : "Drag over a region, or click a window",
-            detail: nil, confirm: comment ? "Add comment" : "Attach", canTalk: false
-        )
-        status.prompt = picking
-        status.onCancel = { picker.cancel() }
-        status.onConfirm = nil
-        status.onTalk = nil
-        picker.onHover = { [weak self] label in self?.status.prompt?.detail = label }
-        picker.onClickAttach = { [weak self] in self?.status.onConfirm?() }
-        picker.onChoosing = { [weak self] in
-            voice.stop()
-            self?.status.prompt = picking
-            self?.status.onConfirm = nil
-        }
-        picker.onPicked = { [weak self] in
-            guard let self else { return }
-            status.onConfirm = { picker.submit(voice: voice.span()) }
-            status.onTalk = { [weak self] in
-                voice.begin()
-                self?.status.prompt?.stage = .listening
-                self?.status.prompt?.title = Self.title(comment: comment, listening: true, number: picker.commentNumber)
-            }
-            // Whatever you pick, what you say next is about it: it listens the moment you pick.
-            voice.begin()
-            status.prompt = ToolPrompt(
-                stage: voice.isListening ? .listening : .confirming, icon: comment ? .comment : .screenCapture,
-                title: Self.title(comment: comment, listening: voice.isListening, number: picker.commentNumber),
-                detail: picker.sourceLabel,
-                confirm: comment ? "Add comment" : "Attach"
-            )
-        }
-    }
-
-    private static func title(comment: Bool, listening: Bool, number: Int) -> String {
-        if comment { return "Say comment \(number)" }
-        return listening ? "Talk about it, or just attach" : "Attach this screenshot?"
-    }
-
     private func freeze() async throws -> Freeze {
         if let backdrop { return Freeze.backdrop(backdrop) }
         var freeze = try await ScreenFreezer.freeze()
@@ -351,6 +308,69 @@ extension Freeze {
             screens: [FrozenScreen(screen: screen, image: image, frame: ScreenGeometry.flip(screen.frame, mainScreenHeight: mainHeight))],
             windows: [], frontApp: "Acme Studio"
         )
+    }
+}
+
+extension ToolCoordinator {
+    /// Keeps the pill in step with the picker: what to do while picking, then attach, or listen for a comment.
+    private func prompt(_ picker: RegionPicker, voice: VoiceNote) {
+        let comment = picker.purpose == .comment
+        let picking = ToolPrompt(
+            stage: .picking, icon: comment ? .comment : .screenCapture,
+            title: comment ? "Click anything to comment on it" : "Drag over a region, or click a window",
+            detail: nil, confirm: comment ? "Add comment" : "Attach", canTalk: false
+        )
+        status.prompt = picking
+        status.onCancel = { picker.cancel() }
+        status.onConfirm = nil
+        status.onTalk = nil
+        picker.onHover = { [weak self] label in self?.status.prompt?.detail = label }
+        picker.onClickAttach = { [weak self] in self?.status.onConfirm?() }
+        // A screenshot listens from the press, so what you say while dragging is its note. A comment listens once
+        // you click, as before.
+        let pickingAloud = ToolPrompt(
+            stage: .listening, icon: .screenCapture, title: "Talk about it as you pick",
+            detail: nil, confirm: "Attach", canTalk: false
+        )
+        let choosing: () -> Void = { [weak self] in
+            guard let self else { return }
+            let detail = status.prompt?.detail
+            status.prompt = voice.isListening ? pickingAloud : picking
+            status.prompt?.detail = detail
+            status.onConfirm = nil
+        }
+        picker.onPress = comment ? nil : {
+            voice.begin()
+            if picker.stage == .choosing { choosing() }
+        }
+        picker.onPressEnded = comment ? nil : { picked in
+            guard !picked else { return }
+            voice.reset()
+            choosing()
+        }
+        picker.onChoosing = choosing
+        picker.onPicked = { [weak self] in
+            guard let self else { return }
+            status.onConfirm = { picker.submit(voice: voice.span()) }
+            status.onTalk = { [weak self] in
+                voice.begin()
+                self?.status.prompt?.stage = .listening
+                self?.status.prompt?.title = Self.title(comment: comment, listening: true, number: picker.commentNumber)
+            }
+            // Whatever you pick, what you say next is about it: it listens the moment you pick.
+            voice.begin()
+            status.prompt = ToolPrompt(
+                stage: voice.isListening ? .listening : .confirming, icon: comment ? .comment : .screenCapture,
+                title: Self.title(comment: comment, listening: voice.isListening, number: picker.commentNumber),
+                detail: picker.sourceLabel,
+                confirm: comment ? "Add comment" : "Attach"
+            )
+        }
+    }
+
+    private static func title(comment: Bool, listening: Bool, number: Int) -> String {
+        if comment { return "Say comment \(number)" }
+        return listening ? "Talk about it, or just attach" : "Attach this screenshot?"
     }
 }
 
