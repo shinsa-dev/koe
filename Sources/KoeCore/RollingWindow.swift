@@ -7,6 +7,10 @@ import Foundation
 public struct RollingWindow: Sendable, Equatable {
     /// Where the audio not yet settled begins, in session seconds: the start of the next window.
     public private(set) var start: AudioTime = 0
+    /// The guess at the words after `start` from the last decode that heard any.
+    public private(set) var pending: [TranscriptRun] = []
+    /// The last word that settled, so a later decode that times it again doesn't add it twice.
+    public private(set) var lastSettled: TranscriptRun?
     /// How far behind the newest audio a word must end to settle.
     public var settleLag: AudioTime
     /// The longest a window may grow. Past it, words settle with a shorter lag so decoding stays fast; Parakeet reads
@@ -16,15 +20,26 @@ public struct RollingWindow: Sendable, Equatable {
     /// Settled audio decoded again ahead of the window, whose words are dropped: a model starting cold on the first
     /// word of a window often misses it.
     public var leftContext: AudioTime
+    /// How far back the last decode reaches once the audio has ended. Parakeet often hears nothing at all in a few
+    /// seconds of speech followed by silence, which is what the end of a session looks like, but reads a long stretch
+    /// reliably; 12 s stays inside its 15 s single pass.
+    public var finalContext: AudioTime
 
-    public init(settleLag: AudioTime = 2, maxWindow: AudioTime = 14, leftContext: AudioTime = 1.5) {
+    public init(settleLag: AudioTime = 2, maxWindow: AudioTime = 14, leftContext: AudioTime = 1.5,
+                finalContext: AudioTime = 12) {
         self.settleLag = settleLag
         self.maxWindow = maxWindow
         self.leftContext = leftContext
+        self.finalContext = finalContext
     }
 
     /// Where the next decode's audio begins: the window's start, less the context ahead of it.
     public var decodeFrom: AudioTime { max(0, start - leftContext) }
+
+    /// Where the last decode's audio begins once the audio has ended at `heard`: at least `finalContext` back.
+    public func finalDecodeFrom(heard: AudioTime) -> AudioTime {
+        min(decodeFrom, max(0, heard - finalContext))
+    }
 
     /// What a decode of the window up to `heard` means for the transcript: the words that settle, as a final update,
     /// and the guess at the rest, as a volatile one. `words` carry session times. Once the audio has `ended`, every
@@ -32,15 +47,30 @@ public struct RollingWindow: Sendable, Equatable {
     public mutating func take(_ words: [TranscriptRun], heard: AudioTime, ended: Bool)
         -> (final: TranscriptUpdate?, volatile: TranscriptUpdate) {
         let windowStart = start
-        // A word the window's edge cuts belongs to the window holding most of it.
-        let words = words.filter { ($0.start + $0.end) / 2 >= windowStart }
+        // A word the window's edge cuts belongs to the window holding most of it, and a word that starts in the first
+        // half of the last settled one is that word timed again.
+        let repeatEdge = lastSettled.map { ($0.start + $0.end) / 2 } ?? -.infinity
+        var words = words.filter { ($0.start + $0.end) / 2 >= windowStart && $0.start >= repeatEdge }
         guard !ended else {
+            // A decode that stops short of the guess missed its end: the guess was heard, so keep it.
+            let heardUpTo = words.last?.end ?? windowStart
+            words += pending.filter { $0.start >= heardUpTo }
             start = max(start, heard)
+            pending = []
+            lastSettled = words.last ?? lastSettled
             let final = TranscriptUpdate(runs: words, isFinal: true, start: windowStart, end: start)
             return (final, TranscriptUpdate(runs: [], isFinal: false, start: start, end: start))
         }
-        let lag = heard - decodeFrom > maxWindow ? min(settleLag, 0.5) : settleLag
-        let cutoff = heard - lag
+        let long = heard - decodeFrom > maxWindow
+        if words.isEmpty, !pending.isEmpty {
+            // An empty decode of audio that held words is the model missing them, not silence. Keep the guess and
+            // decode the same audio again; only a window grown too long settles the guess as it stands.
+            guard long else {
+                return (nil, TranscriptUpdate(runs: pending, isFinal: false, start: start, end: max(start, heard)))
+            }
+            words = pending
+        }
+        let cutoff = heard - (long ? min(settleLag, 0.5) : settleLag)
         let settledCount = words.prefix { $0.end <= cutoff }.count
         let settled = Array(words.prefix(settledCount))
         let rest = Array(words.dropFirst(settledCount))
@@ -48,10 +78,12 @@ public struct RollingWindow: Sendable, Equatable {
         if let last = settled.last {
             // Halfway into the gap before the next word, so neither word's edge falls outside its window.
             start = rest.first.map { max(last.end, ($0.start + last.end) / 2) } ?? last.end
+            lastSettled = last
         } else if words.isEmpty {
             // Silence: nothing will be said in audio already this old, so the window needn't keep it.
             start = max(start, cutoff)
         }
+        pending = rest
         let final = settled.isEmpty ? nil
             : TranscriptUpdate(runs: settled, isFinal: true, start: windowStart, end: start)
         return (final, TranscriptUpdate(runs: rest, isFinal: false, start: start, end: max(start, heard)))

@@ -75,6 +75,71 @@ struct RollingWindowTests {
         #expect(window.start == 3)
     }
 
+    @Test func anEmptyDecodeKeepsTheGuessAndTheWindow() {
+        var window = RollingWindow()
+        _ = window.take([word("hello", 0.3, 0.8)], heard: 2, ended: false)
+        let (final, volatile) = window.take([], heard: 5, ended: false)
+        #expect(final == nil)
+        #expect(volatile.runs == [word("hello", 0.3, 0.8)])
+        #expect(window.start == 0)
+        // The next decode reads the same audio again and hears the words it missed.
+        let (next, _) = window.take([word("hello", 0.3, 0.8), word("world", 1.0, 1.4)], heard: 5.9, ended: false)
+        #expect(next?.runs.map(\.text) == [" hello", " world"])
+    }
+
+    @Test func aWindowGrownTooLongSettlesTheGuessWhenDecodesStayEmpty() {
+        var window = RollingWindow(settleLag: 2, maxWindow: 14)
+        _ = window.take([word("stuck", 0.5, 1.0)], heard: 2, ended: false)
+        let (final, volatile) = window.take([], heard: 15, ended: false)
+        #expect(final?.runs == [word("stuck", 0.5, 1.0)])
+        #expect(volatile.runs.isEmpty)
+        #expect(window.start == 1.0)
+    }
+
+    @Test func anEmptyFinalDecodeKeepsTheGuess() {
+        var window = RollingWindow()
+        let guess = [word("checked", 0.4, 0.9), word("right", 1.0, 1.3), word("now", 1.4, 1.7)]
+        _ = window.take(guess, heard: 2, ended: false)
+        let (final, volatile) = window.take([], heard: 2.4, ended: true)
+        #expect(final?.runs == guess)
+        #expect(volatile.runs.isEmpty)
+        #expect(window.pending.isEmpty)
+    }
+
+    @Test func aFinalDecodeThatStopsShortKeepsTheRestOfTheGuess() {
+        var window = RollingWindow()
+        _ = window.take([word("you", 0.4, 0.6), word("know", 0.7, 0.9), word("what", 1.0, 1.2),
+                         word("I", 1.3, 1.4), word("mean?", 1.5, 1.8)], heard: 2, ended: false)
+        let (final, _) = window.take([word("you", 0.4, 0.6), word("know", 0.7, 0.95), word("what", 1.0, 1.2),
+                                      word("I", 1.3, 1.42)], heard: 2.4, ended: true)
+        #expect(final?.runs.map(\.text) == [" you", " know", " what", " I", " mean?"])
+    }
+
+    @Test func aSettledWordTimedLongerIsNotRepeated() {
+        var window = RollingWindow()
+        _ = window.take([word("differences?", 75.76, 76.8)], heard: 79, ended: false)
+        #expect(window.start == 76.8)
+        let (final, _) = window.take([word("differences?", 75.76, 79.2)], heard: 79.3, ended: true)
+        #expect(final?.runs.isEmpty == true)
+    }
+
+    @Test func aWordRightAfterTheLastSettledOneStays() {
+        var window = RollingWindow()
+        _ = window.take([word("one", 0.2, 0.5)], heard: 3, ended: false)
+        let (final, _) = window.take([word("two", 0.45, 0.9)], heard: 3.2, ended: true)
+        #expect(final?.runs.map(\.text) == [" two"])
+    }
+
+    @Test func theFinalDecodeReachesFarBack() {
+        var window = RollingWindow()
+        #expect(window.finalDecodeFrom(heard: 5) == 0)
+        _ = window.take([word("a", 9.5, 10)], heard: 13, ended: false)
+        #expect(window.decodeFrom == 8.5)
+        #expect(window.finalDecodeFrom(heard: 14) == 2)
+        // A window already longer than the final context keeps its own start.
+        #expect(window.finalDecodeFrom(heard: 22) == 8.5)
+    }
+
     @Test func theLastSettledWordStartsTheNextWindowWhenNothingFollows() {
         var window = RollingWindow()
         _ = window.take([word("done", 0.5, 1.0)], heard: 4, ended: false)
