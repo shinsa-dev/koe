@@ -21,6 +21,8 @@ protocol AudioSource: AnyObject, Sendable {
     var currentTime: AudioTime { get }
     /// How loud the last buffer was, 0...1, for the waveform.
     var level: Float { get }
+    /// How loud the recording has been over time, for the cleanup to tell speech from silence.
+    var levels: LevelTrack { get }
 }
 
 enum AudioSourceError: LocalizedError {
@@ -53,6 +55,7 @@ final class CaptureStream: @unchecked Sendable {
     private var file: AVAudioFile?
     private var frames: AVAudioFramePosition = 0
     private var lastLevel: Float = 0
+    private var track = LevelTrack()
     private var paused = false
     private var stopped = false
     private var holding = true
@@ -72,6 +75,7 @@ final class CaptureStream: @unchecked Sendable {
     var currentTime: AudioTime { lock.withLock { Double(frames) / Self.format.sampleRate } }
     var level: Float { lock.withLock { paused ? 0 : lastLevel } }
     var isStopped: Bool { lock.withLock { stopped } }
+    var levels: LevelTrack { lock.withLock { track } }
 
     /// Takes one buffer in `CaptureStream.format`.
     func ingest(_ buffer: AVAudioPCMBuffer) {
@@ -83,6 +87,10 @@ final class CaptureStream: @unchecked Sendable {
                 try file?.write(from: buffer)
             } catch {
                 Self.log.error("Could not write the recording: \(error.localizedDescription, privacy: .public)")
+            }
+            if let samples {
+                track.record(samples: Array(samples), rate: Self.format.sampleRate,
+                             at: Double(frames) / Self.format.sampleRate)
             }
             frames += AVAudioFramePosition(buffer.frameLength)
             lastLevel = level

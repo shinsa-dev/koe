@@ -75,9 +75,17 @@ struct TranscriptCleanupTests {
     @Test func quietSpeechOverTheFloorStays() {
         var levels = LevelTrack()
         for step in 0..<400 { levels.record(0.15, at: Double(step) * LevelTrack.step) }
-        levels.record(0.3, at: 12.1)
+        levels.record(0.4, at: 12.1)
         let quiet = TimedWord("yes", start: 12, end: 12.3)
         #expect(TranscriptCleanup.apply(words: [quiet], levels: levels) == [quiet])
+    }
+
+    @Test func aWordTimedJustBeforeItsSoundStays() {
+        // Parakeet times a word after a pause up to 0.3 s before the microphone's gate opens on it.
+        var levels = LevelTrack()
+        for step in 0..<200 { levels.record(step >= 100 && step < 110 ? 0.6 : 0, at: Double(step) * LevelTrack.step) }
+        let early = TimedWord("The", start: 4.72, end: 4.96)
+        #expect(TranscriptCleanup.apply(words: [early], levels: levels) == [early])
     }
 
     @Test func wordsPastTheEndOfTheTrackStay() {
@@ -113,5 +121,13 @@ struct LevelTrackTests {
         #expect(track.peaks[20] > 0.85)
         #expect(track.peaks[21] == 0)
         #expect(abs(track.duration - 1.1) < 0.0001)
+    }
+
+    @Test func aWholeRecordingsTrackStartsAtItsFirstSample() {
+        let samples = Array(repeating: Float(0), count: 800) + Array(repeating: 0.5, count: 800)
+        let track = LevelTrack(samples: samples, rate: 16_000)
+        #expect(track.peaks.count == 2)
+        #expect(track.peaks[0] == 0)
+        #expect(track.peaks[1] > 0.85)
     }
 }

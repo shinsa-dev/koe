@@ -11,6 +11,11 @@ public struct LevelTrack: Sendable, Equatable {
         self.peaks = peaks
     }
 
+    /// The track of a whole recording.
+    public init(samples: [Float], rate: Double) {
+        record(samples: samples, rate: rate, at: 0)
+    }
+
     /// Adds a level heard at `time`, in session seconds.
     public mutating func record(_ level: Float, at time: AudioTime) {
         guard time >= 0 else { return }

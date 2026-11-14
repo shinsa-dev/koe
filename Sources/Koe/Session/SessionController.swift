@@ -37,7 +37,7 @@ private final class Take {
     /// and heard nothing, the recording itself is attached so nothing you said is lost.
     func snapshot() -> Session {
         var session = session
-        session.words = transcript.words + transcript.pending
+        session.words = TranscriptCleanup.apply(words: transcript.words, pending: transcript.pending, levels: source.levels)
         session.annotations = ledger.annotations
         if failure != nil, session.words.isEmpty {
             session.annotations.append(Annotation(

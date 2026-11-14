@@ -67,7 +67,43 @@ enum TailBench {
         print("\(mark)\(file.deletingLastPathComponent().lastPathComponent)  live: …\(result.live.joined(separator: " "))"
             + "  whole: …\(result.reference.joined(separator: " "))")
         print("     \(String(format: "%.0f s", length)) of audio, steps: \(steps.summary), whole decode \(seconds(whole))")
+        print("     \(cleanup(words, samples: samples, folder: file.deletingLastPathComponent()))")
         return (result, steps)
+    }
+
+    /// What the cleanup takes out of the whole decode and of the words this session was copied with, and how long it
+    /// takes. Reading the levels from the file is timed apart: a live session records them as it goes.
+    private static func cleanup(_ words: [TimedWord], samples: [Float], folder: URL) -> String {
+        let clock = ContinuousClock()
+        var levels = LevelTrack()
+        let reading = clock.measure { levels = LevelTrack(samples: samples, rate: WindowedTranscriber.rate) }
+        var cleaned: [TimedWord] = []
+        let took = clock.measure { cleaned = TranscriptCleanup.apply(words: words, levels: levels) }
+        var line = "cleanup \(String(format: "%.2f ms", milliseconds(took))) (levels read in "
+            + "\(String(format: "%.0f ms", milliseconds(reading)))), removed: \(removed(from: words, kept: cleaned))"
+        if let saved = savedWords(in: folder) {
+            line += "\n     copied words, removed: "
+                + removed(from: saved, kept: TranscriptCleanup.apply(words: saved, levels: levels))
+        }
+        return line
+    }
+
+    private static func removed(from words: [TimedWord], kept: [TimedWord]) -> String {
+        let starts = Set(kept.map(\.start))
+        let gone = words.filter { !starts.contains($0.start) }
+            .map { "\($0.text) (\(String(format: "%.1f", $0.start)) s)" }
+        return gone.isEmpty ? "nothing" : gone.joined(separator: ", ")
+    }
+
+    private static func savedWords(in folder: URL) -> [TimedWord]? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? Data(contentsOf: folder.appending(path: SessionArchive.fileName)))
+            .flatMap { try? decoder.decode(Session.self, from: $0) }?.words
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Double {
+        Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
     }
 
     /// The model `--model <id>` names, taken out of `arguments`, or the default one; nil for a name Koe doesn't know.

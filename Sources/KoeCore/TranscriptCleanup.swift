@@ -5,8 +5,10 @@ import Foundation
 /// keeps its times, so attachments still land between words.
 public enum TranscriptCleanup {
     /// How far over the noise floor a word's loudest moment must reach to count as said aloud, on `AudioLevel`'s
-    /// 0...1 scale (0.1 is 5 dB).
-    public static let silenceMargin: Float = 0.1
+    /// 0...1 scale (0.2 is 10 dB).
+    public static let silenceMargin: Float = 0.2
+    /// How far around a word its audio is read: models time a word up to 0.3 s before the sound of it starts.
+    public static let silencePad: AudioTime = 0.35
 
     public static func apply(words: [TimedWord], pending: [TimedWord] = [], levels: LevelTrack? = nil) -> [TimedWord] {
         let all = words + dropRepeat(of: words, in: pending)
@@ -28,7 +30,8 @@ public enum TranscriptCleanup {
     static func dropSilent(_ words: [TimedWord], levels: LevelTrack) -> [TimedWord] {
         let threshold = levels.noiseFloor + silenceMargin
         return words.filter { word in
-            guard let peak = levels.peak(from: word.start, to: word.end) else { return true }
+            let end = min(word.end + silencePad, levels.duration - LevelTrack.step / 2)
+            guard let peak = levels.peak(from: word.start - silencePad, to: end) else { return true }
             return peak > threshold
         }
     }
