@@ -210,10 +210,14 @@ frames picked so far.
 
 - **Screenshot, ⌥⇧S while you dictate.** `ScreenFreezer` captures every screen with ScreenCaptureKit, leaving Koe's own windows out,
   and lists the windows on them front to back (CGWindowList). The overlay shows the frozen screens dimmed from the moment it opens,
-  and clear where you drag or picked: drag a region, or click to take the window under the pointer. With "Freeze
+  and clear where you drag or picked. The window under the pointer is framed: clear of the dim and outlined as a
+  pick is (`[WindowInfo].frame(at:on:)`, clipped to its screen), and the pill names it. A click takes that window;
+  a drag springs the frame down to the region you drag. With "Freeze
   the screen while you pick" off (`KoeSettings.freezeScreen`) the overlay is clear glass over the live screen and
-  the picture is taken when you attach. Nothing is drawn around windows: the pill names what the
-  pointer is over. Once picked, the pill listens at once, as it does for a comment, and Return or a click anywhere attaches it (dragging picks again): what you say until you attach it
+  the picture is taken when you attach. The pill listens from the moment you press (`RegionPicker.onPress`), so
+  what you say while you drag is already the screenshot's, and Return or a click anywhere attaches the pick.
+  Dragging again picks again and keeps the same note going; a press that picks nothing (the bare desktop) drops
+  what it heard back into the transcript. What you say from the press until you attach
   (a `VoiceSpan`) becomes the screenshot's note. Return attaches, Esc cancels. The crop is saved at full resolution as `screenshot-<n>.png`; its source is
   the window you clicked, or the frontmost window under the region's centre.
 - **Comment, ⌥⇧C while you dictate.** Agentation for the whole Mac: the screen freezes, you click anything, and the pill listens:
@@ -301,7 +305,8 @@ frames picked so far.
 - `--script "<steps>"` plays tools into the session at audio times (`ScriptedStep`): `1.5 shot 120,80,640,360 A
   note; 3 pin 400,300 talk 2; 4 drop /tmp/spec.pdf; 6 clip 120,80,640,360 2 0.4,1.1` (records 2 s and picks
   the frames 0.4 s and 1.1 s in); `shot!`, `pin!` and `clip!` leave the tool open. `--backdrop <png>` shows that
-  image instead of capturing your screen, so captures of Koe never show what's on your screen, and `--clip-file
+  image instead of capturing your screen, so captures of Koe never show what's on your screen; `--backdrop-windows
+  "App:x,y,w,h;…"` lists the windows drawn on it (points from its top left, front to back) for the picker to frame. `--clip-file
   <mov>` stands in for every recorded clip (a scripted one still shows the recording outline for its length). A
   script needs a session, so pair it with `--start`.
 - `-transcriptionModel parakeet-v3|parakeet-v2|whisper-large-v3-turbo|apple` at launch picks the model for that run.

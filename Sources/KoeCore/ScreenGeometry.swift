@@ -87,6 +87,19 @@ public struct WindowInfo: Sendable, Equatable {
     public var source: CaptureSource {
         CaptureSource(app: app, window: title?.isEmpty == false ? title : nil)
     }
+
+    /// The stand-in windows of `--backdrop-windows`, front to back: `App:x,y,w,h;App:x,y,w,h` in points from the
+    /// screen's top left. A piece that doesn't read is skipped.
+    public static func list(_ text: String) -> [WindowInfo] {
+        text.split(separator: ";").compactMap { piece in
+            let parts = piece.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { return nil }
+            let numbers = parts[1].split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard numbers.count == 4, numbers[2] > 0, numbers[3] > 0 else { return nil }
+            let app = parts[0].trimmingCharacters(in: .whitespaces)
+            return WindowInfo(app: app, frame: CGRect(x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3]))
+        }
+    }
 }
 
 extension [WindowInfo] {

@@ -253,8 +253,9 @@ struct RegionPickerView: View {
         }
         .frame(width: screen.frame.width, height: screen.frame.height, alignment: .topLeading)
         .onChange(of: highlight, initial: true) { old, new in
-            // Only a mark that moves springs; one that appears or goes does so at once, never from a corner.
-            if old != nil, new != nil, old != new {
+            // A mark that moves to another springs, so the window's frame shrinks into the drag; one that appears or
+            // goes does so at once, never from a corner, and a drag follows the pointer exactly.
+            if let old, let new, old != new, !(old.showsSize && new.showsSize) {
                 withAnimation(.spring(duration: 0.22, bounce: 0)) { shown = new }
             } else {
                 shown = new

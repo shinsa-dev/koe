@@ -102,6 +102,14 @@ struct WindowInfoTests {
         #expect(windows.source(of: CGRect(x: 120, y: 120, width: 40, height: 40))?.app == "Safari")
     }
 
+    @Test func standInWindowsReadFrontToBackAndSkipWhatDoesNotRead() {
+        let list = WindowInfo.list("Acme Studio:100,120,900,640; Notes:1100,200,600,500;Broken:1,2,3;Empty:0,0,0,10")
+        #expect(list == [
+            WindowInfo(app: "Acme Studio", frame: CGRect(x: 100, y: 120, width: 900, height: 640)),
+            WindowInfo(app: "Notes", frame: CGRect(x: 1100, y: 200, width: 600, height: 500)),
+        ])
+    }
+
     @Test func anUntitledWindowNamesOnlyItsApp() {
         #expect(windows[2].source == CaptureSource(app: "Finder"))
         #expect(windows[1].source == CaptureSource(app: "Safari", window: "Settings"))

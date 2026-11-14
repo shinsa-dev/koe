@@ -299,14 +299,18 @@ private final class Pending {
 }
 
 extension Freeze {
-    /// One screen showing `image` and no windows, for `--backdrop`.
+    /// One screen showing `image`, for `--backdrop`, with the stand-in windows of `--backdrop-windows` on it.
     @MainActor
     static func backdrop(_ image: CGImage) -> Freeze {
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.screens[0]
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        let frame = ScreenGeometry.flip(screen.frame, mainScreenHeight: mainHeight)
+        let windows = WindowInfo.list(Launch.value(after: "--backdrop-windows") ?? "").map {
+            WindowInfo(app: $0.app, frame: $0.frame.offsetBy(dx: frame.minX, dy: frame.minY))
+        }
         return Freeze(
-            screens: [FrozenScreen(screen: screen, image: image, frame: ScreenGeometry.flip(screen.frame, mainScreenHeight: mainHeight))],
-            windows: [], frontApp: "Acme Studio"
+            screens: [FrozenScreen(screen: screen, image: image, frame: frame)],
+            windows: windows, frontApp: "Acme Studio"
         )
     }
 }
