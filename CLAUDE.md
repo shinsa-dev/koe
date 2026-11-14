@@ -1,8 +1,8 @@
 # Koe: development notes
 
 Koe is a menubar-only macOS app (SwiftPM + `build.sh`, no Xcode project) that transcribes your voice on device and
-copies one bundle of transcript and attachments. The README is the design record; read it before changing
-behaviour it describes.
+copies one bundle of transcript and attachments. `docs/design.md` is the design record; read it before changing
+behaviour it describes. `docs/development.md` covers building, signing, updates and releases.
 
 ## Commands
 

@@ -79,3 +79,14 @@ public struct Shortcuts: Sendable, Equatable {
         try set(action.standard, for: action)
     }
 }
+
+extension Shortcuts {
+    /// What a menu row for `action` shows on its right: ⇧⌘-click for a comment while that gesture is on, as it is
+    /// how you comment, otherwise the shortcut. Nothing for one another app holds, or for Fn, which a menu can't name.
+    public func menuLabel(for action: ShortcutAction, taken: Set<ShortcutAction>, clickToComment: Bool) -> String? {
+        if action == .comment, clickToComment { return ClickGesture.comment.displayName }
+        let combo = self[action]
+        guard !taken.contains(action), !combo.isFn else { return nil }
+        return combo.displayName
+    }
+}

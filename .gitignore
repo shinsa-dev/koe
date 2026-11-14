@@ -2,3 +2,4 @@
 Koe.app/
 .DS_Store
 .swiftpm/
+.playwright-mcp/

@@ -12,6 +12,8 @@ enum StatusMenu {
         /// The shortcuts another app already holds, which the menu points out.
         var shortcuts = Shortcuts()
         var takenHotKeys: Set<ShortcutAction>
+        /// Whether ⇧⌘-click comments, which the comment row then shows in place of its shortcut.
+        var clickToComment = true
         /// Past sessions, newest first, each copied again when clicked.
         var recent: [HistoryEntry] = []
     }
@@ -31,12 +33,19 @@ enum StatusMenu {
         addTakenNotice(takenHotKeys, shortcuts, to: menu)
         menu.addItem(.separator())
 
-        let toggle = item(toggleTitle(phase), #selector(AppDelegate.toggleSession), .toggleSession, target)
+        var labels: [NSMenuItem: String] = [:]
+        func item(_ title: String, _ action: Selector, _ shortcut: ShortcutAction) -> NSMenuItem {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = target
+            labels[item] = shortcuts.menuLabel(for: shortcut, taken: takenHotKeys, clickToComment: current.clickToComment)
+            return item
+        }
+        let toggle = item(toggleTitle(phase), #selector(AppDelegate.toggleSession), .toggleSession)
         toggle.isEnabled = phase.toggleIntent != .ignore
         menu.addItem(toggle)
-        let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment, target)
-        let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot, target)
-        let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip, target)
+        let comment = item("Comment on something", #selector(AppDelegate.addComment), .comment)
+        let screenshot = item("Take a screenshot", #selector(AppDelegate.takeScreenshot), .screenshot)
+        let clip = item(recordingClip ? "Stop the clip" : "Record a clip", #selector(AppDelegate.recordClip), .clip)
         comment.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         screenshot.isEnabled = phase.toggleIntent != .ignore && !recordingClip
         clip.isEnabled = phase.toggleIntent != .ignore || recordingClip
@@ -60,14 +69,14 @@ enum StatusMenu {
         menu.addItem(about)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit Koe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quit)
+        labels[addQuit(to: menu)] = quitCombo.displayName
         // macOS adds its own symbols to items it recognises, such as a gear on "Settings…"; Koe draws none. The setter
         // is in the macOS 27 SDK only, and releases build with Xcode 26.3, so it is reached by name: 2 is `.hidden`.
         let hideImage = NSSelectorFromString("setPreferredImageVisibility:")
         for item in menu.items where item.responds(to: hideImage) {
             item.setValue(2, forKey: "preferredImageVisibility")
         }
+        drawLabels(labels, in: menu)
     }
 
     /// Past sessions under a header; clicking one copies its bundle again.
@@ -89,19 +98,45 @@ enum StatusMenu {
         menu.addItem(.separator())
     }
 
-    /// The shortcut is display only: a status item's menu never fires key equivalents; the hotkeys are global.
-    private static func item(_ title: String, _ action: Selector, _ shortcut: ShortcutAction,
-                             _ target: AppDelegate) -> NSMenuItem {
-        let shortcuts = ShortcutCenter.shared.shortcuts
-        let taken = ShortcutCenter.shared.taken
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = target
-        let combo = shortcuts[shortcut]
-        if !taken.contains(shortcut), let key = combo.menuKey {
-            item.keyEquivalent = key
-            item.keyEquivalentModifierMask = combo.menuModifiers
+    /// Returns the row that shows ⌘Q. A hidden twin holds the key equivalent, so ⌘Q still quits while the menu is
+    /// open without making the menu keep a shortcut column (see `drawLabels`).
+    private static func addQuit(to menu: NSMenu) -> NSMenuItem {
+        let quit = NSMenuItem(title: "Quit Koe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        menu.addItem(quit)
+        let quitKey = NSMenuItem(title: "Quit Koe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitKey.isHidden = true
+        quitKey.allowsKeyEquivalentWhenHidden = true
+        menu.addItem(quitKey)
+        return quit
+    }
+
+    private static let quitCombo = KeyCombo(keyCode: 12, modifiers: KeyCombo.command)
+
+    /// Draws each row's shortcut into its title, right-aligned at the menu's edge. A key equivalent can't name a
+    /// click, and any row with one makes the menu keep a shortcut column no title can reach, so no row has one: every
+    /// shortcut is drawn this way and they all line up. The menu's padding is measured on a menu of one row.
+    private static func drawLabels(_ labels: [NSMenuItem: String], in menu: NSMenu) {
+        let font = NSFont.menuFont(ofSize: 0)
+        let sample = NSAttributedString(string: "Koe", attributes: [.font: font])
+        let probe = NSMenu()
+        probe.addItem(NSMenuItem(title: "", action: nil, keyEquivalent: ""))
+        probe.items[0].attributedTitle = sample
+        let padding = probe.size.width - sample.size().width
+        let gap: CGFloat = 24
+        let widest = labels.map { item, label in
+            NSAttributedString(string: item.title + label, attributes: [.font: font]).size().width + gap
+        }.max() ?? 0
+        let edge = max(widest, menu.size.width - padding)
+        let style = NSMutableParagraphStyle()
+        style.tabStops = [NSTextTab(textAlignment: .right, location: edge)]
+        for (item, label) in labels {
+            let title = NSMutableAttributedString(string: item.title + "\t", attributes: [.font: font, .paragraphStyle: style])
+            title.append(NSAttributedString(string: label, attributes: [
+                .font: font, .paragraphStyle: style,
+                .foregroundColor: item.isEnabled ? NSColor.tertiaryLabelColor : NSColor.quaternaryLabelColor,
+            ]))
+            item.attributedTitle = title
         }
-        return item
     }
 
     private static func stateLine(checklist: SetupChecklist, phase: RecorderPhase) -> String {
@@ -129,26 +164,5 @@ enum StatusMenu {
                                action: nil, keyEquivalent: "")
         taken.isEnabled = false
         menu.addItem(taken)
-    }
-}
-
-extension KeyCombo {
-    /// The key as an NSMenuItem key equivalent: lower case, so ⇧ shows only when the combo has it.
-    var menuKey: String? {
-        if keyCode == 49 { return " " }
-        // A named key such as F5 or ← has no one-character equivalent; the menu then shows no shortcut.
-        guard let name = Self(keyCode: keyCode, modifiers: 0).displayName.first.map(String.init),
-              Self(keyCode: keyCode, modifiers: 0).displayName.count == 1, name.unicodeScalars.allSatisfy(\.isASCII)
-        else { return nil }
-        return name.lowercased()
-    }
-
-    var menuModifiers: NSEvent.ModifierFlags {
-        var flags: NSEvent.ModifierFlags = []
-        if modifiers & Self.command != 0 { flags.insert(.command) }
-        if modifiers & Self.option != 0 { flags.insert(.option) }
-        if modifiers & Self.shift != 0 { flags.insert(.shift) }
-        if modifiers & Self.control != 0 { flags.insert(.control) }
-        return flags
     }
 }
