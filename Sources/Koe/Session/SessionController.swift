@@ -334,7 +334,7 @@ final class SessionController {
         let session = take.snapshot()
         if session.words.isEmpty, session.annotations.isEmpty {
             take.transcription?.cancel()
-            switch EmptyEnding.decide(modelSettled: !take.gaveUp) {
+            switch EmptyEnding.decide(modelSettled: !take.gaveUp, modelFailed: take.failure != nil) {
             case .discard:
                 try? FileManager.default.removeItem(at: take.folder.url)
                 post(PillNotice(kind: .neutral, title: "We couldn't hear you",

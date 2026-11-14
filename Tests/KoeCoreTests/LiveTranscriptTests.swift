@@ -205,10 +205,15 @@ struct SpokenSpanTests {
 
 struct EmptyEndingTests {
     @Test func silenceTheModelSettledIsThrownAway() {
-        #expect(EmptyEnding.decide(modelSettled: true) == .discard)
+        #expect(EmptyEnding.decide(modelSettled: true, modelFailed: false) == .discard)
     }
 
     @Test func aRecordingTheModelNeverAnsweredIsKept() {
-        #expect(EmptyEnding.decide(modelSettled: false) == .keep)
+        #expect(EmptyEnding.decide(modelSettled: false, modelFailed: false) == .keep)
+    }
+
+    @Test func aRecordingWhoseModelFailedIsKept() {
+        #expect(EmptyEnding.decide(modelSettled: true, modelFailed: true) == .keep)
+        #expect(EmptyEnding.decide(modelSettled: false, modelFailed: true) == .keep)
     }
 }
