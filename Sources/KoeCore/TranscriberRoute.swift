@@ -6,6 +6,7 @@ public struct TranscriberRoute: Sendable, Equatable {
     public enum Fallback: Sendable, Equatable {
         case notDownloaded
         case downloading
+        case preparing
         case needsAppleSilicon
         case failedToLoad(String)
     }
@@ -24,6 +25,8 @@ public struct TranscriberRoute: Sendable, Equatable {
             .needsAppleSilicon
         } else if install.isDownloading {
             .downloading
+        } else if install == .preparing {
+            .preparing
         } else if !install.isInstalled {
             .notDownloaded
         } else if let loadError {
@@ -41,6 +44,7 @@ public struct TranscriberRoute: Sendable, Equatable {
         return switch fallback {
         case .notDownloaded: "\(name) isn't downloaded, so Koe uses Apple's model."
         case .downloading: "Koe uses Apple's model until \(name) finishes downloading."
+        case .preparing: "Koe uses Apple's model while \(name) gets ready for this Mac."
         case .needsAppleSilicon: "\(name) needs a Mac with Apple silicon, so Koe uses Apple's model."
         case .failedToLoad(let error): "\(name) didn't load, so Koe uses Apple's model. \(error)"
         }

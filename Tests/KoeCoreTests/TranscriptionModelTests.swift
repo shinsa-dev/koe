@@ -47,6 +47,8 @@ struct TranscriptionModelTests {
         #expect(!ModelInstall.installed.isDownloading)
         #expect(ModelInstall.installed.isInstalled)
         #expect(!ModelInstall.failed("No network").isInstalled)
+        #expect(!ModelInstall.preparing.isInstalled)
+        #expect(!ModelInstall.preparing.isDownloading)
     }
 }
 
@@ -74,6 +76,7 @@ struct TranscriberRouteTests {
             Case(install: .notInstalled, fallback: .notDownloaded),
             Case(install: .failed("offline"), fallback: .notDownloaded),
             Case(install: .downloading(fraction: 0.4), fallback: .downloading),
+            Case(install: .preparing, fallback: .preparing),
             Case(install: .installed, canRun: false, fallback: .needsAppleSilicon),
             Case(install: .installed, error: "Missing file.", fallback: .failedToLoad("Missing file.")),
         ]
@@ -90,5 +93,8 @@ struct TranscriberRouteTests {
         let downloading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .downloading(fraction: 0.1),
                                                    canRun: true, loadError: nil)
         #expect(downloading.reason == "Koe uses Apple's model until Parakeet v3 finishes downloading.")
+        let preparing = TranscriberRoute.resolve(chosen: .whisperTurbo, install: .preparing, canRun: true,
+                                                 loadError: nil)
+        #expect(preparing.reason == "Koe uses Apple's model while Whisper large-v3 turbo gets ready for this Mac.")
     }
 }

@@ -165,7 +165,10 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
-  short never counts. FluidAudio reports no progress, so the card measures the folder against the expected size.
+  short never counts. Whisper's first load has Core ML compile it for the Neural Engine, which takes a few minutes
+  (then about a second, cached per app until the next macOS update), so its download ends by prewarming it: the row
+  reads "Preparing it for this Mac" (`ModelInstall.preparing`, which can't be cancelled) and Apple's model runs
+  until it is done. FluidAudio reports no progress, so the card measures the folder against the expected size.
   Besides updates ([development.md](development.md) → Updates), nothing else goes online: audio and text never leave the Mac.
 - **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
   transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
