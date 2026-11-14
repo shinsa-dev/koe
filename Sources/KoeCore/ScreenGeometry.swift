@@ -20,6 +20,13 @@ public enum ScreenGeometry {
         abs(end.x - start.x) < clickTolerance && abs(end.y - start.y) < clickTolerance
     }
 
+    /// `rect` in the own space of the screen at `screen`, clipped to it; nil when none of it is on that screen.
+    public static func local(_ rect: CGRect, on screen: CGRect) -> CGRect? {
+        let moved = rect.offsetBy(dx: -screen.minX, dy: -screen.minY)
+            .intersection(CGRect(origin: .zero, size: screen.size))
+        return moved.isNull || moved.isEmpty ? nil : moved
+    }
+
     /// The pixels of an image captured from a screen `screenSize` points large that show `rect` (in the screen's own
     /// space), on whole pixels and inside the image. Nil when nothing of it is on the screen.
     public static func pixelRect(of rect: CGRect, screenSize: CGSize, imageSize: CGSize) -> CGRect? {
@@ -80,12 +87,32 @@ public struct WindowInfo: Sendable, Equatable {
     public var source: CaptureSource {
         CaptureSource(app: app, window: title?.isEmpty == false ? title : nil)
     }
+
+    /// The stand-in windows of `--backdrop-windows`, front to back: `App:x,y,w,h;App:x,y,w,h` in points from the
+    /// screen's top left. A piece that doesn't read is skipped.
+    public static func list(_ text: String) -> [WindowInfo] {
+        text.split(separator: ";").compactMap { piece in
+            let parts = piece.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { return nil }
+            let numbers = parts[1].split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard numbers.count == 4, numbers[2] > 0, numbers[3] > 0 else { return nil }
+            let app = parts[0].trimmingCharacters(in: .whitespaces)
+            return WindowInfo(app: app, frame: CGRect(x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3]))
+        }
+    }
 }
 
 extension [WindowInfo] {
     /// The frontmost normal window under `point`: what a click on the frozen screen picks.
     public func topmost(at point: CGPoint) -> WindowInfo? {
         first { $0.layer == 0 && $0.frame.contains(point) }
+    }
+
+    /// The frame of the window under `point` (in the screen's own space) on the screen at `screen`, in that
+    /// screen's own space and clipped to it: what the picker frames while you hover.
+    public func frame(at point: CGPoint, on screen: CGRect) -> CGRect? {
+        topmost(at: CGPoint(x: point.x + screen.minX, y: point.y + screen.minY))
+            .flatMap { ScreenGeometry.local($0.frame, on: screen) }
     }
 
     /// The window a region was taken from: the frontmost one under its centre.

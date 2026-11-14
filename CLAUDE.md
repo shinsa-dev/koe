@@ -43,7 +43,8 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   as the web's `antialiased` does.
 - **Nothing is typed.** A note on a comment, screenshot or frame is what you say while the pill listens (`VoiceSpan`);
   the composer moves those words onto the attachment. Never add a text field to a tool. While a tool is open the
-  pill says what to do (`ToolStatus`/`ToolPrompt`); nothing is drawn on the frozen screen but your drag and pin.
+  pill says what to do (`ToolStatus`/`ToolPrompt`); nothing is drawn on the frozen screen but the frame of the
+  window under the pointer (screenshot and clip only), your drag and your pin.
 - Everything that floats over other apps (pill, cards, overlays, the clip review) is a dark HUD, like Droppy and the
   notch: `floatingSurface` on a `ToolPanel` or `PillPanel`, which pin the dark appearance whatever the theme. It
   gives every one the same hairline ring over a material fill (not `glassEffect`, which resizes out of step); never draw a different border on a floating surface.
