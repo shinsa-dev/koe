@@ -56,6 +56,19 @@ public enum Delivery: Sendable, Equatable {
     }
 }
 
+/// What happens to a session that ends with no words and no attachments. Only a model that settled the whole
+/// recording and heard nothing proves it was silence; one that gave up waiting may still hear words in the audio.
+public enum EmptyEnding: Sendable, Equatable {
+    /// "We couldn't hear you": the folder and its audio go.
+    case discard
+    /// The folder stays as an unfinished recording, which launch recovery transcribes.
+    case keep
+
+    public static func decide(modelSettled: Bool) -> EmptyEnding {
+        modelSettled ? .discard : .keep
+    }
+}
+
 public enum Elapsed {
     /// A session clock: "0:07", "12:30", "1:02:05".
     public static func clock(_ seconds: TimeInterval) -> String {

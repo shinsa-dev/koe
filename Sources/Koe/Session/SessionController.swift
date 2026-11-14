@@ -2,17 +2,6 @@ import Foundation
 import KoeCore
 import os
 
-/// What the pill says when it has something to say instead of the waveform.
-struct PillNotice: Equatable {
-    enum Kind { case success, neutral, failure }
-
-    var kind: Kind
-    var title: String
-    var detail: String?
-    /// The glyph in the notice's badge; each kind has its own when none is given.
-    var icon: Icon?
-}
-
 /// One recording: its audio source, the transcript as it settles, the tools still open on it and its folder.
 /// It outlives the session in the pill: once copied it keeps transcribing until the last words settle.
 @MainActor
@@ -29,6 +18,8 @@ private final class Take {
     var cancelled = false
     /// Finished before the model heard anything: copied as soon as the transcript settles.
     var awaitingWords = false
+    /// The model never settled within `settleLimit`, so silence in the transcript proves nothing.
+    var gaveUp = false
     /// The short wait for the last words to settle has begun, and whether it is over.
     var finalWaitStarted = false
     var finalWaitOver = false
@@ -343,9 +334,15 @@ final class SessionController {
         let session = take.snapshot()
         if session.words.isEmpty, session.annotations.isEmpty {
             take.transcription?.cancel()
-            try? FileManager.default.removeItem(at: take.folder.url)
-            post(PillNotice(kind: .neutral, title: "We couldn't hear you", detail: "Check your microphone and try again",
-                            icon: .muted))
+            switch EmptyEnding.decide(modelSettled: !take.gaveUp) {
+            case .discard:
+                try? FileManager.default.removeItem(at: take.folder.url)
+                post(PillNotice(kind: .neutral, title: "We couldn't hear you",
+                                detail: "Check your microphone and try again", icon: .muted))
+            case .keep:
+                saveDraft(take)
+                post(PillNotice(kind: .neutral, title: "Recording kept", detail: "Koe transcribes it the next time it opens"))
+            }
             if take.awaitingWords { onLateNotice?() }
         } else {
             take.delivered = session
@@ -393,8 +390,11 @@ private extension SessionController {
             guard let self, take.delivered == nil, !take.cancelled, !take.transcriptDone else { return }
             Self.log.error("The model did not settle; copying what it has")
             take.transcription?.cancel()
+            take.gaveUp = true
             take.transcriptDone = true
             deliver(take)
+            // The cancelled transcription ends after this; it must not deliver the session a second time.
+            take.awaitingWords = false
         }
     }
 }

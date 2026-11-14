@@ -145,7 +145,10 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   sessions too (`filesAllowed`). Without Accessibility, or with the setting off, everything goes on the clipboard at
   once as above.
 - Finishing before the model has any words says "Copying your words" and only says "Copied" once they are on the
-  clipboard. A model that never settles is given 10 s (`settleLimit`); then the session is copied with what it has.
+  clipboard. A model that never settles is given 10 s (`settleLimit`); then the session is copied with what it has. When it has
+  nothing at all, its folder is kept as an unfinished recording (`EmptyEnding`) and the pill says "Recording kept":
+  launch recovery transcribes it. Only a model that settled the whole recording and heard nothing earns "We couldn't
+  hear you", which deletes the folder.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
