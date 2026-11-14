@@ -89,6 +89,27 @@ struct TranscriberRouteTests {
         }
     }
 
+    @Test func aDownloadedModelThatHasntLoadedYetLetsAppleTakeTheSession() {
+        let route = TranscriberRoute.resolve(chosen: .whisperTurbo, install: .installed, canRun: true,
+                                             loadError: nil, isLoaded: false)
+        #expect(route.model == .apple)
+        #expect(route.fallback == .preparing)
+        #expect(route.reason == "Koe uses Apple's model while Whisper large-v3 turbo gets ready for this Mac.")
+    }
+
+    @Test func aLoadErrorOutranksAModelStillLoading() {
+        let route = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true,
+                                             loadError: "Missing file.", isLoaded: false)
+        #expect(route.fallback == .failedToLoad("Missing file."))
+    }
+
+    @Test func appleNeverWaitsToLoad() {
+        let route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil,
+                                             isLoaded: false)
+        #expect(route.model == .apple)
+        #expect(route.fallback == nil)
+    }
+
     @Test func theReasonSaysWhatToExpect() {
         let downloading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .downloading(fraction: 0.1),
                                                    canRun: true, loadError: nil)

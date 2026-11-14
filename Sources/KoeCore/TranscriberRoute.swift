@@ -17,8 +17,10 @@ public struct TranscriberRoute: Sendable, Equatable {
     /// The model that runs.
     public var model: ModelID { fallback == nil ? chosen : .apple }
 
-    public static func resolve(chosen: ModelID, install: ModelInstall, canRun: Bool, loadError: String?)
-        -> TranscriberRoute {
+    /// `isLoaded` is whether the chosen model has loaded in this run: until it has, a session would wait on its load,
+    /// which takes minutes when macOS has to compile it again (after an update), so Apple's model runs meanwhile.
+    public static func resolve(chosen: ModelID, install: ModelInstall, canRun: Bool, loadError: String?,
+                               isLoaded: Bool = true) -> TranscriberRoute {
         let model = TranscriptionModel.model(chosen)
         guard model.needsDownload else { return TranscriberRoute(chosen: chosen, fallback: nil) }
         let fallback: Fallback? = if !canRun {
@@ -31,6 +33,8 @@ public struct TranscriberRoute: Sendable, Equatable {
             .notDownloaded
         } else if let loadError {
             .failedToLoad(loadError)
+        } else if !isLoaded {
+            .preparing
         } else {
             nil
         }

@@ -173,7 +173,9 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
   transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
   changes, without a relaunch; a session already running keeps its model. A chosen model that isn't downloaded,
-  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`).
+  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`). So does one that
+  hasn't loaded yet in this run: it loads in the background and takes sessions only once it has, so a session never
+  waits on a load, even the minutes-long compile after a macOS update empties the cache (`TranscriberRoute.preparing`).
 - **Streaming with models that don't stream.** Parakeet and Whisper read whole stretches of audio, so
   `WindowedTranscriber` decodes again every 0.9 s from the first unsettled word to the newest audio, with 1.5 s of
   settled audio ahead as context. Words that end 2 s or more before the newest audio settle as a final update; the
