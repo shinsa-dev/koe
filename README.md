@@ -21,10 +21,6 @@
   </p>
 </div>
 
-> [!NOTE]
-> **Koe is new.** Version 1.0.0 has just shipped and it works end to end, but it is early software: expect rough
-> edges, and features that change from one release to the next. Feedback is very welcome.
-
 <p>
   <a href="https://shinsa.dev/koe">
     <img alt="A Koe session over Shinsa: the pill listens at the bottom of the screen" src="./.github/assets/koe-session.webp" />
