@@ -175,6 +175,10 @@ def background(channel, shapes, measure=text_width):
 """
 
 
+def background_path(channel, scale):
+    return os.path.join(OUT, f"background-{channel}{'@2x' if scale == 2 else ''}.png")
+
+
 def main():
     with open(MARK) as file:
         shapes = mark_shapes(file.read())
@@ -191,8 +195,8 @@ def main():
             svg = os.path.join(scratch, f"{channel}.svg")
             with open(svg, "w") as file:
                 file.write(background(channel, shapes))
-            for scale, suffix in ((1, ""), (2, "@2x")):
-                output = os.path.join(OUT, f"background-{channel}{suffix}.png")
+            for scale in (1, 2):
+                output = background_path(channel, scale)
                 subprocess.run(["rsvg-convert", "--zoom", str(scale), svg, "--output", output], env=env, check=True)
                 print(f"Wrote {os.path.relpath(output, ROOT)}")
 

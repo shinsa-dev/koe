@@ -2,7 +2,7 @@
 # The steps of a Koe release, one per command, as the Release workflow runs them (docs/release.md):
 #   release.sh keychain                    imports CSC_LINK into a keychain of its own, prints the identity
 #   release.sh notarize <Koe.app>          notarizes and staples the app
-#   release.sh dmg <Koe.app> <version>     packs Koe.dmg beside an Applications link, signs it, staples when signed
+#   release.sh dmg <Koe.app> <version> <channel> [out]  packs Koe.dmg with its background, signs it, staples when signed
 #   release.sh verify <Koe.app> <version>  checks the version, bundle id and signature
 #   release.sh update <dmg> <version> <build>  signs the DMG for Sparkle, writes update.json
 #   release.sh upload <dir> <version>      copies the DMG, pointers and appcasts to R2 under koe/
@@ -79,18 +79,19 @@ notarize() {
 }
 
 dmg() {
-  local app="$1" version="$2" output="${3:-Koe.dmg}" stage
-  stage="$(mktemp -d)"
-  ditto "$app" "$stage/Koe.app"
-  ln -s /Applications "$stage/Applications"
+  local app="$1" version="$2" channel="$3" output="${4:-Koe.dmg}" background
+  background="$ROOT/Resources/DMG/background-$channel.png"
+  [[ -f "$background" ]] || fail "No installer background for the $channel channel: run scripts/dmg.py."
+  command -v "${DMGBUILD:-dmgbuild}" >/dev/null || fail "No dmgbuild: pip install dmgbuild (docs/release.md)."
   rm -f "$output"
-  hdiutil create -volname "Koe $version" -srcfolder "$stage" -fs APFS -format ULFO -ov "$output" >/dev/null
-  rm -rf "$stage"
+  # dmgbuild finds the @2x beside the background and joins both into one HiDPI TIFF with tiffutil.
+  "${DMGBUILD:-dmgbuild}" -s "$ROOT/scripts/dmg_settings.py" -D app="$app" -D background="$background" \
+    "Koe $version" "$output"
   if [[ -n "${KOE_SIGN_IDENTITY:-}" ]]; then
     codesign --force --sign "$KOE_SIGN_IDENTITY" --timestamp "$output"
     notarize "$output"
   fi
-  echo "Packed $output."
+  echo "Packed $output ($channel)."
 }
 
 verify() {

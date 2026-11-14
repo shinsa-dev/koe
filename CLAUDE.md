@@ -16,6 +16,7 @@ behaviour it describes.
 - Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
   (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
   R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.
+  `python3 scripts/dmg.py` redraws the installer background in `Resources/DMG`; `scripts/dmg_settings.py` lays the DMG out.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer
   bundle `Resources/Koe.icon` (Shinsa's curved cut and a blue dot, both glass layers, with a dark variant); `build.sh`

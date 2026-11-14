@@ -59,3 +59,24 @@ class DmgTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DmgSettingsTests(unittest.TestCase):
+    def load(self, channel):
+        settings = {"defines": {"app": "/Applications/Koe.app", "background": dmg.background_path(channel, 1)}}
+        with open(os.path.join(os.path.dirname(__file__), "dmg_settings.py")) as file:
+            exec(compile(file.read(), "dmg_settings.py", "exec"), settings)  # noqa: S102
+        return settings
+
+    def test_icons_sit_where_the_background_draws_them(self):
+        settings = self.load("stable")
+        self.assertEqual(settings["icon_locations"]["Koe.app"], (dmg.ICON["app_x"], dmg.ICON["y"]))
+        self.assertEqual(settings["icon_locations"]["Applications"], (dmg.ICON["applications_x"], dmg.ICON["y"]))
+
+    def test_window_is_the_background_size(self):
+        self.assertEqual(self.load("canary")["window_rect"][1], (dmg.WIDTH, dmg.HEIGHT))
+
+    def test_every_channel_has_a_committed_background_at_both_scales(self):
+        for channel in dmg.CHANNELS:
+            for scale in (1, 2):
+                self.assertTrue(os.path.isfile(dmg.background_path(channel, scale)), (channel, scale))
