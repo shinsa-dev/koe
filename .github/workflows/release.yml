@@ -168,16 +168,22 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           KOE_SIGN_IDENTITY: ${{ steps.keychain.outputs.identity }}
         run: scripts/release.sh verify Koe.app "$VERSION"
+      - name: Install dmgbuild
+        run: |
+          python3 -m venv "$RUNNER_TEMP/dmgbuild"
+          "$RUNNER_TEMP/dmgbuild/bin/pip" install --quiet dmgbuild==1.6.5
+          echo "DMGBUILD=$RUNNER_TEMP/dmgbuild/bin/dmgbuild" >> "$GITHUB_ENV"
       - name: Pack the disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ needs.trigger.outputs.channel }}
           KOE_SIGN_IDENTITY: ${{ steps.keychain.outputs.identity }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           mkdir -p release
-          scripts/release.sh dmg Koe.app "$VERSION" release/Koe.dmg
+          scripts/release.sh dmg Koe.app "$VERSION" "$CHANNEL" release/Koe.dmg
       - name: Sign the update
         if: steps.signing.outputs.mode == 'signed'
         env:

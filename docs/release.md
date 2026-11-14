@@ -44,13 +44,30 @@ The first stable release uses `bump=major`, which makes `1.0.0`; canaries before
    - `notarize Koe.app` submits it to Apple and staples the ticket, five tries each.
    - `verify` checks the version, the bundle id, that Sparkle is inside and the signature (`spctl` and the stapled
      ticket when signed).
-   - `dmg` packs `Koe.dmg` (volume `Koe <version>`, the app beside an Applications link), signs and notarizes it.
+   - `dmg` packs `Koe.dmg` with `dmgbuild` (see [The disk image](#the-disk-image)), signs and notarizes it.
    - `update` signs the DMG with Sparkle's EdDSA key and writes `update.json`: version, build, length, signature.
    - It publishes the GitHub release with `Koe.dmg` and `update.json`: a one-line channel note, then GitHub's
      generated list of pull requests (since the last stable for a stable, the last canary for a canary).
 3. `downloads` (Ubuntu, signed releases only) copies the release to the `shinsa-releases` R2 bucket that serves
    shinsa.dev (`release.sh upload`). It is its own job, so Re-run failed jobs retries only the copy.
 4. `status` reports the outcome on the commit as the `Release` status, so a failed release turns it red.
+
+## The disk image
+
+`Koe.dmg` opens like Shinsa's installer: a 660×432 window with no toolbar or sidebar, Koe at (180, 196) and an
+Applications link at (480, 196), both at 112 pt, over a drawn background. `scripts/dmg_settings.py` holds that
+layout for `dmgbuild` (pinned in the workflow; locally `pip install dmgbuild`, or point `DMGBUILD` at it), and
+`release.sh dmg` picks the channel's background, so a canary shows a Canary pill beside the name. `dmgbuild` joins
+the 1x and 2x PNGs into one HiDPI TIFF, so it stays sharp on Retina screens.
+
+The backgrounds are committed in `Resources/DMG`. `scripts/dmg.py` draws them, a port of Shinsa's
+`apps/desktop/scripts/dmg-background.ts` with Koe's mark and ABC Areal: run it after changing the mark, the copy or the
+icon positions (keep `ICON` in it and `icon_locations` in the settings together). It needs `rsvg-convert`
+(`brew install librsvg`) and fontTools. To see a disk image without a release:
+
+```sh
+./build.sh && scripts/release.sh dmg Koe.app 0.0.0-dev canary /tmp/Koe.dmg && open /tmp/Koe.dmg
+```
 
 ## On shinsa.dev
 
