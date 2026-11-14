@@ -63,20 +63,33 @@ struct WindowedTranscriber: Transcriber {
         while true {
             try await buffer.wait(upTo: interval)
             try Task.checkCancellation()
-            let snapshot = buffer.snapshot(from: Int(window.decodeFrom * rate))
-            let samples = snapshot.samples
-            let tokens = samples.isEmpty ? [] : try await decoder.decode(samples)
-            let runs = TokenRuns.words(tokens, offset: Double(snapshot.total - samples.count) / rate)
-            let (final, volatile) = window.take(runs, heard: Double(snapshot.total) / rate, ended: snapshot.ended)
-            if let final { events.yield(.update(final)) }
-            events.yield(.update(volatile))
-            buffer.drop(before: Int(window.decodeFrom * rate))
-            if snapshot.ended { return }
+            let (updates, ended) = try await step(&window, buffer: buffer, decoder: decoder)
+            for update in updates { events.yield(.update(update)) }
+            if ended { return }
         }
+    }
+
+    /// One pass of the window over the audio heard so far: the updates it gives and whether the audio has ended.
+    /// Once it has, the decode reaches far back, as Parakeet often hears nothing in a short window at the end.
+    static func step(_ window: inout RollingWindow, buffer: SampleBuffer, decoder: any WindowDecoder)
+        async throws -> (updates: [TranscriptUpdate], ended: Bool) {
+        let current = window
+        let snapshot = buffer.snapshot { total, ended in
+            let from = ended ? current.finalDecodeFrom(heard: Double(total) / rate) : current.decodeFrom
+            return Int(from * rate)
+        }
+        let samples = snapshot.samples
+        let tokens = samples.isEmpty ? [] : try await decoder.decode(samples)
+        let runs = TokenRuns.words(tokens, offset: Double(snapshot.total - samples.count) / rate)
+        let heard = Double(snapshot.total) / rate
+        let (final, volatile) = window.take(runs, heard: heard, ended: snapshot.ended)
+        // Audio stays for the last decode's long reach, besides the open window.
+        buffer.drop(before: Int(window.finalDecodeFrom(heard: heard) * rate))
+        return ((final.map { [$0] } ?? []) + [volatile], snapshot.ended)
     }
 }
 
-/// The session's audio as samples, from the start of the open window on. Buffers arrive on an audio thread; the
+/// The session's audio as samples, from the start of the open window or the last decode's reach on. Buffers arrive on an audio thread; the
 /// transcriber reads on its own.
 final class SampleBuffer: @unchecked Sendable {
     private let lock = NSLock()
@@ -105,9 +118,16 @@ final class SampleBuffer: @unchecked Sendable {
 
     /// The samples from `start`, counted from the session's start, to now.
     func snapshot(from start: Int) -> Snapshot {
+        snapshot { _, _ in start }
+    }
+
+    /// The samples from where `start` says, given the total so far and whether the audio has ended, to now; both
+    /// read at the same moment, so the audio can't end between choosing the start and reading.
+    func snapshot(from start: (_ total: Int, _ ended: Bool) -> Int) -> Snapshot {
         lock.withLock {
-            let from = min(max(start - base, 0), samples.count)
-            return Snapshot(samples: Array(samples[from...]), total: base + samples.count, ended: ended)
+            let total = base + samples.count
+            let from = min(max(start(total, ended) - base, 0), samples.count)
+            return Snapshot(samples: Array(samples[from...]), total: total, ended: ended)
         }
     }
 

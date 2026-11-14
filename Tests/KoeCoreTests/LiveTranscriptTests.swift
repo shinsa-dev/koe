@@ -127,21 +127,34 @@ struct RecorderPhaseTests {
 }
 
 struct DeliveryTests {
-    @Test func copiesAtOnceWithTheWordsHeardSoFar() {
-        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: false) == .deliver(final: false))
+    @Test func waitsBrieflyForTheLastWords() {
+        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: false, waitedForWords: false)
+            == .waitForWords)
+    }
+
+    @Test func copiesTheWordsHeardSoFarOnceTheWaitIsOver() {
+        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: false, waitedForWords: true)
+            == .deliver(final: false))
     }
 
     @Test func aSettledTranscriptIsFinal() {
-        #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: true) == .deliver(final: true))
-        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: true) == .deliver(final: true))
+        for waited in [false, true] {
+            #expect(Delivery.decide(openTools: 0, hasContent: true, transcriptDone: true, waitedForWords: waited)
+                == .deliver(final: true))
+            #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: true, waitedForWords: waited)
+                == .deliver(final: true))
+        }
     }
 
     @Test func waitsForAToolStillOpen() {
-        #expect(Delivery.decide(openTools: 1, hasContent: true, transcriptDone: true) == .wait)
+        #expect(Delivery.decide(openTools: 1, hasContent: true, transcriptDone: true, waitedForWords: true) == .wait)
     }
 
     @Test func waitsWhenTheModelHasNoWordYetButIsStillWorking() {
-        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false) == .whenSettled)
+        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false, waitedForWords: false)
+            == .whenSettled)
+        #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false, waitedForWords: true)
+            == .whenSettled)
     }
 }
 

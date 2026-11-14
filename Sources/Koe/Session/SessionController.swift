@@ -29,6 +29,9 @@ private final class Take {
     var cancelled = false
     /// Finished before the model heard anything: copied as soon as the transcript settles.
     var awaitingWords = false
+    /// The short wait for the last words to settle has begun, and whether it is over.
+    var finalWaitStarted = false
+    var finalWaitOver = false
 
     init(source: any AudioSource, root: URL) {
         self.source = source
@@ -98,6 +101,8 @@ final class SessionController {
     @ObservationIgnored var failureDisplay: Duration = .seconds(6)
     /// How long a finished session waits for the model's words before it is copied with what there is.
     @ObservationIgnored var settleLimit: Duration = .seconds(10)
+    /// How long a finished session waits for its last words to settle before it is copied with the model's guess.
+    @ObservationIgnored var finalWait: Duration = .milliseconds(1500)
 
     init(transcriber: any Transcriber, sessionsRoot: URL = SessionController.defaultRoot,
          makeSource: @escaping () -> any AudioSource) {
@@ -170,7 +175,8 @@ final class SessionController {
         phase = .recording
     }
 
-    /// Stops recording and copies. Waits only for a tool still open, or for the very first words.
+    /// Stops recording and copies. Waits briefly for the last words, and longer only for a tool still open or for
+    /// the very first words.
     func finish() {
         guard phase.isOpen, let take else { return }
         phase = .finishing
@@ -310,10 +316,13 @@ final class SessionController {
         guard phase == .finishing, let take else { return }
         let decision = Delivery.decide(openTools: take.ledger.openCount,
                                        hasContent: !take.transcript.isEmpty || !take.ledger.annotations.isEmpty,
-                                       transcriptDone: take.transcriptDone)
+                                       transcriptDone: take.transcriptDone,
+                                       waitedForWords: take.finalWaitOver)
         switch decision {
         case .wait:
             return
+        case .waitForWords:
+            waitForLastWords(on: take)
         case .deliver:
             self.take = nil
             // The notice goes up before the phase changes, so the pill stays to show it.
@@ -327,19 +336,6 @@ final class SessionController {
             onCopyPending?()
             phase = .idle
             giveUpWaiting(on: take)
-        }
-    }
-
-    /// A model that never settles still gets the session copied, with the words it has, after `settleLimit`.
-    private func giveUpWaiting(on take: Take) {
-        let limit = settleLimit
-        Task { [weak self] in
-            try? await Task.sleep(for: limit)
-            guard let self, take.delivered == nil, !take.cancelled, !take.transcriptDone else { return }
-            Self.log.error("The model did not settle; copying what it has")
-            take.transcription?.cancel()
-            take.transcriptDone = true
-            deliver(take)
         }
     }
 
@@ -371,6 +367,34 @@ final class SessionController {
             try? await Task.sleep(for: display)
             guard !Task.isCancelled else { return }
             self?.dismissFailure()
+        }
+    }
+}
+
+private extension SessionController {
+    /// Starts the short wait for the last words once; when it runs out, the session is copied with what it has.
+    func waitForLastWords(on take: Take) {
+        guard !take.finalWaitStarted else { return }
+        take.finalWaitStarted = true
+        let wait = finalWait
+        Task { [weak self] in
+            try? await Task.sleep(for: wait)
+            take.finalWaitOver = true
+            guard let self, take === self.take else { return }
+            deliverIfReady()
+        }
+    }
+
+    /// A model that never settles still gets the session copied, with the words it has, after `settleLimit`.
+    func giveUpWaiting(on take: Take) {
+        let limit = settleLimit
+        Task { [weak self] in
+            try? await Task.sleep(for: limit)
+            guard let self, take.delivered == nil, !take.cancelled, !take.transcriptDone else { return }
+            Self.log.error("The model did not settle; copying what it has")
+            take.transcription?.cancel()
+            take.transcriptDone = true
+            deliver(take)
         }
     }
 }
