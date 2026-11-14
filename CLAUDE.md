@@ -13,6 +13,8 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
 - **After every change to the app, run `./build.sh --install`** before you hand over, so the human can always test
   the latest build from `/Applications`. Never leave `/Applications/Koe.app` behind the branch.
 - `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
+  `.build/debug/Koe --bench` replays your newest recorded sessions and scores how often their endings are complete;
+  run it after any change to transcription.
 - Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
   (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
   R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.

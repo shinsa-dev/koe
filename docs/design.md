@@ -46,9 +46,10 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
   the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
   assets, format) is worked out at launch and kept.
-- **Finishing copies at once** (`Delivery`): the words heard so far, the model's latest guess included, go on the
-  clipboard the moment you finish. When the last words settle a moment later, the session is saved again and the
-  clipboard is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Koe waits only for a
+- **Finishing copies the settled words** (`Delivery`): when you finish, Koe waits up to 1.5 s (`finalWait`) for the
+  model's last words to settle, whichever model runs, so a quick paste gets them. Past that it copies what it has,
+  the model's latest guess included; when the last words settle later, the session is saved again and the clipboard
+  is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
 - **Nothing is lost.** The audio is on disk as it is recorded (CAF stays readable when Koe is killed mid-write) and
   `draft.json` lists the attachments so far. At launch, a folder with audio and no `session.json` is a recording Koe
@@ -176,6 +177,15 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   rest is a volatile guess the next pass replaces (`RollingWindow`). A window never grows past 14 s. Their sub-word
   tokens join into timed words (`TokenRuns`), so attachments still land at word boundaries. A recording Koe never
   finished is read in one pass with the active model.
+- **Keeping the last words.** Parakeet sometimes hears nothing in a few seconds of speech, which is what the end of a
+  session looks like. So an empty pass never drops the guess: mid-session the same audio is decoded again, and the
+  last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
+  the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
+  those last words before copying (`finalWait`).
+- **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
+  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3. It prints whether each
+  ends with the same three words as one decode of the whole recording (`TailScore`), and the total. It reads only
+  local recordings; none is in the repository.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile

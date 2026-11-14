@@ -12,6 +12,7 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 ./build.sh --install  # copies it into /Applications and launches it
 KOE_VERSION=1.2.0 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
 swift test            # KoeCore's unit tests
+.build/debug/Koe --bench  # replays your newest recordings and scores how often their endings are complete
 ```
 
 There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with

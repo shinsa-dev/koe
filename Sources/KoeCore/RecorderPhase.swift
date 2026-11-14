@@ -33,20 +33,25 @@ public enum RecorderPhase: Sendable, Equatable {
     public var isOpen: Bool { self == .recording || self == .paused }
 }
 
-/// When a stopped session can be copied. Koe copies at once with the words it has heard so far, including the
-/// model's latest guess, and refines the copy when the last words settle. It waits only for a tool you still have
-/// open, or when the model has not produced a single word yet but is still working.
+/// When a stopped session can be copied. Koe gives the model a moment to settle the last words, as a copy made
+/// before then can miss them, then copies with what it has and refines the copy when they settle. It waits longer
+/// only for a tool you still have open, or when the model has not produced a single word yet but is still working.
 public enum Delivery: Sendable, Equatable {
     /// A tool is still open on the session: its annotation belongs in the copy.
     case wait
+    /// The model is settling the last words: copy once it has, or once the short wait for them is over.
+    case waitForWords
     /// Copy now. `final` when the transcript is settled, so no refinement follows.
     case deliver(final: Bool)
-    /// Nothing heard yet and the model is still catching up: the session ends now and copies once it has the words.
+    /// The short wait is over, nothing is heard yet and the model is still catching up: the session ends now and
+    /// copies once it has the words.
     case whenSettled
 
-    public static func decide(openTools: Int, hasContent: Bool, transcriptDone: Bool) -> Delivery {
+    public static func decide(openTools: Int, hasContent: Bool, transcriptDone: Bool, waitedForWords: Bool)
+        -> Delivery {
         guard openTools == 0 else { return .wait }
         if transcriptDone { return .deliver(final: true) }
+        guard waitedForWords else { return .waitForWords }
         return hasContent ? .deliver(final: false) : .whenSettled
     }
 }
