@@ -1,0 +1,100 @@
+- article [ref=e2]:
+  - generic [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: https://shinsa.dev/koe
+      - img "Koe" [ref=e5]
+    - heading "Koe" [level=3] [ref=e6]
+    - paragraph [ref=e7]:
+      - text: Talk to your agents, and show them what you mean.
+      - link [ref=e8] [cursor=pointer]:
+        - /url: https://shinsa.dev/koe
+        - strong [ref=e9]: Learn more »
+      - link "Introduction" [ref=e10] [cursor=pointer]:
+        - /url: "#introduction"
+      - text: ·
+      - link "How it works" [ref=e11] [cursor=pointer]:
+        - /url: "#how-it-works"
+      - text: ·
+      - link "Download" [ref=e12] [cursor=pointer]:
+        - /url: "#download"
+      - text: ·
+      - link "Development" [ref=e13] [cursor=pointer]:
+        - /url: "#development"
+  - paragraph [ref=e14]:
+    - link [ref=e15] [cursor=pointer]:
+      - /url: https://shinsa.dev/koe
+      - 'img "A Koe session over Shinsa: the pill listens at the bottom of the screen" [ref=e16]'
+  - heading "Introduction" [level=2] [ref=e17]
+  - paragraph [ref=e18]:
+    - text: Koe is a menu bar app for your Mac, part of
+    - link "Shinsa" [ref=e19] [cursor=pointer]:
+      - /url: https://github.com/shinsa-dev/shinsa
+    - text: ", for talking to agents. You speak, and while you speak you comment on what is on screen, take screenshots, record clips and drop in files. When you stop, Koe copies one bundle: your words, with every attachment placed at the moment you added it. Paste it into Claude, ChatGPT, Slack or a terminal agent, and the agent reads each screenshot right where you talked about it."
+  - paragraph [ref=e20]: Koe (声) means voice. It transcribes on device, on the Neural Engine, so nothing you say or capture leaves your Mac. The only things it downloads are the speech model and its own updates.
+  - heading "How it works" [level=2] [ref=e21]
+  - list [ref=e22]:
+    - listitem [ref=e23]:
+      - strong [ref=e24]: Speak.
+      - text: Press Fn and the pill at the bottom of the screen starts listening straight away. Press it again to finish.
+    - listitem [ref=e25]:
+      - strong [ref=e26]: Comment.
+      - text: ⌥⇧C freezes the screen; click anything and say what is wrong with it. Koe pins the spot and keeps your words with it. ⌘⇧-click does the same from anywhere and starts a session.
+    - listitem [ref=e27]:
+      - strong [ref=e28]: Screenshot.
+      - text: ⌥⇧S picks a window or a region, and what you say next becomes its note.
+    - listitem [ref=e29]:
+      - strong [ref=e30]: Clip.
+      - text: ⌥⇧R records part of the screen. Play it back slowly, step frame by frame and pick the frames that matter.
+    - listitem [ref=e31]:
+      - strong [ref=e32]: Drop files.
+      - text: Drag any file onto the pill and it joins the session.
+    - listitem [ref=e33]:
+      - strong [ref=e34]: One bundle on the clipboard.
+      - text: "Finish, press ⌘V anywhere, and your words and every attachment arrive in order. Nothing is lost if Koe quits mid-sentence: the recording is saved as it happens."
+  - paragraph [ref=e35]:
+    - text: Every shortcut can be changed in Settings. How each part works, in full, is
+    - link [ref=e36] [cursor=pointer]:
+      - /url: ./docs/design.md
+      - code [ref=e37]: docs/design.md
+    - text: .
+  - heading "Download" [level=2] [ref=e38]
+  - paragraph [ref=e39]:
+    - text: Koe needs macOS 26 on Apple silicon.
+    - link "shinsa.dev/koe/download" [ref=e40] [cursor=pointer]:
+      - /url: https://shinsa.dev/koe/download
+    - text: "always fetches the latest release. For every change as it lands, take the canary:"
+    - link "shinsa.dev/koe/download/canary" [ref=e41] [cursor=pointer]:
+      - /url: https://shinsa.dev/koe/download/canary
+    - text: fetches the build of the latest merge to
+    - code [ref=e42]: main
+    - text: . Koe updates itself, and Settings switches between Stable and Canary at any time.
+  - paragraph [ref=e43]: "The first time you open it, Koe asks for three permissions: the microphone to hear you, screen recording for screenshots and clips, and Accessibility for the Fn key and ⌘⇧-click. Allowing system audio is optional: it lets Koe pause music and videos while you talk."
+  - heading "Development" [level=2] [ref=e44]
+  - paragraph [ref=e45]:
+    - text: "You need macOS 26 and Xcode 26 or later (Swift 6.2). There is no Xcode project: SwiftPM builds Koe and"
+    - code [ref=e46]: build.sh
+    - text: assembles and signs the app.
+  - generic [ref=e48]:
+    - text: ./build.sh
+    - generic [ref=e49]: "# builds ./Koe.app"
+    - text: ./build.sh --install
+    - generic [ref=e50]: "# copies it into /Applications and launches it"
+    - text: swift test
+    - generic [ref=e51]: "# KoeCore's unit tests"
+  - paragraph [ref=e52]:
+    - code [ref=e53]: build.sh
+    - text: signs with
+    - code [ref=e54]: KOE_SIGN_IDENTITY
+    - text: or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions across rebuilds. Building, signing, the icon and updates are
+    - link [ref=e55] [cursor=pointer]:
+      - /url: ./docs/development.md
+      - code [ref=e56]: docs/development.md
+    - text: ", the design record is"
+    - link [ref=e57] [cursor=pointer]:
+      - /url: ./docs/design.md
+      - code [ref=e58]: docs/design.md
+    - text: ", and how releases are made is"
+    - link [ref=e59] [cursor=pointer]:
+      - /url: ./docs/release.md
+      - code [ref=e60]: docs/release.md
+    - text: .
