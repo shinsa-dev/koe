@@ -1,8 +1,12 @@
 import importlib.util
+import os
 import re
+import sys
 import unittest
 
-import dmg
+sys.path.insert(0, os.path.dirname(__file__))
+
+import dmg  # noqa: E402
 
 
 def measure(text, size, weight):
