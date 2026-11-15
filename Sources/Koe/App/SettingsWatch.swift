@@ -31,6 +31,6 @@ enum SettingsWatch {
     private static func describe(_ models: ModelStore) -> String {
         let installs = ModelID.allCases.filter { TranscriptionModel.model($0).needsDownload }
             .map { "\($0.rawValue)=\(models.install($0))" }
-        return "uses \(models.route.model.rawValue) (\(models.route.reason ?? "as chosen")) " + installs.joined(separator: " ")
+        return "uses \(models.route.model.rawValue) (\(models.route.reason ?? "ready")) " + installs.joined(separator: " ")
     }
 }

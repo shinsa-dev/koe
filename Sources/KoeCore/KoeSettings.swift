@@ -26,10 +26,9 @@ public struct KoeSettings: Sendable, Equatable {
     /// The releases Koe updates to. Unset, it follows the channel of the installed build (`UpdateChannel(version:)`).
     public var updateChannel: UpdateChannel?
     public var shortcuts = Shortcuts()
-    /// The model that transcribes. Until it is downloaded, Apple's on-device model stands in.
-    public var transcriptionModel: ModelID = TranscriptionModel.standard.id
-    /// Koe downloads the standard model by itself, at each launch until it is in. After that a download is yours.
-    public var startedFirstDownload = false
+    /// Models you deleted. Koe picks and downloads models by itself (`ModelPlan`), but never one of these again until
+    /// you download it yourself.
+    public var deletedModels: Set<ModelID> = []
     /// Words you added to the dictionary, spelled as you want them copied.
     public var dictionaryWords: [String] = []
     /// Add the names Koe learns from this Mac (repositories and apps) to the dictionary.
@@ -49,8 +48,7 @@ public struct KoeSettings: Sendable, Equatable {
         public static let clickToComment = "clickToComment"
         public static let pauseMedia = "pauseMedia"
         public static let updateChannel = "updateChannel"
-        public static let transcriptionModel = "transcriptionModel"
-        public static let startedFirstDownload = "startedFirstDownload"
+        public static let deletedModels = "deletedModels"
         public static let dictionaryWords = "dictionaryWords"
         public static let learnedNames = "learnedNames"
         public static let removedNames = "removedNames"
@@ -73,10 +71,7 @@ public struct KoeSettings: Sendable, Equatable {
         if let pauseMedia = values[Key.pauseMedia] as? Bool { self.pauseMedia = pauseMedia }
         updateChannel = (values[Key.updateChannel] as? String).flatMap(UpdateChannel.init(rawValue:))
         if let count = values[Key.recentCount] as? Int, Self.recentChoices.contains(count) { recentCount = count }
-        if let raw = values[Key.transcriptionModel] as? String, let model = ModelID(rawValue: raw) {
-            transcriptionModel = model
-        }
-        if let started = values[Key.startedFirstDownload] as? Bool { startedFirstDownload = started }
+        if let raw = values[Key.deletedModels] as? [String] { deletedModels = Set(raw.compactMap(ModelID.init(rawValue:))) }
         shortcuts = Shortcuts(values: values)
         readDictionary(values)
     }
@@ -90,8 +85,8 @@ public struct KoeSettings: Sendable, Equatable {
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
          Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether, Key.clickToComment: clickToComment,
-         Key.pauseMedia: pauseMedia, Key.transcriptionModel: transcriptionModel.rawValue,
-         Key.startedFirstDownload: startedFirstDownload, Key.dictionaryWords: dictionaryWords,
+         Key.pauseMedia: pauseMedia, Key.deletedModels: deletedModels.map(\.rawValue).sorted(),
+         Key.dictionaryWords: dictionaryWords,
          Key.learnedNames: learnedNames, Key.removedNames: removedNames]
             .merging(updateChannel.map { [Key.updateChannel: $0.rawValue] } ?? [:]) { current, _ in current }
             .merging(shortcuts.values) { current, _ in current }
