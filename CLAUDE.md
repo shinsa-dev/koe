@@ -23,6 +23,8 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   with load and per-pass timings (`--model <id>` picks the model); run it after any change to transcription.
   `scripts/sandbox.sh --with-models --latency [--model <id>]` times starting and finishing real sessions from your
   recordings and exits with 2 when either takes over 50 ms; run it after any change to the start or finish path.
+  `--bench --refine` reads every recording with every installed model, as the refine after a copy does, and scores
+  the live, single-model and combined transcripts by word error rate; run it after any change to the refine or vote.
 - Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
   (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
   R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.
