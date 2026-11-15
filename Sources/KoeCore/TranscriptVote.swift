@@ -35,20 +35,24 @@ public enum TranscriptVote {
         guard let backbone = ranked.first else { return [] }
         guard ranked.count > 1 else { return backbone.words }
         let others = ranked.dropFirst().map { align($0.words, to: backbone.words) }
+        let unpunctuated = ranked.map { unpunctuatedStarts($0.words) }
         let total = ranked.count
         var result: [TimedWord] = []
         for gap in 0...backbone.words.count {
-            result += inserted(at: gap, from: others, total: total)
+            let neighbours = (gap > 0 ? backbone.words[gap - 1] : nil, gap < backbone.words.count ? backbone.words[gap] : nil)
+            result += inserted(at: gap, from: others, between: neighbours)
             guard gap < backbone.words.count else { break }
             let word = backbone.words[gap]
             let matches = others.map { $0.matches[gap] }
             if let chosen = choose(word, matches: matches, total: total) {
-                result.append(chosen)
+                let open = [unpunctuated[0].contains(word.start)]
+                    + matches.indices.map { index in matches[index].map { unpunctuated[index + 1].contains($0.start) } ?? false }
+                result.append(punctuate(chosen, backbone: word, matches: matches, unpunctuated: open))
             } else {
                 carryPunctuation(of: word, into: &result)
             }
         }
-        return result
+        return sentenceCase(result)
     }
 
     static func rank(_ model: ModelID) -> Int { trust.firstIndex(of: model) ?? trust.count }
@@ -68,9 +72,11 @@ public enum TranscriptVote {
         return TimedWord(restyle(other.text, like: word.text), start: word.start, end: word.end)
     }
 
-    /// The words other readings put between backbone words `gap - 1` and `gap` that most of all readings heard there.
-    /// The backbone votes against each, so with two readings nothing is ever added.
-    static func inserted(at gap: Int, from others: [Alignment], total: Int) -> [TimedWord] {
+    /// The words other readings put between backbone words `gap - 1` and `gap` that most readings heard there; a tie
+    /// goes to the most trusted reading of those tied. The backbone votes against each unless it heard nothing within
+    /// `reach` of the word, as then it skipped that stretch rather than heard silence in it.
+    static func inserted(at gap: Int, from others: [Alignment],
+                         between neighbours: (before: TimedWord?, after: TimedWord?)) -> [TimedWord] {
         let extras = others.map { $0.extras[gap] ?? [] }
         var added: [TimedWord] = []
         var taken: [String: Int] = [:]
@@ -81,13 +87,78 @@ public enum TranscriptVote {
                 let occurrence = seen[wordKey, default: 0]
                 seen[wordKey] = occurrence + 1
                 guard taken[wordKey, default: 0] <= occurrence else { continue }
-                let votes = extras.filter { $0.count(where: { key($0.text) == wordKey }) > occurrence }.count
-                guard votes * 2 > total else { continue }
+                // Ranks: 0 is the backbone, then the others in trust order.
+                let heard = extras.map { $0.count(where: { key($0.text) == wordKey }) > occurrence }
+                var against = heard.indices.filter { !heard[$0] }.map { $0 + 1 }
+                if !skipped(word, between: neighbours) { against.insert(0, at: 0) }
+                let voters = heard.indices.filter { heard[$0] }.map { $0 + 1 }
+                guard voters.count > against.count
+                    || (voters.count == against.count && (voters.first ?? .max) < (against.first ?? .max)) else { continue }
                 taken[wordKey] = occurrence + 1
                 added.append(word)
             }
         }
         return added.sorted { $0.start < $1.start }
+    }
+
+    /// Whether the backbone heard nothing within `reach` of `word`.
+    static func skipped(_ word: TimedWord, between neighbours: (before: TimedWord?, after: TimedWord?)) -> Bool {
+        let fromBefore = neighbours.before.map { word.start - $0.end } ?? .infinity
+        let toAfter = neighbours.after.map { $0.start - word.end } ?? .infinity
+        return fromBefore > reach && toAfter > reach
+    }
+
+    /// How many words a reading may run without ending a sentence before it counts as not punctuating there, as
+    /// Whisper does with a stretch it reads cold and Parakeet with a long run of speech.
+    static let runOnLength = 25
+
+    /// The start times of the words in a reading's run-ons: runs of `runOnLength` words or more with no sentence end.
+    static func unpunctuatedStarts(_ words: [TimedWord]) -> Set<AudioTime> {
+        var starts = Set<AudioTime>()
+        var run: [AudioTime] = []
+        for word in words {
+            run.append(word.start)
+            guard let last = word.text.last, ".?!".contains(last) else { continue }
+            if run.count >= runOnLength { starts.formUnion(run) }
+            run = []
+        }
+        if run.count >= runOnLength { starts.formUnion(run) }
+        return starts
+    }
+
+    /// `chosen` with the closing punctuation the readings give it. The backbone's own mark stands, as it writes the
+    /// cleanest sentences. Where it has none, every reading that heard the word votes: a mark for that mark, no mark
+    /// against, except a reading in a run-on (`unpunctuated`, backbone first), which has no say on punctuation. The
+    /// most common mark is added when at least as many readings vote for a mark as against one.
+    static func punctuate(_ chosen: TimedWord, backbone: TimedWord, matches: [TimedWord?],
+                          unpunctuated: [Bool]) -> TimedWord {
+        guard trailingPunctuation(backbone.text).isEmpty, trailingPunctuation(chosen.text).isEmpty else { return chosen }
+        var marks: [String] = []
+        var against = unpunctuated[0] ? 0 : 1
+        for (index, match) in matches.enumerated() {
+            guard let match else { continue }
+            let mark = trailingPunctuation(match.text)
+            if !mark.isEmpty { marks.append(mark) } else if !unpunctuated[index + 1] { against += 1 }
+        }
+        guard !marks.isEmpty, marks.count >= against else { return chosen }
+        var counts: [String: Int] = [:]
+        for mark in marks { counts[mark, default: 0] += 1 }
+        let best = counts.values.max() ?? 0
+        guard let mark = marks.first(where: { counts[$0] == best }) else { return chosen }
+        var punctuated = chosen
+        punctuated.text += mark
+        return punctuated
+    }
+
+    /// Every sentence starts with a capital, wherever its words came from.
+    static func sentenceCase(_ words: [TimedWord]) -> [TimedWord] {
+        var cased = words
+        for index in cased.indices {
+            let opens = index == 0 || cased[index - 1].text.last.map { ".?!".contains($0) } == true
+            guard opens, let first = cased[index].text.first, first.isLowercase else { continue }
+            cased[index].text = first.uppercased() + cased[index].text.dropFirst()
+        }
+        return cased
     }
 
     /// A dropped word that closed a sentence leaves its full stop on the word before it.

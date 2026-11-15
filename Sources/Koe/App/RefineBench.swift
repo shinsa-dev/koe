@@ -163,6 +163,9 @@ enum RefineBench {
         print("     live passes alone: \(alone.summary); beside a refine: \(beside.summary)")
         if Launch.has("--text") {
             print("     live:     \(outputs[0])")
+            for (index, (id, _)) in readers.enumerated() {
+                print("     \(TranscriptionModel.model(id).name): \(outputs[index + 1])")
+            }
             print("     combined: \(reference)")
         }
         return Result(scores: scores, truths: truths, combinedTruth: combinedTruth, ending: ending, alone: alone, beside: beside,

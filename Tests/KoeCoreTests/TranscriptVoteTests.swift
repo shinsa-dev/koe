@@ -48,7 +48,7 @@ struct TranscriptVoteTests {
             reading(.apple, "one black spring"),
             reading(.parakeetV3, "one blank screen and"),
         ])
-        #expect(text(combined) == "one blank screen and")
+        #expect(text(combined) == "One blank screen and")
     }
 
     @Test func aWordMostReadingsDidntHearIsDropped() {
@@ -62,7 +62,7 @@ struct TranscriptVoteTests {
             if reading.model != .whisperTurbo { timed.words[2].start = 3; timed.words[2].end = 3.8 }
             return timed
         })
-        #expect(text(combined) == "It works. now")
+        #expect(text(combined) == "It works. Now")
     }
 
     @Test func aWordMostReadingsAddIsKept() {
@@ -94,7 +94,76 @@ struct TranscriptVoteTests {
             reading(.whisperTurbo, "Hello there."),
             reading(.parakeetV3, "general kenobi", at: 10),
         ])
-        #expect(text(combined) == "Hello there.")
+        #expect(text(combined) == "Hello there. General kenobi")
+        #expect(combined[2].start == 10)
+    }
+
+    @Test func aStretchTheMostTrustedSkippedKeepsTheOtherReadingsWords() {
+        let said: [(String, AudioTime)] = [("open", 0), ("the", 3), ("card.", 5), ("then", 6.4), ("it", 9), ("closes", 10)]
+        let parakeet = said.map { TimedWord($0.0, start: $0.1, end: $0.1 + 0.8) }
+        let whisper = [TimedWord("Open", start: 0, end: 0.8), TimedWord("it", start: 9, end: 9.8),
+                       TimedWord("closes.", start: 10, end: 10.8)]
+        let combined = TranscriptVote.combine([
+            TranscriptVote.Reading(model: .whisperTurbo, words: whisper),
+            TranscriptVote.Reading(model: .parakeetV3, words: parakeet),
+        ])
+        #expect(text(combined) == "Open the card. Then it closes.")
+    }
+
+    @Test func aWordTheMostTrustedHeardAroundIsntAddedByOneOtherReading() {
+        let combined = TranscriptVote.combine([
+            reading(.whisperTurbo, "Then the menu opens."),
+            TranscriptVote.Reading(model: .parakeetV3, words: words("then the menu opens") + [TimedWord("um", start: 3.9, end: 4.1)]),
+        ])
+        #expect(text(combined) == "Then the menu opens.")
+    }
+
+    @Test func punctuationTheMostTrustedLeftOutComesFromTheOthers() {
+        let combined = TranscriptVote.combine([
+            reading(.whisperTurbo, "make them instant you can save stuff async like this"),
+            reading(.parakeetV3, "Make them instant. You can save stuff async, like this."),
+            reading(.apple, "Make them instant. You can save stuff async like this."),
+        ])
+        #expect(text(combined) == "Make them instant. You can save stuff async like this.")
+        #expect(text(TranscriptVote.combine([
+            reading(.whisperTurbo, "it works now"),
+            reading(.parakeetV3, "it works now"),
+            reading(.apple, "It works. Now"),
+        ])) == "It works now")
+        let runOn = (1...30).map { "w\($0)" }.joined(separator: " ")
+        let appleRunOn = (1...30).map { $0 == 10 ? "w10." : "w\($0)" }.joined(separator: " ")
+        #expect(text(TranscriptVote.combine([
+            reading(.whisperTurbo, runOn),
+            reading(.parakeetV3, runOn),
+            reading(.apple, appleRunOn),
+        ])) == "W1 w2 w3 w4 w5 w6 w7 w8 w9 w10. W11 w12 w13 w14 w15 w16 w17 w18 w19 w20 w21 w22 w23 w24 w25 w26 w27 w28 w29 w30")
+        let pair = TranscriptVote.combine([
+            reading(.whisperTurbo, "it works now"),
+            reading(.parakeetV3, "It works. Now"),
+        ])
+        #expect(text(pair) == "It works. Now")
+    }
+
+    @Test func theMostTrustedPunctuationStands() {
+        let combined = TranscriptVote.combine([
+            reading(.whisperTurbo, "It works, now."),
+            reading(.parakeetV3, "it works now"),
+            reading(.apple, "it works. now"),
+        ])
+        #expect(text(combined) == "It works, now.")
+    }
+
+    @Test func aSentenceStartsWithACapitalAfterADroppedWord() {
+        var parakeet = reading(.parakeetV3, "it is long there's a widescreen")
+        var apple = reading(.apple, "it is long there's a widescreen")
+        for index in 3..<6 { parakeet.words[index].start += 1; parakeet.words[index].end += 1 }
+        for index in 3..<6 { apple.words[index].start += 1; apple.words[index].end += 1 }
+        let combined = TranscriptVote.combine([
+            reading(.whisperTurbo, "It is long. And there's a widescreen."),
+            parakeet,
+            apple,
+        ])
+        #expect(text(combined) == "It is long. There's a widescreen.")
     }
 
     @Test func aReadingWithNoWordsHasNoVoteWhenMostHeardSomething() {
@@ -132,7 +201,7 @@ struct TranscriptVoteTests {
             reading(.parakeetV3, "go go go"),
             TranscriptVote.Reading(model: .apple, words: words("go go", step: 1)),
         ])
-        #expect(text(combined) == "Go. go")
+        #expect(text(combined) == "Go. Go")
     }
 
     @Test func aDroppedWordLeavesItsFullStopBehind() {

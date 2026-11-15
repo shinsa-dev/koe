@@ -198,7 +198,12 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   (`KoeCore`) combines them: the most trusted reading (Whisper, then Parakeet, then Apple's) is the backbone, the
   others are lined up against it by text and by time (words said more than 1.5 s apart never stand for each other),
   and each word goes to a vote. A word most readings agree on is kept; one most didn't hear is dropped, leaving its
-  full stop to the word before; one most add is added; a tie goes to the most trusted. When most models heard
+  full stop to the word before; one most add is added; a tie goes to the most trusted. The backbone has no vote
+  against a word said where it heard nothing within 1.5 s, so a stretch it skipped keeps the others' words.
+  Punctuation is voted too: the backbone's own mark stands, and where it has none the others' mark is added when at
+  least as many readings close the word as leave it open, a reading in a run-on of 25 words or more with no
+  sentence end having no say (Whisper reads some stretches without punctuating them). Every sentence then starts
+  with a capital. When most models heard
   nothing at all, nothing was said: the one that heard words in a near-silent clip made them up. The result gets the
   cleanup and the dictionary and replaces the session through `SessionLibrary.refined`, so Recent sessions and the
   clipboard (when it still holds that copy) take it; text already pasted into an app stays as it was. A model that

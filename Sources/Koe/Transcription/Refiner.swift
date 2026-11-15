@@ -28,6 +28,7 @@ final class Refiner {
     private var unload: Task<Void, Never>?
     /// The refined words of the last recordings read, so live words that settle after the refine don't undo it.
     private var done: [UUID: [TimedWord]] = [:]
+    private var doneOrder: [UUID] = []
 
     init(store: ModelStore, library: SessionLibrary, hints: HintWords, dictionary: @escaping () -> CustomDictionary) {
         self.store = store
@@ -81,7 +82,9 @@ final class Refiner {
         work = nil
         if !words.isEmpty {
             done[job.id] = words
-            if done.count > 8, let oldest = done.keys.first(where: { $0 != job.id }) { done[oldest] = nil }
+            doneOrder.removeAll { $0 == job.id }
+            doneOrder.append(job.id)
+            while doneOrder.count > 8 { done[doneOrder.removeFirst()] = nil }
         }
         if let refined = RefinePlan.refined(job.session, words: words) {
             library.refined(refined, folder: job.folder)
