@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let vocabulary = Vocabulary()
     private lazy var transcriber = ActiveTranscriber(hints: vocabulary.hints)
     private let models = ModelStore()
+    private lazy var refiner = Refiner(store: models, library: library, hints: vocabulary.hints) { [vocabulary] in vocabulary.dictionary }
     private(set) lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
     }
@@ -172,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if Launch.has("--print-session") {
                 FileHandle.standardOutput.write(Data((BundleComposer().compose(session).text + "\n").utf8))
             }
+            refiner.refine(session, folder: folder)
             // A session started meanwhile owns the pill: its waveform stays up and the copy says nothing.
             guard !sessions.phase.isActive else { return }
             sessions.post(message)
@@ -183,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func wireSessions() {
         sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
         sessions.onFinish = { [weak self] in if let self { sessionEnded(vocabulary.dictionary.apply(to: $0), folder: $1) } }
-        sessions.onRefine = { [weak self] in if let self { library.refined(vocabulary.dictionary.apply(to: $0), folder: $1) } }
+        sessions.onRefine = { [weak self] in self?.refiner.settled($0, folder: $1) }
         sessions.onCancel = { [weak self] in
             self?.tools.sessionCancelled()
             self?.lingerThenHide()
@@ -259,11 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ShortcutCenter.shared.setDictating(phase.isOpen)
         if phase.isOpen != sessionWasOpen {
             sessionWasOpen = phase.isOpen
-            if phase.isOpen {
-                nowPlaying.sessionOpened(enabled: pausesMedia)
-            } else {
-                nowPlaying.sessionClosed()
-            }
+            if phase.isOpen { nowPlaying.sessionOpened(enabled: pausesMedia) } else { nowPlaying.sessionClosed() }
+            refiner.sessionOpen(phase.isOpen)
         }
         // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
         clicks.setActive(clickToComment)
