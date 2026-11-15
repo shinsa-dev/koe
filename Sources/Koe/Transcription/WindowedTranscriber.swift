@@ -9,6 +9,14 @@ protocol WindowDecoder: Sendable {
     /// What was said in `samples`, with times counted from their start. A model that finds the language itself decodes
     /// in `language` when one is given, and says which it detected otherwise.
     func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow
+    /// What was said in a whole recording, read the model's own way when it has one.
+    func decodeWhole(_ samples: [Float]) async throws -> DecodedWindow
+}
+
+extension WindowDecoder {
+    func decodeWhole(_ samples: [Float]) async throws -> DecodedWindow {
+        try await decode(samples, language: nil)
+    }
 }
 
 struct DecodedWindow: Sendable {
@@ -48,7 +56,7 @@ struct WindowedTranscriber: Transcriber {
         try await decoder.load()
         let samples = try SampleBuffer.read(file)
         var transcript = LiveTranscript()
-        let runs = TokenRuns.words(try await decoder.decode(samples, language: nil).tokens)
+        let runs = TokenRuns.words(try await decoder.decodeWhole(samples).tokens)
         transcript.apply(TranscriptUpdate(runs: runs, isFinal: true, start: 0, end: Double(samples.count) / Self.rate))
         return transcript.words
     }

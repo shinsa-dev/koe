@@ -26,15 +26,57 @@ actor WhisperDecoder: WindowDecoder {
     func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow {
         try await gate.run {
             let whisper = try await self.loaded()
-            let options = DecodingOptions(
-                task: .transcribe, language: language, detectLanguage: language == nil, skipSpecialTokens: true,
-                wordTimestamps: true, promptTokens: self.promptTokens(whisper.value), chunkingStrategy: .vad
-            )
-            let results = try await whisper.value.transcribe(audioArray: samples, decodeOptions: options)
-            let tokens = results.flatMap(\.segments).flatMap { $0.words ?? [] }
-                .map { TimedToken($0.word, start: Double($0.start), end: Double($0.end)) }
-            return DecodedWindow(tokens: tokens, language: language == nil ? results.first?.language : nil)
+            return try await Self.read(samples, whisper: whisper.value, language: language,
+                                       prompt: self.promptTokens(whisper.value), chunking: .vad)
         }
+    }
+
+    /// A whole recording, cut at its own pauses into stretches Whisper reads in one window each, every one with the
+    /// end of the text before it as prompt and in the language the first settled. WhisperKit's own cuts start each
+    /// piece cold, so past the first 30 s the punctuation and capitals went.
+    func decodeWhole(_ samples: [Float]) async throws -> DecodedWindow {
+        try await gate.run {
+            let whisper = try await self.loaded()
+            let rate = WindowedTranscriber.rate
+            let stretches = SpeechStretches.cut(LevelTrack(samples: samples, rate: rate))
+            var tokens: [TimedToken] = []
+            var language = LanguageLock()
+            var said = ""
+            for stretch in stretches {
+                try Task.checkCancellation()
+                let from = min(samples.count, Int(stretch.start * rate))
+                let until = min(samples.count, Int(stretch.end * rate))
+                guard from < until else { continue }
+                let piece = Array(samples[from..<until])
+                let text = SpeechStretches.prompt(hints: self.hints.words, previous: said)
+                var read = try await Self.read(piece, whisper: whisper.value, language: language.language,
+                                               prompt: self.encode(text, whisper.value), chunking: nil)
+                // A prompt now and then makes Whisper skip a stretch it hears speech in; read cold, it doesn't.
+                if read.tokens.isEmpty {
+                    read = try await Self.read(piece, whisper: whisper.value, language: language.language,
+                                               prompt: nil, chunking: nil)
+                }
+                language.observe(read.language, heard: stretch.end - stretch.start)
+                tokens += read.tokens.map {
+                    TimedToken($0.text, start: $0.start + stretch.start, end: $0.end + stretch.start)
+                }
+                said += read.tokens.map(\.text).joined()
+            }
+            return DecodedWindow(tokens: tokens, language: language.language)
+        }
+    }
+
+    private static func read(
+        _ samples: [Float], whisper: WhisperKit, language: String?, prompt: [Int]?, chunking: ChunkingStrategy?
+    ) async throws -> DecodedWindow {
+        let options = DecodingOptions(
+            task: .transcribe, language: language, detectLanguage: language == nil, skipSpecialTokens: true,
+            wordTimestamps: true, promptTokens: prompt, chunkingStrategy: chunking
+        )
+        let results = try await whisper.transcribe(audioArray: samples, decodeOptions: options)
+        let tokens = results.flatMap(\.segments).flatMap { $0.words ?? [] }
+            .map { TimedToken($0.word, start: Double($0.start), end: Double($0.end)) }
+        return DecodedWindow(tokens: tokens, language: language == nil ? results.first?.language : nil)
     }
 
     /// Compiles the model for this Mac's Neural Engine and lets it go again, so the next load takes seconds.
@@ -55,9 +97,14 @@ actor WhisperDecoder: WindowDecoder {
         let words = hints.words
         guard !words.isEmpty, let tokenizer = whisper.tokenizer else { return nil }
         if let prompt, prompt.words == words { return prompt.tokens.isEmpty ? nil : prompt.tokens }
-        let tokens = tokenizer.encode(text: " " + words.joined(separator: ", "))
-            .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        let tokens = encode(words.joined(separator: ", "), whisper) ?? []
         prompt = (words, tokens)
+        return tokens.isEmpty ? nil : tokens
+    }
+
+    private nonisolated func encode(_ text: String, _ whisper: WhisperKit) -> [Int]? {
+        guard !text.isEmpty, let tokenizer = whisper.tokenizer else { return nil }
+        let tokens = tokenizer.encode(text: " " + text).filter { $0 < tokenizer.specialTokens.specialTokenBegin }
         return tokens.isEmpty ? nil : tokens
     }
 
