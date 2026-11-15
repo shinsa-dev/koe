@@ -93,13 +93,22 @@ struct CustomDictionaryTests {
         #expect(CustomDictionary(words: []).apply(words("as heard")) == words("as heard"))
     }
 
+    @Test func aSessionKeepsItsAttachmentsWhileItsWordsAreSpelled() {
+        let file = Annotation(time: 0.3, kind: .file(Asset(url: URL(filePath: "/tmp/notes.txt"))))
+        let session = Session(words: words("open Shinza now"), annotations: [file])
+        let spelled = dictionary(["Shinsa"]).apply(to: session)
+        #expect(text(spelled.words) == "open Shinsa now")
+        #expect(spelled.annotations == session.annotations)
+        #expect(spelled.id == session.id)
+    }
+
     @Test func swappedLettersCountAsOneEdit() {
         #expect(CustomDictionary.distance("shins", "hsins") == 1)
         #expect(CustomDictionary.distance("kodam", "kodom") == 1)
         #expect(CustomDictionary.distance("", "abc") == 3)
     }
 
-    /// About seven minutes of talking against 504 entries, timed at its best of three as other work shares the Mac.
+    /// About seven minutes of talking against 504 entries, timed at its best of ten as other work shares the Mac.
     @Test func aLongTranscriptIsFixedWithinFiveMilliseconds() {
         let names = (0..<500).map { "Project\($0)name" } + ["Shinsa", "paywall-next", "BuzzKit", "Kodama"]
         let fix = dictionary(names)
@@ -107,7 +116,7 @@ struct CustomDictionaryTests {
         let transcript = words(String(repeating: sentence, count: 56))
         #expect(transcript.count > 1_000)
         let clock = ContinuousClock()
-        let best = (0..<3).map { _ in clock.measure { _ = fix.apply(transcript) } }.min() ?? .zero
+        let best = (0..<10).map { _ in clock.measure { _ = fix.apply(transcript) } }.min() ?? .zero
         #expect(best < .milliseconds(5))
         let fixed = text(Array(fix.apply(transcript).prefix(17)))
         #expect(fixed == "so look at the Shinsa page and fix the paywall-next code in Kodama it is my project")

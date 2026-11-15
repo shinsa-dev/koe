@@ -8,6 +8,8 @@ import Speech
 /// model is part of the system, so there is nothing to download for most languages.
 struct AppleSpeechTranscriber: Transcriber {
     var locale: Locale = .current
+    /// Your dictionary, heard as contextual strings so the model leans toward those spellings.
+    var hints = HintWords()
 
     enum Failure: LocalizedError {
         case unavailable
@@ -30,11 +32,11 @@ struct AppleSpeechTranscriber: Transcriber {
     }
 
     func transcribe(_ source: any AudioSource) -> AsyncThrowingStream<TranscriberEvent, any Error> {
-        let locale = locale
+        let (locale, words) = (locale, hints.words)
         return AsyncThrowingStream { continuation in
             let work = Task {
                 do {
-                    try await Self.run(source: source, locale: locale, events: continuation)
+                    try await Self.run(source: source, locale: locale, hints: words, events: continuation)
                     continuation.finish()
                 } catch {
                     source.detach()
@@ -49,6 +51,7 @@ struct AppleSpeechTranscriber: Transcriber {
         let prepared = try await SpeechSetup.shared.prepare(locale)
         let module = SpeechSetup.module(for: prepared.locale)
         let analyzer = SpeechAnalyzer(modules: [module])
+        try await Self.hint(analyzer, hints.words)
         let audio = try AVAudioFile(forReading: file)
         let results = Task {
             var transcript = LiveTranscript()
@@ -66,11 +69,13 @@ struct AppleSpeechTranscriber: Transcriber {
     private static func run(
         source: any AudioSource,
         locale: Locale,
+        hints: [String],
         events: AsyncThrowingStream<TranscriberEvent, any Error>.Continuation
     ) async throws {
         let prepared = try await SpeechSetup.shared.prepare(locale)
         let module = SpeechSetup.module(for: prepared.locale)
         let analyzer = SpeechAnalyzer(modules: [module])
+        try await hint(analyzer, hints)
         try await analyzer.prepareToAnalyze(in: prepared.format)
 
         let (input, feed) = AsyncStream.makeStream(of: AnalyzerInput.self)
@@ -87,6 +92,15 @@ struct AppleSpeechTranscriber: Transcriber {
             await analyzer.cancelAndFinishNow()
         }
         try await results.value
+    }
+}
+
+extension AppleSpeechTranscriber {
+    private static func hint(_ analyzer: SpeechAnalyzer, _ words: [String]) async throws {
+        guard !words.isEmpty else { return }
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = words
+        try await analyzer.setContext(context)
     }
 }
 

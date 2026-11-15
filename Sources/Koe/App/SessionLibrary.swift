@@ -79,7 +79,8 @@ final class SessionLibrary {
 
     /// Finishes recordings Koe never finished because it quit or crashed while recording: transcribes each one's audio,
     /// keeps the attachments its draft lists, and saves it to the recent sessions. Returns how many it recovered.
-    func recover(_ unfinished: [(folder: URL, draft: Session?)], using transcriber: any Transcriber) async -> Int {
+    func recover(_ unfinished: [(folder: URL, draft: Session?)], using transcriber: any Transcriber,
+                 dictionary: CustomDictionary) async -> Int {
         var recovered = 0
         for (folder, draft) in unfinished {
             var session = draft ?? Session(startedAt: Self.created(folder))
@@ -87,7 +88,7 @@ final class SessionLibrary {
             do {
                 let words = try await transcriber.transcribe(file: audio)
                 let levels = try? LevelTrack(samples: SampleBuffer.read(audio), rate: WindowedTranscriber.rate)
-                session.words = TranscriptCleanup.apply(words: words, levels: levels)
+                session.words = dictionary.apply(TranscriptCleanup.apply(words: words, levels: levels))
             } catch {
                 Self.log.error("Could not transcribe a recovered recording: \(error.localizedDescription, privacy: .public)")
             }

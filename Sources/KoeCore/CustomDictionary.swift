@@ -59,6 +59,13 @@ public struct CustomDictionary: Sendable {
 
     public var isEmpty: Bool { entries.isEmpty }
 
+    /// The session with its words spelled by the dictionary, its attachments as they were.
+    public func apply(to session: Session) -> Session {
+        var session = session
+        session.words = apply(session.words)
+        return session
+    }
+
     /// The transcript with every run of words that sounds like an entry spelled as the entry.
     public func apply(_ words: [TimedWord]) -> [TimedWord] {
         guard !entries.isEmpty else { return words }

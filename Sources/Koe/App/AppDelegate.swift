@@ -6,7 +6,8 @@ import KoeCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let permissions = PermissionCenter(defaults: Launch.defaults)
-    private let transcriber = ActiveTranscriber()
+    private let vocabulary = Vocabulary()
+    private lazy var transcriber = ActiveTranscriber(hints: vocabulary.hints)
     private let models = ModelStore()
     private(set) lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
         if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
@@ -55,9 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyAppearance()
         NSApp.mainMenu = MainMenu.build(target: self)
 
+        vocabulary.update(settings: library.settings)
+        vocabulary.refreshIfStale()
         wireSessions()
         startTranscription()
         library.onSettingsChange = { [weak self] settings in
+            self?.vocabulary.update(settings: settings)
             if let self { transcriber.update(chosen: settings.transcriptionModel, store: models) }
             self?.applyAppearance()
             if let self { clicks.setActive(clickToComment) }
@@ -178,8 +182,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func wireSessions() {
         sessions.onPhaseChange = { [weak self] phase in self?.phaseChanged(phase) }
-        sessions.onFinish = { [weak self] session, folder in self?.sessionEnded(session, folder: folder) }
-        sessions.onRefine = { [weak self] session, folder in self?.library.refined(session, folder: folder) }
+        sessions.onFinish = { [weak self] in if let self { sessionEnded(vocabulary.dictionary.apply(to: $0), folder: $1) } }
+        sessions.onRefine = { [weak self] in if let self { library.refined(vocabulary.dictionary.apply(to: $0), folder: $1) } }
         sessions.onCancel = { [weak self] in
             self?.tools.sessionCancelled()
             self?.lingerThenHide()
@@ -379,9 +383,9 @@ extension AppDelegate {
     /// or quit left behind.
     private func recoverUnfinished() {
         let unfinished = library.unfinished()
-        Task { [transcriber, library, sessions, pill] in
+        Task { [transcriber, library, sessions, pill, vocabulary] in
             await transcriber.prewarm()
-            let recovered = await library.recover(unfinished, using: transcriber)
+            let recovered = await library.recover(unfinished, using: transcriber, dictionary: vocabulary.dictionary)
             guard recovered > 0, !sessions.phase.isActive else { return }
             sessions.post(PillNotice(
                 kind: .success, title: "Recording saved",

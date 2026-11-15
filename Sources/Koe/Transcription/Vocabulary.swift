@@ -2,9 +2,9 @@ import AppKit
 import KoeCore
 import os
 
-/// The names Koe learned from this Mac. It shows the last scan's names at once from
-/// `~/Library/Application Support/Koe/LearnedNames.json`, and scans again in the background when that is older than
-/// `staleAfter`, so a session never waits on a scan.
+/// The names Koe learned from this Mac and the dictionary they make with your own words. It shows the last scan's
+/// names at once from `~/Library/Application Support/Koe/LearnedNames.json`, and scans again in the background when
+/// that is older than `staleAfter`, so a session never waits on a scan.
 @MainActor @Observable
 final class Vocabulary {
     @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "vocabulary")
@@ -13,6 +13,11 @@ final class Vocabulary {
     private(set) var learned: [LearnedName] = []
     private(set) var scannedAt: Date?
     private(set) var isScanning = false
+    /// The fix sessions apply when they are copied, rebuilt whenever the words change.
+    private(set) var dictionary = CustomDictionary(words: [])
+    /// What Apple's model and Whisper hear as hints, read by them when a session or a recording starts.
+    @ObservationIgnored let hints = HintWords()
+    @ObservationIgnored private var settings = KoeSettings()
 
     @ObservationIgnored private let cache: URL
     @ObservationIgnored private let home: URL
@@ -28,6 +33,20 @@ final class Vocabulary {
             learned = saved.names
             scannedAt = saved.scannedAt
         }
+    }
+
+    /// Rebuilds the dictionary from your words and the learned names. Call it when the settings change.
+    func update(settings: KoeSettings) {
+        self.settings = settings
+        rebuild()
+    }
+
+    private func rebuild() {
+        let words = DictionaryWords.list(settings: settings, learned: learned)
+        guard words != dictionary.entries else { return }
+        dictionary = CustomDictionary(words: words, isOrdinary: OrdinaryWords.check)
+        hints.words = DictionaryWords.hints(dictionary.entries)
+        Self.log.info("Dictionary has \(words.count) words")
     }
 
     /// Scans again when the last scan is missing or stale.
@@ -48,6 +67,7 @@ final class Vocabulary {
         }.value
         learned = NameSources.learn(found, isOrdinary: OrdinaryWords.contains)
         scannedAt = .now
+        rebuild()
         Self.log.info("Learned \(self.learned.count) names in \(ContinuousClock.now - start, privacy: .public)")
         save()
     }
@@ -82,6 +102,12 @@ enum OrdinaryWords {
         let answer = miss.location == NSNotFound
         known[word] = answer
         return answer
+    }
+
+    /// The same from any thread: the spell checker only answers on the main one.
+    nonisolated static func check(_ word: String) -> Bool {
+        if Thread.isMainThread { return MainActor.assumeIsolated { contains(word) } }
+        return DispatchQueue.main.sync { MainActor.assumeIsolated { contains(word) } }
     }
 }
 

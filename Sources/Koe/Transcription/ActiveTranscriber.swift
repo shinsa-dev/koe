@@ -8,7 +8,8 @@ import os
 final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "transcription")
 
-    private let apple = AppleSpeechTranscriber()
+    private let apple: AppleSpeechTranscriber
+    private let hints: HintWords
     private let lock = NSLock()
     private var current: (id: ModelID, model: WindowedTranscriber?) = (.apple, nil)
     private var loaded: [ModelID: WindowedTranscriber] = [:]
@@ -20,7 +21,11 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     @MainActor var onRouteChange: ((TranscriberRoute) -> Void)?
     @MainActor private var refresh: (() -> Void)?
 
-    @MainActor init() {}
+    /// `hints` are your dictionary, which Apple's model and Whisper hear before they decode.
+    @MainActor init(hints: HintWords = HintWords()) {
+        self.hints = hints
+        apple = AppleSpeechTranscriber(hints: hints)
+    }
 
     var currentRoute: TranscriberRoute { lock.withLock { route } }
 
@@ -40,7 +45,7 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
                                                     loadError: loadErrors[chosen])
             var model: WindowedTranscriber?
             if runnable.model != .apple {
-                model = loaded[chosen] ?? Self.make(chosen, store: store)
+                model = loaded[chosen] ?? Self.make(chosen, store: store, hints: hints)
                 loaded[chosen] = model
             }
             let route = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
@@ -130,10 +135,10 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
         Task { @MainActor in self.refresh?() }
     }
 
-    @MainActor private static func make(_ id: ModelID, store: ModelStore) -> WindowedTranscriber? {
+    @MainActor private static func make(_ id: ModelID, store: ModelStore, hints: HintWords) -> WindowedTranscriber? {
         switch TranscriptionModel.model(id).engine {
         case .parakeet: .parakeet(id, store: store)
-        case .whisper: .whisper(id, store: store)
+        case .whisper: .whisper(id, store: store, hints: hints)
         case .apple: nil
         }
     }

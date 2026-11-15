@@ -117,7 +117,7 @@ enum TailBench {
     private static func windowed(_ model: TranscriptionModel, store: ModelStore) -> WindowedTranscriber? {
         switch model.engine {
         case .parakeet: WindowedTranscriber.parakeet(model.id, store: store)
-        case .whisper: WindowedTranscriber.whisper(model.id, store: store)
+        case .whisper: WindowedTranscriber.whisper(model.id, store: store, hints: HintWords())
         case .apple: nil
         }
     }
