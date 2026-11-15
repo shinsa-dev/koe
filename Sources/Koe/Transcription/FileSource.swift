@@ -14,6 +14,7 @@ final class FileSource: AudioSource, @unchecked Sendable {
 
     var currentTime: AudioTime { stream.currentTime }
     var level: Float { stream.level }
+    var levels: LevelTrack { stream.levels }
 
     func start(recordingTo recording: URL?) throws {
         let file = try AVAudioFile(forReading: url)

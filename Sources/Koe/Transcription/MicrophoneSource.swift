@@ -32,6 +32,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
 
     var currentTime: AudioTime { stream.currentTime }
     var level: Float { stream.level }
+    var levels: LevelTrack { stream.levels }
 
     func start(recordingTo recording: URL?) throws {
         try stream.open(recording: recording)

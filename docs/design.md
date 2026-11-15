@@ -198,8 +198,17 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   `--model <id>` names (Parakeet v3, Parakeet v2 or Whisper; Apple's streams on its own and can't be replayed). It
   prints whether each ends with the same three words as one decode of the whole recording (`TailScore`), and the
   total; how long the model took to load; and for each recording and in all, how long the passes took against the
-  0.9 s they have and how long the whole decode took (`StepTimings`). It reads only local recordings; none is in the
-  repository.
+  0.9 s they have and how long the whole decode took (`StepTimings`). It also prints what the cleanup takes out of
+  the whole decode and of the words the session was copied with, and how long it took. It reads only local
+  recordings; none is in the repository.
+- **Cleanup.** What is copied and saved goes through `TranscriptCleanup` (`KoeCore`) first, for every model, in
+  `snapshot()` and in recovery. It drops filler words ("um", "uh", "erm" and the like; a sentence that started with
+  one starts with the next word, capitalized), the words at the start of the guess that repeat the last settled ones
+  (Apple's model timing "broken there." again after the final words), and words heard where the audio stayed at the
+  session's noise floor (models invent "Oh" and "Okay." in silence). For the last, `CaptureStream` records a
+  `LevelTrack` (the level of each 50 ms) as it captures, and recovery reads one from the file. A word stays unless
+  its audio, read 0.35 s either side as models time a word early, never rises 10 dB over the floor (the session's
+  10th percentile). Kept words keep their times. On the bench it takes about 2 ms for three minutes of audio.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile

@@ -85,7 +85,9 @@ final class SessionLibrary {
             var session = draft ?? Session(startedAt: Self.created(folder))
             let audio = folder.appending(path: SessionArchive.audioName)
             do {
-                session.words = try await transcriber.transcribe(file: audio)
+                let words = try await transcriber.transcribe(file: audio)
+                let levels = try? LevelTrack(samples: SampleBuffer.read(audio), rate: WindowedTranscriber.rate)
+                session.words = TranscriptCleanup.apply(words: words, levels: levels)
             } catch {
                 Self.log.error("Could not transcribe a recovered recording: \(error.localizedDescription, privacy: .public)")
             }
