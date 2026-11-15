@@ -30,6 +30,12 @@ public struct KoeSettings: Sendable, Equatable {
     public var transcriptionModel: ModelID = TranscriptionModel.standard.id
     /// Koe downloads the standard model by itself, at each launch until it is in. After that a download is yours.
     public var startedFirstDownload = false
+    /// Words you added to the dictionary, spelled as you want them copied.
+    public var dictionaryWords: [String] = []
+    /// Add the names Koe learns from this Mac (repositories and apps) to the dictionary.
+    public var learnedNames = true
+    /// Learned names you removed, kept out even when Koe finds them again.
+    public var removedNames: [String] = []
 
     public static let recentChoices = [3, 5, 10]
 
@@ -45,6 +51,9 @@ public struct KoeSettings: Sendable, Equatable {
         public static let updateChannel = "updateChannel"
         public static let transcriptionModel = "transcriptionModel"
         public static let startedFirstDownload = "startedFirstDownload"
+        public static let dictionaryWords = "dictionaryWords"
+        public static let learnedNames = "learnedNames"
+        public static let removedNames = "removedNames"
     }
 
     public init() {}
@@ -69,13 +78,21 @@ public struct KoeSettings: Sendable, Equatable {
         }
         if let started = values[Key.startedFirstDownload] as? Bool { startedFirstDownload = started }
         shortcuts = Shortcuts(values: values)
+        readDictionary(values)
+    }
+
+    private mutating func readDictionary(_ values: [String: Any]) {
+        if let words = values[Key.dictionaryWords] as? [String] { dictionaryWords = words }
+        if let learned = values[Key.learnedNames] as? Bool { learnedNames = learned }
+        if let removed = values[Key.removedNames] as? [String] { removedNames = removed }
     }
 
     public var values: [String: Any] {
         [Key.copyFiles: copyFiles, Key.autoPaste: autoPaste, Key.theme: theme.rawValue, Key.recentCount: recentCount,
          Key.freezeScreen: freezeScreen, Key.pasteTogether: pasteTogether, Key.clickToComment: clickToComment,
          Key.pauseMedia: pauseMedia, Key.transcriptionModel: transcriptionModel.rawValue,
-         Key.startedFirstDownload: startedFirstDownload]
+         Key.startedFirstDownload: startedFirstDownload, Key.dictionaryWords: dictionaryWords,
+         Key.learnedNames: learnedNames, Key.removedNames: removedNames]
             .merging(updateChannel.map { [Key.updateChannel: $0.rawValue] } ?? [:]) { current, _ in current }
             .merging(shortcuts.values) { current, _ in current }
     }
