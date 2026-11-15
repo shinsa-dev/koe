@@ -21,7 +21,7 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     @MainActor var onRouteChange: ((TranscriberRoute) -> Void)?
     @MainActor private var refresh: (() -> Void)?
 
-    /// `hints` are your dictionary, which Apple's model and Whisper hear before they decode.
+    /// `hints` are your dictionary, which Apple's model hears before it decodes.
     @MainActor init(hints: HintWords = HintWords()) {
         self.hints = hints
         apple = AppleSpeechTranscriber(hints: hints)
@@ -45,7 +45,7 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
                                                     loadError: loadErrors[chosen])
             var model: WindowedTranscriber?
             if runnable.model != .apple {
-                model = loaded[chosen] ?? Self.make(chosen, store: store, hints: hints)
+                model = loaded[chosen] ?? Self.make(chosen, store: store)
                 loaded[chosen] = model
             }
             let route = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
@@ -135,10 +135,10 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
         Task { @MainActor in self.refresh?() }
     }
 
-    @MainActor private static func make(_ id: ModelID, store: ModelStore, hints: HintWords) -> WindowedTranscriber? {
+    @MainActor private static func make(_ id: ModelID, store: ModelStore) -> WindowedTranscriber? {
         switch TranscriptionModel.model(id).engine {
         case .parakeet: .parakeet(id, store: store)
-        case .whisper: .whisper(id, store: store, hints: hints)
+        case .whisper: .whisper(id, store: store)
         case .apple: nil
         }
     }
