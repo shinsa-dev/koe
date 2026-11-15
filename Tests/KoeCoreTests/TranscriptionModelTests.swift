@@ -20,22 +20,20 @@ struct TranscriptionModelTests {
         }
     }
 
-    @Test func settingsStartOnParakeetV3AndKeepTheChosenModel() {
-        let fresh = KoeSettings(values: [:])
-        #expect(fresh.transcriptionModel == .parakeetV3)
-        #expect(!fresh.startedFirstDownload)
+    @Test func settingsRememberTheModelsYouDeleted() {
+        #expect(KoeSettings(values: [:]).deletedModels.isEmpty)
 
         var settings = KoeSettings()
-        settings.transcriptionModel = .whisperTurbo
-        settings.startedFirstDownload = true
-        #expect(settings.values["transcriptionModel"] as? String == "whisper-large-v3-turbo")
+        settings.deletedModels = [.whisperTurbo, .parakeetV3]
+        #expect(settings.values["deletedModels"] as? [String] == ["parakeet-v3", "whisper-large-v3-turbo"])
         #expect(KoeSettings(values: settings.values) == settings)
     }
 
-    @Test func anUnknownModelFallsBackToTheDefault() {
-        let settings = KoeSettings(values: ["transcriptionModel": "whisper-tiny", "startedFirstDownload": "yes"])
-        #expect(settings.transcriptionModel == .parakeetV3)
-        #expect(!settings.startedFirstDownload)
+    @Test func anOldModelChoiceIsIgnoredAndUnknownDeletionsDrop() {
+        let settings = KoeSettings(values: ["transcriptionModel": "apple", "startedFirstDownload": true,
+                                            "deletedModels": ["whisper-tiny", "parakeet-v2"]])
+        #expect(settings.deletedModels == [.parakeetV2])
+        #expect(settings.values["transcriptionModel"] == nil)
     }
 
     @Test func downloadProgressIsMeasuredFromTheBytesOnDiskAndNeverReachesDone() {
@@ -110,6 +108,15 @@ struct TranscriberRouteTests {
         #expect(route.fallback == nil)
     }
 
+    @Test func onlyAFailedLoadGivesTheRowsAnError() {
+        let failed = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true,
+                                              loadError: "Missing file.")
+        #expect(failed.loadErrors == [.parakeetV3: "Missing file."])
+        let loading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true,
+                                               loadError: nil, isLoaded: false)
+        #expect(loading.loadErrors.isEmpty)
+    }
+
     @Test func theReasonSaysWhatToExpect() {
         let downloading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .downloading(fraction: 0.1),
                                                    canRun: true, loadError: nil)
@@ -117,5 +124,8 @@ struct TranscriberRouteTests {
         let preparing = TranscriberRoute.resolve(chosen: .whisperTurbo, install: .preparing, canRun: true,
                                                  loadError: nil)
         #expect(preparing.reason == "Koe uses Apple's model while Whisper large-v3 turbo gets ready for this Mac.")
+        let waiting = TranscriberRoute.resolve(chosen: .parakeetV3, install: .notInstalled, canRun: true,
+                                               loadError: nil)
+        #expect(waiting.reason == "Koe uses Apple's model until Parakeet v3 is downloaded.")
     }
 }
