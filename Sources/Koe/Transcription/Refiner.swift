@@ -104,18 +104,23 @@ final class Refiner {
 
     private func reader(_ id: ModelID) -> (any Transcriber)? {
         if let reader = readers[id] { return reader }
-        let reader: (any Transcriber)? = switch TranscriptionModel.model(id).engine {
+        let reader = Self.makeReader(id, store: store, hints: hints)
+        readers[id] = reader
+        return reader
+    }
+
+    static func makeReader(_ id: ModelID, store: ModelStore, hints: HintWords) -> (any Transcriber)? {
+        switch TranscriptionModel.model(id).engine {
         case .parakeet: WindowedTranscriber.parakeet(id, store: store)
         case .whisper: WindowedTranscriber.whisper(id, store: store, hints: hints)
         case .apple: AppleSpeechTranscriber(hints: hints)
         }
-        readers[id] = reader
-        return reader
     }
 
     /// Every model reads the file at once; one that fails is left out of the vote.
     nonisolated static func read(_ file: URL, readers: [(ModelID, any Transcriber)],
                                  dictionary: CustomDictionary) async -> [TimedWord] {
+        guard let samples = try? SampleBuffer.read(file), hasAudio(samples) else { return [] }
         let started = ContinuousClock.now
         let readings = await withTaskGroup(of: TranscriptVote.Reading?.self) { group in
             for (id, reader) in readers {
@@ -135,10 +140,22 @@ final class Refiner {
             return readings
         }
         guard !Task.isCancelled else { return [] }
-        let levels = try? LevelTrack(samples: SampleBuffer.read(file), rate: WindowedTranscriber.rate)
-        let words = dictionary.apply(TranscriptCleanup.apply(words: TranscriptVote.combine(readings), levels: levels))
+        let levels = LevelTrack(samples: samples, rate: WindowedTranscriber.rate)
+        let words = polish(TranscriptVote.combine(readings), levels: levels, dictionary: dictionary)
         let took = ContinuousClock.now - started
         log.info("Refined with \(readings.map(\.model.rawValue).joined(separator: ", "), privacy: .public) in \(took, privacy: .public)")
         return words
+    }
+
+    /// Whether a recording is long enough to read: Apple's model never answers on an empty one, which would hold up
+    /// every recording after it.
+    nonisolated static func hasAudio(_ samples: [Float]) -> Bool {
+        Double(samples.count) >= 0.5 * WindowedTranscriber.rate
+    }
+
+    /// Cleaned up and spelled as the live words are.
+    nonisolated static func polish(_ words: [TimedWord], levels: LevelTrack?, dictionary: CustomDictionary)
+        -> [TimedWord] {
+        dictionary.apply(TranscriptCleanup.apply(words: words, levels: levels))
     }
 }

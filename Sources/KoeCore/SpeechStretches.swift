@@ -15,7 +15,7 @@ public enum SpeechStretches {
         }
     }
 
-    /// Under Whisper's 30 s window, with room for the decoder's prompt to matter.
+    /// Under Whisper's 30 s window, so each stretch is read in one window.
     public static let maxLength: AudioTime = 28
     /// A cut never comes sooner than this after the last one, so a stretch has enough audio to read well.
     public static let minLength: AudioTime = 8
@@ -69,16 +69,5 @@ public enum SpeechStretches {
             quietest = index
         }
         return quietest
-    }
-
-    /// How many of the last words read carry into the next stretch's prompt: enough for its punctuation and
-    /// capitals, well inside Whisper's 224-token prompt next to your dictionary.
-    public static let carriedWords = 40
-
-    /// The text Whisper reads as coming before a stretch: your dictionary's hints, then the end of what the
-    /// stretches before it said, so it writes on in the same style.
-    public static func prompt(hints: [String], previous: String) -> String {
-        let carried = previous.split(whereSeparator: \.isWhitespace).suffix(carriedWords).joined(separator: " ")
-        return [hints.joined(separator: ", "), carried].filter { !$0.isEmpty }.joined(separator: ". ")
     }
 }

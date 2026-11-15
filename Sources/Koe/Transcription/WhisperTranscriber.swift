@@ -31,9 +31,9 @@ actor WhisperDecoder: WindowDecoder {
         }
     }
 
-    /// A whole recording, cut at its own pauses into stretches Whisper reads in one window each, every one with the
-    /// end of the text before it as prompt and in the language the first settled. WhisperKit's own cuts start each
-    /// piece cold, so past the first 30 s the punctuation and capitals went.
+    /// A whole recording, cut at its own pauses into stretches Whisper reads in one window each, in the language the
+    /// first settled. WhisperKit's own cuts start each piece mid-sentence, so past the first 30 s the punctuation and
+    /// capitals went. A stretch is read without a prompt: with one, WhisperKit times every word near the window's end.
     func decodeWhole(_ samples: [Float]) async throws -> DecodedWindow {
         try await gate.run {
             let whisper = try await self.loaded()
@@ -41,26 +41,17 @@ actor WhisperDecoder: WindowDecoder {
             let stretches = SpeechStretches.cut(LevelTrack(samples: samples, rate: rate))
             var tokens: [TimedToken] = []
             var language = LanguageLock()
-            var said = ""
             for stretch in stretches {
                 try Task.checkCancellation()
                 let from = min(samples.count, Int(stretch.start * rate))
                 let until = min(samples.count, Int(stretch.end * rate))
                 guard from < until else { continue }
-                let piece = Array(samples[from..<until])
-                let text = SpeechStretches.prompt(hints: self.hints.words, previous: said)
-                var read = try await Self.read(piece, whisper: whisper.value, language: language.language,
-                                               prompt: self.encode(text, whisper.value), chunking: nil)
-                // A prompt now and then makes Whisper skip a stretch it hears speech in; read cold, it doesn't.
-                if read.tokens.isEmpty {
-                    read = try await Self.read(piece, whisper: whisper.value, language: language.language,
-                                               prompt: nil, chunking: nil)
-                }
+                let read = try await Self.read(Array(samples[from..<until]), whisper: whisper.value,
+                                               language: language.language, prompt: nil, chunking: nil)
                 language.observe(read.language, heard: stretch.end - stretch.start)
                 tokens += read.tokens.map {
                     TimedToken($0.text, start: $0.start + stretch.start, end: $0.end + stretch.start)
                 }
-                said += read.tokens.map(\.text).joined()
             }
             return DecodedWindow(tokens: tokens, language: language.language)
         }

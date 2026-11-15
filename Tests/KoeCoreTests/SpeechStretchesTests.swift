@@ -68,17 +68,4 @@ struct SpeechStretchesTests {
         #expect(SpeechStretches.cut(track([(40, 0)])).isEmpty)
         #expect(SpeechStretches.cut(LevelTrack()).isEmpty)
     }
-
-    @Test func thePromptIsTheHintsThenTheEndOfWhatCameBefore() {
-        let previous = (1...50).map { "w\($0)" }.joined(separator: " ") + "."
-        let prompt = SpeechStretches.prompt(hints: ["Shinsa", "Koe"], previous: previous)
-        #expect(prompt.hasPrefix("Shinsa, Koe. w11 w12"))
-        #expect(prompt.hasSuffix("w50."))
-    }
-
-    @Test func aPromptWithoutHintsOrTextIsWhatThereIs() {
-        #expect(SpeechStretches.prompt(hints: [], previous: "Open the menu.") == "Open the menu.")
-        #expect(SpeechStretches.prompt(hints: ["Shinsa"], previous: "") == "Shinsa")
-        #expect(SpeechStretches.prompt(hints: [], previous: "").isEmpty)
-    }
 }
