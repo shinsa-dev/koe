@@ -29,8 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var updater = Updater(library: library)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
-            library: library, permissions: permissions, models: models, updater: updater,
-            openSessions: { [weak self] in self?.showSessions() }
+            library: library, permissions: permissions, models: models, vocabulary: vocabulary,
+            updater: updater, openSessions: { [weak self] in self?.showSessions() }
         )
         // Back to a menu bar app once the window is gone.
         controller.onClose = { NSApp.setActivationPolicy(.accessory) }
