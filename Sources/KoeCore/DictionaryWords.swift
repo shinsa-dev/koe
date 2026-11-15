@@ -2,8 +2,7 @@ import Foundation
 
 /// Which words the dictionary spells, and which of them the models hear as hints before they decode.
 public enum DictionaryWords {
-    /// The most characters of hints a model gets. Whisper reads at most 224 prompt tokens, and a long prompt makes it
-    /// more likely to repeat the prompt over silence.
+    /// The most characters of hints Apple's model gets, so a long list of learned names never crowds out your words.
     public static let hintLimit = 400
 
     /// Your words first, then the names Koe learned unless you turned them off or removed them. A name is matched to

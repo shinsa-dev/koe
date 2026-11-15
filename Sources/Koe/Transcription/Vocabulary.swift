@@ -15,7 +15,7 @@ final class Vocabulary {
     private(set) var isScanning = false
     /// The fix sessions apply when they are copied, rebuilt whenever the words change.
     private(set) var dictionary = CustomDictionary(words: [])
-    /// What Apple's model and Whisper hear as hints, read by them when a session or a recording starts.
+    /// What Apple's model hears as hints, read when a session or a recording starts.
     @ObservationIgnored let hints = HintWords()
     @ObservationIgnored private var settings = KoeSettings()
     /// The words the dictionary was last built from, before it drops duplicates.
