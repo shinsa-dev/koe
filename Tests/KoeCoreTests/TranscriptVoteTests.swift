@@ -97,14 +97,28 @@ struct TranscriptVoteTests {
         #expect(text(combined) == "Hello there.")
     }
 
-    @Test func aReadingWithNoWordsHasNoVote() {
+    @Test func aReadingWithNoWordsHasNoVoteWhenMostHeardSomething() {
         let combined = TranscriptVote.combine([
             reading(.whisperTurbo, "Keep this."),
-            TranscriptVote.Reading(model: .parakeetV3, words: []),
+            reading(.parakeetV3, "keep this"),
             TranscriptVote.Reading(model: .apple, words: []),
         ])
         #expect(text(combined) == "Keep this.")
+        let pair = TranscriptVote.combine([
+            reading(.whisperTurbo, "Keep this."),
+            TranscriptVote.Reading(model: .parakeetV3, words: []),
+        ])
+        #expect(text(pair) == "Keep this.")
         #expect(TranscriptVote.combine([]).isEmpty)
+    }
+
+    @Test func wordsOnlyOneModelHeardWhileMostHeardNothingAreDropped() {
+        let combined = TranscriptVote.combine([
+            TranscriptVote.Reading(model: .whisperTurbo, words: []),
+            TranscriptVote.Reading(model: .parakeetV3, words: []),
+            reading(.apple, "Okay."),
+        ])
+        #expect(combined.isEmpty)
     }
 
     @Test func aSingleReadingIsReturnedAsItIs() {

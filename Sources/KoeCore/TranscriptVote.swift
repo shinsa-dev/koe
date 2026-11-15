@@ -24,8 +24,12 @@ public enum TranscriptVote {
     /// when it shares one range among them.
     public static let reach: AudioTime = 1.5
 
-    /// The combined words. A reading with no words is left out, as its model failed or heard nothing at all.
+    /// The combined words. A reading with no words is a model that heard nothing (a model that failed gives no
+    /// reading): when most readings heard nothing, nothing was said, as a model alone in hearing words in a short
+    /// recording is making them up. Otherwise it has no vote.
     public static func combine(_ readings: [Reading]) -> [TimedWord] {
+        let silent = readings.count { $0.words.isEmpty }
+        guard silent * 2 <= readings.count else { return [] }
         let ranked = readings.filter { !$0.words.isEmpty }
             .sorted { rank($0.model) < rank($1.model) }
         guard let backbone = ranked.first else { return [] }
