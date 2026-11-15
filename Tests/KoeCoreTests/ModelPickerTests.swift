@@ -81,30 +81,6 @@ struct ModelPickerTests {
         #expect(models.options[0].note == "Recommended · Needs Apple silicon")
     }
 
-    @Test func pickingAModelNotOnDiskKeepsTheOneInUseUntilItIsIn() {
-        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .notInstalled, canDownload: true)
-            == .downloadThenUse)
-        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .failed("x"), canDownload: true)
-            == .downloadThenUse)
-        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .installed, canDownload: true) == .use)
-        #expect(ModelPicker.choose(.apple, chosen: .parakeetV3, install: .notInstalled, canDownload: true) == .use)
-        #expect(ModelPicker.choose(.parakeetV3, chosen: .parakeetV3, install: .notInstalled, canDownload: true)
-            == .download)
-        #expect(ModelPicker.choose(.whisperTurbo, chosen: .parakeetV3, install: .notInstalled, canDownload: false)
-            == .unavailable)
-    }
-
-    @Test func thePendingModelIsChosenOnlyOnceItsDownloadIsIn() {
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .installed) == .adopt)
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .notInstalled) == .drop)
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .failed("x")) == .keep)
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo,
-                                   install: .downloading(fraction: 0.3)) == .keep)
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .preparing) == .keep)
-        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .parakeetV2, install: .installed) == .keep)
-        #expect(ModelPicker.settle(pending: nil, changed: .whisperTurbo, install: .installed) == .keep)
-    }
-
     @Test func aPendingDownloadShowsInTheDropdownAndSaysWhatRunsMeanwhile() {
         let models = ModelPicker(chosen: .parakeetV3, pending: .whisperTurbo, inUse: .parakeetV3,
                                  installs: [.parakeetV3: .installed, .whisperTurbo: .downloading(fraction: 0)],

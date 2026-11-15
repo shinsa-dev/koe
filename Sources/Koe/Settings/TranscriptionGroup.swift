@@ -11,8 +11,8 @@ struct TranscriptionGroup: View {
     @State private var isOpen = false
 
     var body: some View {
-        let picker = ModelPicker(chosen: library.settings.transcriptionModel, pending: models.pending,
-                                 inUse: models.route.model, installs: models.installs, canDownload: models.canDownload)
+        let picker = ModelPicker(chosen: models.route.chosen, inUse: models.route.model, installs: models.installs,
+                                 canDownload: models.canDownload)
         SettingsGroup(title: "Transcription",
                       description: models.route.reason
                         ?? "Models run on this Mac. Downloads come from Hugging Face; what you say never leaves it.") {
@@ -51,7 +51,7 @@ struct TranscriptionGroup: View {
 
     private func perform(_ action: ModelPicker.Action, on id: ModelID) {
         switch action {
-        case .download, .retry: models.download(id)
+        case .download, .retry: models.request(id, in: library)
         case .cancel: models.cancel(id)
         }
     }
@@ -64,7 +64,7 @@ struct TranscriptionGroup: View {
         menu.autoenablesItems = false
         var chosenItem: NSMenuItem?
         for option in picker.options {
-            let item = ActionMenuItem(option.title) { models.pick(option.id, in: library) }
+            let item = ActionMenuItem(option.title) { models.request(option.id, in: library) }
             item.subtitle = option.note
             item.state = option.isChosen ? .on : .off
             item.isEnabled = option.isEnabled
@@ -76,7 +76,7 @@ struct TranscriptionGroup: View {
             let delete = NSMenuItem(title: "Delete a download", action: nil, keyEquivalent: "")
             let downloads = NSMenu()
             for option in picker.deletable {
-                let item = ActionMenuItem(option.title) { models.delete(option.id) }
+                let item = ActionMenuItem(option.title) { models.delete(option.id, in: library) }
                 item.subtitle = option.note
                 downloads.addItem(item)
             }

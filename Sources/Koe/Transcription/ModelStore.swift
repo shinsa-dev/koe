@@ -17,9 +17,6 @@ final class ModelStore {
     /// Parakeet's and Whisper's Core ML models run only on Apple silicon.
     let canDownload: Bool
     private(set) var installs: [ModelID: ModelInstall] = [:]
-    /// A model picked in Settings that is still downloading. It becomes the chosen model once it is in; until then
-    /// the chosen one keeps transcribing.
-    var pending: ModelID?
     /// Which model transcribes and why, as the transcriber last worked it out. Settings shows it.
     var route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil)
     /// Called on the main actor when a download starts, ends or is deleted, so the transcriber switches at once.
@@ -44,6 +41,17 @@ final class ModelStore {
     }
 
     func isInstalled(_ id: ModelID) -> Bool { install(id).isInstalled }
+
+    /// Koe's own choice of models from what is on this Mac, leaving out the ones you deleted.
+    func plan(deleted: Set<ModelID>) -> ModelPlan {
+        ModelPlan(installs: installs, deleted: deleted, canDownload: canDownload)
+    }
+
+    /// Starts the next download the plan has due, if any: Parakeet v3, then Whisper. Called at launch and whenever
+    /// a download ends, so they come one after the other by themselves.
+    func downloadNext(deleted: Set<ModelID>) {
+        if let id = plan(deleted: deleted).nextDownload { download(id) }
+    }
 
     /// Everything one model keeps on disk. Deleting it deletes the model.
     func folder(for id: ModelID) -> URL {
@@ -90,28 +98,22 @@ final class ModelStore {
         }
     }
 
-    /// Picks a model in Settings' dropdown. One that isn't on this Mac downloads first and stays pending, so the
-    /// chosen model keeps transcribing until it is in.
-    func pick(_ id: ModelID, in library: SessionLibrary) {
-        switch ModelPicker.choose(id, chosen: library.settings.transcriptionModel, install: install(id),
-                                  canDownload: canDownload) {
-        case .use:
-            pending = nil
-            library.update { $0.transcriptionModel = id }
-        case .download:
-            pending = nil
-            download(id)
-        case .downloadThenUse:
-            pending = id
-            download(id)
-        case .unavailable:
-            break
-        }
+    /// Downloads a model you asked for (Download, Try again), taking it off the models you deleted.
+    func request(_ id: ModelID, in library: SessionLibrary) {
+        if library.settings.deletedModels.contains(id) { library.update { $0.deletedModels.remove(id) } }
+        download(id)
     }
 
     /// Stops a download and throws away what it fetched.
     func cancel(_ id: ModelID) {
         downloads[id]?.cancel()
+    }
+
+    /// Deletes a model you asked to delete, and remembers it so Koe doesn't download it again by itself.
+    func delete(_ id: ModelID, in library: SessionLibrary) {
+        guard TranscriptionModel.model(id).needsDownload else { return }
+        library.update { $0.deletedModels.insert(id) }
+        delete(id)
     }
 
     func delete(_ id: ModelID) {

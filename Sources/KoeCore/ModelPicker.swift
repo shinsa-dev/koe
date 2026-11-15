@@ -18,28 +18,6 @@ public struct ModelPicker: Sendable, Equatable {
         case download, cancel, retry
     }
 
-    /// What picking a model in the dropdown does.
-    public enum Choice: Sendable, Equatable {
-        /// It can run now: it becomes the chosen model.
-        case use
-        /// It is already the chosen model but isn't on this Mac: download it.
-        case download
-        /// It isn't on this Mac: download it and choose it once it is in, keeping the chosen model until then.
-        case downloadThenUse
-        /// It can't be downloaded here.
-        case unavailable
-    }
-
-    /// What a download ending or starting means for the pending model.
-    public enum Settlement: Sendable, Equatable {
-        /// Still pending, or not the pending model.
-        case keep
-        /// It is in: choose it.
-        case adopt
-        /// Cancelled or deleted: forget it and stay on the chosen model.
-        case drop
-    }
-
     /// The model the dropdown shows: the pending one while it downloads, otherwise the chosen one.
     public let chosen: TranscriptionModel
     public let options: [Option]
@@ -106,25 +84,6 @@ public struct ModelPicker: Sendable, Equatable {
         }
         self.fraction = fraction
         self.isError = isError
-    }
-
-    /// Picking a model that isn't on this Mac yet starts its download, so picking it is all it takes, but the model
-    /// in use keeps transcribing until the download is in: a long, cancelled or failed download never leaves you on
-    /// Apple's model.
-    public static func choose(_ id: ModelID, chosen: ModelID, install: ModelInstall, canDownload: Bool) -> Choice {
-        if !TranscriptionModel.model(id).needsDownload || install.isInstalled { return .use }
-        guard canDownload else { return id == chosen ? .use : .unavailable }
-        return id == chosen ? .download : .downloadThenUse
-    }
-
-    /// What `changed`'s download state means for the pending model.
-    public static func settle(pending: ModelID?, changed: ModelID, install: ModelInstall) -> Settlement {
-        guard pending == changed else { return .keep }
-        return switch install {
-        case .installed: .adopt
-        case .notInstalled: .drop
-        case .downloading, .preparing, .failed: .keep
-        }
     }
 
     private static func note(_ model: TranscriptionModel, install: ModelInstall, canDownload: Bool) -> String {

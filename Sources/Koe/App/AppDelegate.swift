@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startTranscription()
         library.onSettingsChange = { [weak self] settings in
             self?.vocabulary.update(settings: settings)
-            if let self { transcriber.update(chosen: settings.transcriptionModel, store: models) }
+            if let self { followPlan() }
             self?.applyAppearance()
             if let self { clicks.setActive(clickToComment) }
             if settings.shortcuts != ShortcutCenter.shared.shortcuts, !Launch.isBackground {
@@ -124,9 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Launch.has("--settings") { openSettings() }
         if Launch.has("--start") { toggleSession() }
         if let script = Launch.value(after: "--script") { play(script) }
-        // For screenshots: `--download <model>` picks a model as the dropdown does, and `--snapshot <path>` draws the
-        // whole settings page into a PNG three seconds in, since the window scrolls and a locked screen captures nothing.
-        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.pick(id, in: library) }
+        // For screenshots: `--download <model>` downloads a model as its Download button does, and `--snapshot <path>`
+        // draws the whole settings page into a PNG three seconds in, since the window scrolls and a locked screen
+        // captures nothing.
+        if let id = Launch.value(after: "--download").flatMap(ModelID.init(rawValue:)) { models.request(id, in: library) }
         if let path = Launch.value(after: "--snapshot") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
@@ -349,33 +350,21 @@ extension AppDelegate {
         return item
     }
 
-    /// Picks the model sessions use, and on the first launch starts downloading the recommended one; Apple's model
-    /// transcribes until it is in, then Koe switches to it.
+    /// Koe picks its models itself (`ModelPlan`): it downloads Parakeet v3 and then Whisper, one after the other, and
+    /// streams with Parakeet once it has loaded; Apple's model transcribes until then.
     private func startTranscription() {
-        let standard = TranscriptionModel.standard.id
-        models.onChange = { [weak self] id in
-            guard let self else { return }
-            if id == standard, models.isInstalled(id), !library.settings.startedFirstDownload {
-                library.update { $0.startedFirstDownload = true }
-            }
-            switch ModelPicker.settle(pending: models.pending, changed: id, install: models.install(id)) {
-            case .adopt:
-                models.pending = nil
-                library.update { $0.transcriptionModel = id }
-            case .drop: models.pending = nil
-            case .keep: break
-            }
-            transcriber.update(chosen: library.settings.transcriptionModel, store: models)
-        }
+        models.onChange = { [weak self] _ in self?.followPlan() }
         transcriber.onRouteChange = { [models] route in models.route = route }
-        // Until the first download is in, every launch tries again, so quitting halfway through doesn't leave Koe
-        // on Apple's model for good.
-        if !library.settings.startedFirstDownload, library.settings.transcriptionModel == standard {
-            models.download(standard)
-        }
-        transcriber.update(chosen: library.settings.transcriptionModel, store: models)
+        followPlan()
         models.route = transcriber.currentRoute
         recoverUnfinished()
+    }
+
+    /// Starts the download the plan has due and hands the transcriber the model to stream with.
+    private func followPlan() {
+        let deleted = library.settings.deletedModels
+        models.downloadNext(deleted: deleted)
+        transcriber.update(live: models.plan(deleted: deleted).liveCandidate, store: models)
     }
 
     /// Readies the speech model so the first session's audio reaches it at once, then finishes any recording a crash

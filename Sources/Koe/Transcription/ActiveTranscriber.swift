@@ -2,9 +2,9 @@ import Foundation
 import KoeCore
 import os
 
-/// The transcriber sessions use: the model chosen in Settings once it is downloaded and has loaded, otherwise Apple's.
-/// It switches as soon as the choice or a download changes, without a relaunch; a session already running keeps the
-/// model it started with.
+/// The transcriber sessions use: the model `ModelPlan` streams with once it is downloaded and has loaded, otherwise
+/// Apple's. It switches as soon as a download lands or is deleted, without a relaunch; a session already running keeps
+/// the model it started with.
 final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "transcription")
 
@@ -17,7 +17,7 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     /// Models that have loaded in this run. Only these take a session, so none waits on a load.
     private var ready: Set<ModelID> = []
     private var route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil)
-    /// Called on the main actor whenever the model that runs, or the reason it isn't the chosen one, changes.
+    /// Called on the main actor whenever the model that runs, or the reason it isn't the live candidate, changes.
     @MainActor var onRouteChange: ((TranscriberRoute) -> Void)?
     @MainActor private var refresh: (() -> Void)?
 
@@ -29,11 +29,12 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
 
     var currentRoute: TranscriberRoute { lock.withLock { route } }
 
-    /// Works out which model runs for `chosen` and readies it. Call again whenever the choice or a download changes.
-    @MainActor func update(chosen: ModelID, store: ModelStore) {
+    /// Works out whether `live` (the plan's `liveCandidate`) can run and readies it. Call again whenever a download
+    /// changes.
+    @MainActor func update(live chosen: ModelID, store: ModelStore) {
         refresh = { [weak self, weak store] in
             guard let self, let store else { return }
-            self.update(chosen: chosen, store: store)
+            self.update(live: chosen, store: store)
         }
         let install = store.install(chosen)
         let next = lock.withLock { () -> (route: TranscriberRoute, warm: (ModelID, WindowedTranscriber?))? in
@@ -44,16 +45,20 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
             let runnable = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
                                                     loadError: loadErrors[chosen])
             var model: WindowedTranscriber?
+            var made = false
             if runnable.model != .apple {
+                made = loaded[chosen] == nil
                 model = loaded[chosen] ?? Self.make(chosen, store: store)
                 loaded[chosen] = model
             }
             let route = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
                                                  loadError: loadErrors[chosen], isLoaded: ready.contains(chosen))
-            let changed = route != self.route || current.id != route.model
+            // A model that just landed reads `.preparing` as it did while its download compiled, so the route alone
+            // can't tell that it needs loading now.
+            let changed = route != self.route || current.id != route.model || made && model != nil
             self.route = route
             current = route.model == .apple ? (.apple, nil) : (chosen, model)
-            // Until the chosen model has loaded, it loads in the background while Apple's takes the sessions.
+            // Until the live model has loaded, it loads in the background while Apple's takes the sessions.
             let warm: (ModelID, WindowedTranscriber?) = route.fallback == .preparing && model != nil
                 ? (chosen, model) : current
             return changed ? (route, warm) : nil

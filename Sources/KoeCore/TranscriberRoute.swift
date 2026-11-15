@@ -1,7 +1,7 @@
 import Foundation
 
-/// Which model transcribes now: the one chosen in Settings when it can run, otherwise Apple's built-in model, with
-/// the reason Settings shows.
+/// Which model transcribes now: the one `ModelPlan` streams with (`liveCandidate`) when it can run, otherwise Apple's
+/// built-in model, with the reason Settings shows.
 public struct TranscriberRoute: Sendable, Equatable {
     public enum Fallback: Sendable, Equatable {
         case notDownloaded
@@ -41,12 +41,12 @@ public struct TranscriberRoute: Sendable, Equatable {
         return TranscriberRoute(chosen: chosen, fallback: fallback)
     }
 
-    /// Why Apple's model runs instead of the chosen one, or nil when the chosen one runs.
+    /// Why Apple's model runs instead of the live candidate, or nil when the candidate runs.
     public var reason: String? {
         guard let fallback else { return nil }
         let name = TranscriptionModel.model(chosen).name
         return switch fallback {
-        case .notDownloaded: "\(name) isn't downloaded, so Koe uses Apple's model."
+        case .notDownloaded: "Koe uses Apple's model until \(name) is downloaded."
         case .downloading: "Koe uses Apple's model until \(name) finishes downloading."
         case .preparing: "Koe uses Apple's model while \(name) gets ready for this Mac."
         case .needsAppleSilicon: "\(name) needs a Mac with Apple silicon, so Koe uses Apple's model."
