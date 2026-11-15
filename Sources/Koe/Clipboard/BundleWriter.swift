@@ -29,7 +29,7 @@ enum BundleWriter {
     static func paste() async -> Bool {
         guard AXIsProcessTrusted(), !NSApp.isActive else { return false }
         // Gives the app in front a moment to see the new clipboard, and you to let go of the stop hotkey's keys.
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: PastePlan.autoPasteDelay)
         BundlePaster.pressPaste()
         return true
     }

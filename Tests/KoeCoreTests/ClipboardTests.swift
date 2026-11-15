@@ -96,6 +96,13 @@ struct PastePlanTests {
     @Test func anUnknownAppGetsTheFiles() {
         #expect(PastePlan.takesFiles(appWithBundleID: nil))
     }
+
+    @Test func theFilesFollowTheWordsWithoutAWaitYouCanSee() {
+        for delay in [PastePlan.filesDelay, PastePlan.autoPasteDelay] {
+            #expect(delay > .zero)
+            #expect(delay <= .milliseconds(100))
+        }
+    }
 }
 
 struct KoeSettingsTests {

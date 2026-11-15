@@ -58,6 +58,13 @@ public enum PastePlan {
         return files.isEmpty ? nil : Split(words: words, files: files)
     }
 
+    /// From your ⌘V to the files' paste. Apps read the clipboard as they handle the key down, so this only has to
+    /// outlast that, not your hold on ⌘: Koe's own ⌘V carries the flag itself.
+    public static let filesDelay: Duration = .milliseconds(80)
+
+    /// From copying to "Paste for you" pressing ⌘V, so the app in front sees the new clipboard first.
+    public static let autoPasteDelay: Duration = .milliseconds(100)
+
     /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out. So do
     /// code editors, whose editor and built-in terminal paste a file the same way.
     public static func takesFiles(appWithBundleID id: String?) -> Bool {
