@@ -115,7 +115,7 @@ final class Refiner {
     static func makeReader(_ id: ModelID, store: ModelStore, hints: HintWords) -> (any Transcriber)? {
         switch TranscriptionModel.model(id).engine {
         case .parakeet: WindowedTranscriber.parakeet(id, store: store)
-        case .whisper: WindowedTranscriber.whisper(id, store: store, hints: hints)
+        case .whisper: WindowedTranscriber.whisper(id, store: store)
         case .apple: AppleSpeechTranscriber(hints: hints)
         }
     }

@@ -252,8 +252,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   stays prose; one you added (`paywall-next`) does.
   A replaced run keeps its first start and last end, its outer punctuation and a capital at a
   sentence start. It takes well under 5 ms for a long session (tested). Apple's model also gets the words as
-  contextual strings, and Whisper as prompt tokens (`HintWords`), read when a session starts; Parakeet has no hints
-  and relies on the fix.
+  contextual strings (`HintWords`), read when a session starts. Whisper gets no prompt: WhisperKit then times every
+  word of a stretch at its end, which would move attachments off their words. Whisper and Parakeet rely on the fix.
 - **Learned names.** `Vocabulary` shows the last scan's names at once from `Koe/LearnedNames.json` in Application
   Support and scans again in the background when that is over six hours old (checked at launch and every hour while Koe
   runs), never on the path of a session.
