@@ -20,9 +20,9 @@ private final class Take {
     var awaitingWords = false
     /// The model never settled within `settleLimit`, so silence in the transcript proves nothing.
     var gaveUp = false
-    /// The short wait for the last words to settle has begun, and whether it is over.
-    var finalWaitStarted = false
-    var finalWaitOver = false
+    /// When finishing began (system uptime), and whether the wait for the last words has begun and is over.
+    var stoppedAt: TimeInterval?
+    var finalWaitStarted = false, finalWaitOver = false
 
     init(source: any AudioSource, root: URL) {
         self.source = source
@@ -50,7 +50,7 @@ private final class Take {
 }
 
 /// Runs one dictation session at a time. Recording starts the moment you ask: the microphone opens at once and the
-/// model catches up on what it missed. Finishing waits up to `finalWait` for the last words, copies what has been
+/// model catches up on what it missed. Finishing waits for the last words within the 50 ms budget, copies what has been
 /// heard, and refines the copy if they settle later.
 @MainActor
 @Observable
@@ -92,8 +92,6 @@ final class SessionController {
     @ObservationIgnored var failureDisplay: Duration = .seconds(6)
     /// How long a finished session waits for the model's words before it is copied with what there is.
     @ObservationIgnored var settleLimit: Duration = .seconds(10)
-    /// How long a finished session waits for its last words to settle before it is copied with the model's guess.
-    @ObservationIgnored var finalWait: Duration = .milliseconds(1500)
 
     init(transcriber: any Transcriber, sessionsRoot: URL = SessionController.defaultRoot,
          makeSource: @escaping () -> any AudioSource) {
@@ -171,6 +169,7 @@ final class SessionController {
     func finish() {
         guard phase.isOpen, let take else { return }
         phase = .finishing
+        take.stoppedAt = ProcessInfo.processInfo.systemUptime
         take.source.stop()
         deliverIfReady()
     }
@@ -369,13 +368,14 @@ final class SessionController {
 }
 
 private extension SessionController {
-    /// Starts the short wait for the last words once; when it runs out, the session is copied with what it has.
+    /// Waits once for the last words, for what is left of the budget; then the copy is made and refined later.
     func waitForLastWords(on take: Take) {
         guard !take.finalWaitStarted else { return }
         take.finalWaitStarted = true
-        let wait = finalWait
+        let elapsed = take.stoppedAt.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
+        let wait = Duration.seconds(Delivery.lastWordsWait(after: elapsed))
         Task { [weak self] in
-            try? await Task.sleep(for: wait)
+            try? await Task.sleep(for: wait, tolerance: .zero)
             take.finalWaitOver = true
             guard let self, take === self.take else { return }
             deliverIfReady()
