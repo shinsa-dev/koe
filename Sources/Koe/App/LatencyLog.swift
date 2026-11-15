@@ -1,10 +1,12 @@
 import Foundation
 import KoeCore
+import OSLog
 
 /// Stamps the stages of the session that runs now. Stages come from the main thread, the audio thread and the
 /// transcriber, so it is thread safe. A trace begins at the shortcut that starts a session and ends once it is copied.
 final class LatencyLog: @unchecked Sendable {
     static let shared = LatencyLog()
+    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "latency")
 
     private let lock = NSLock()
     private var current: LatencyTrace?
@@ -23,6 +25,7 @@ final class LatencyLog: @unchecked Sendable {
             }
             current?.mark(stage, at: now)
             if stage == .copied, let trace = current {
+                if let breach = trace.breach { Self.log.error("\(breach, privacy: .public)") }
                 done.append(trace)
                 last = trace
                 current = nil

@@ -87,6 +87,20 @@ public struct LatencyTrace: Sendable, Equatable {
         return steps.max { $0.1 < $1.1 }
     }
 
+    /// One line for the log when the session missed the budget, naming where the time went; nil when it met it or
+    /// isn't measured yet.
+    public var breach: String? {
+        guard let start, let finish, !meetsBudget else { return nil }
+        let slowest = slowestStep.map { ", slowest step \($0.stage.name) \(Self.ms($0.took)) ms" } ?? ""
+        return "Over the \(Self.ms(Self.budget)) ms cap: start \(Self.ms(start)) ms, finish \(Self.ms(finish)) ms\(slowest)."
+    }
+
+    /// Seconds the last pass took, from the audio's end to its words.
+    public var lastPass: TimeInterval? {
+        guard let started = marks[.lastPassStarted], let done = marks[.lastPassDone] else { return nil }
+        return done - started
+    }
+
     /// "start 12.3 ms (recording open 3.1, pill shown 12.3, first audio 410.2) · finish 1534.0 ms (…)".
     public var summary: String {
         func part(_ name: String, _ total: TimeInterval?, _ stages: [(stage: Stage, after: TimeInterval)]) -> String {
@@ -130,6 +144,26 @@ public struct LatencyReport: Sendable, Equatable {
             guard let worst = times.max() else { return "\(name): not measured" }
             return "\(name): median \(LatencyTrace.ms(Self.median(times))) ms, worst \(LatencyTrace.ms(worst)) ms"
         }
+    }
+
+    /// What the run says about the model as the live one: whether every start and finish met the cap, and whether its
+    /// last pass is quick enough to put the last words in the copy or only refines it afterwards.
+    public func verdict(model: String) -> [String] {
+        let cap = LatencyTrace.ms(LatencyTrace.budget)
+        guard !traces.isEmpty else { return ["\(model): nothing measured."] }
+        let missed = traces.filter { !$0.meetsBudget }.count
+        var lines = [missed == 0
+            ? "\(model) meets the \(cap) ms cap: every start and finish was within it."
+            : "\(model) missed the \(cap) ms cap in \(missed) of \(traces.count) sessions."]
+        let passes = traces.compactMap(\.lastPass)
+        if !passes.isEmpty {
+            let pass = Self.median(passes)
+            lines.append(pass <= LatencyTrace.budget
+                ? "Its last pass takes \(LatencyTrace.ms(pass)) ms (median), so the copy has the last words."
+                : "Its last pass takes \(LatencyTrace.ms(pass)) ms (median), over the cap: the copy goes out first "
+                    + "and the last words refine it.")
+        }
+        return lines
     }
 
     static func median(_ times: [TimeInterval]) -> TimeInterval {

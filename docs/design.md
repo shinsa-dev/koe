@@ -56,6 +56,14 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   the model's latest guess included; when the last words settle later, the session is saved again and the clipboard
   is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
+- **The 50 ms cap.** Starting (shortcut to pill shown and recording open) and finishing (shortcut to the words on the
+  clipboard) each take at most 50 ms. Every session stamps its stages (`LatencyTrace`, `LatencyLog`); one over the cap
+  writes a line to the log naming the slowest step (category `latency`). `scripts/sandbox.sh --with-models --latency
+  [--model <id>]` plays your recordings into real sessions, prints each stage and a verdict for the model, and exits
+  with 2 when any start or finish went over. Parakeet's last pass takes 60 to 220 ms, so its copy usually goes out
+  before the last words, which then refine it. Whisper's passes take about 0.67 s: it can't settle the last words
+  within the cap, so it suits refining a copy, not streaming one. The microphone device's own start and Koe's paste
+  into the app you're in come after the cap and aren't part of it.
 - **Nothing is lost.** The audio is on disk as it is recorded (CAF stays readable when Koe is killed mid-write) and
   `draft.json` lists the attachments so far. At launch, a folder with audio and no `session.json` is a recording Koe
   never finished: it is transcribed from the file and saved to Recent sessions (`SessionArchive.unfinished`,

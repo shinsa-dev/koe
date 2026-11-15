@@ -6,6 +6,7 @@ import KoeCore
 /// into real sessions, presses the shortcut to start and to finish each one as you would, and prints how long every
 /// stage of starting and finishing took (`LatencyTrace`). Each recording plays at its own pace, then silence follows
 /// until the run finishes it, as a microphone would. With no files it takes your newest recordings of 30 s or less.
+/// It exits with 2 when any start or finish took more than 50 ms.
 @MainActor
 enum LatencyRun {
     static let isOn = Launch.has("--latency")
@@ -73,8 +74,8 @@ enum LatencyRun {
             }
         }
         let report = LatencyReport(traces)
-        for line in report.lines { print(line) }
-        return 0
+        for line in report.lines + report.verdict(model: model.name) { print(line) }
+        return report.meetsBudget ? 0 : 2
     }
 
     /// One session: starts it, lets the recording play out, finishes it and waits for the copy.

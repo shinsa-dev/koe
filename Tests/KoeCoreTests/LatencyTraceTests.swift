@@ -83,4 +83,27 @@ struct LatencyTraceTests {
         #expect(LatencyReport([trace(quick)]).meetsBudget)
         #expect(!LatencyReport([]).meetsBudget)
     }
+
+    @Test func aSessionWithinTheCapLogsNothing() {
+        #expect(trace(quick).breach == nil)
+    }
+
+    @Test func aSlowFinishLogsOneLineNamingTheSlowestStep() {
+        let slow = trace(quick.merging([.delivered: 20.07, .copied: 20.075]) { _, late in late })
+        #expect(slow.breach == "Over the 50.0 ms cap: start 12.0 ms, finish 75.0 ms, slowest step last pass done 37.0 ms.")
+    }
+
+    @Test func theVerdictSaysWhetherTheModelMeetsTheCapAndWhetherItsLastPassFits() {
+        #expect(LatencyReport([trace(quick)]).verdict(model: "Parakeet v3") == [
+            "Parakeet v3 meets the 50.0 ms cap: every start and finish was within it.",
+            "Its last pass takes 37.0 ms (median), so the copy has the last words.",
+        ])
+        let whisper = trace(quick.merging([.lastPassDone: 20.7, .copied: 20.06]) { _, late in late })
+        #expect(LatencyReport([trace(quick), whisper]).verdict(model: "Whisper") == [
+            "Whisper missed the 50.0 ms cap in 1 of 2 sessions.",
+            "Its last pass takes 367.0 ms (median), over the cap: the copy goes out first and the last words refine it.",
+        ])
+        #expect(LatencyReport([]).verdict(model: "Apple") == ["Apple: nothing measured."])
+        #expect(!LatencyReport([whisper]).meetsBudget)
+    }
 }
