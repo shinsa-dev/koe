@@ -140,14 +140,18 @@ public struct LatencyReport: Sendable, Equatable {
 
     /// One line per stage: its median and worst time since the shortcut, in milliseconds.
     public var lines: [String] {
-        let start = LatencyTrace.Stage.start + LatencyTrace.Stage.afterStart
-        let rows: [(String, [TimeInterval])] =
-            [("start", traces.compactMap(\.start))]
-            + start.map { stage in ("  " + stage.name, traces.compactMap { $0.startStages.first { $0.stage == stage }?.after }) }
-            + [("finish", traces.compactMap(\.finish))]
-            + (LatencyTrace.Stage.finish + LatencyTrace.Stage.afterFinish).map { stage in
-                ("  " + stage.name, traces.compactMap { $0.finishStages.first { $0.stage == stage }?.after })
-            }
+        let startStages: [LatencyTrace.Stage] = LatencyTrace.Stage.start + LatencyTrace.Stage.afterStart
+        let finishStages: [LatencyTrace.Stage] = LatencyTrace.Stage.finish + LatencyTrace.Stage.afterFinish
+        var rows: [(String, [TimeInterval])] = [("start", traces.compactMap(\.start))]
+        for stage in startStages {
+            let times: [TimeInterval] = traces.compactMap { trace in trace.startStages.first { $0.stage == stage }?.after }
+            rows.append(("  " + stage.name, times))
+        }
+        rows.append(("finish", traces.compactMap(\.finish)))
+        for stage in finishStages {
+            let times: [TimeInterval] = traces.compactMap { trace in trace.finishStages.first { $0.stage == stage }?.after }
+            rows.append(("  " + stage.name, times))
+        }
         return rows.map { name, times in
             guard let worst = times.max() else { return "\(name): not measured" }
             return "\(name): median \(LatencyTrace.ms(Self.median(times))) ms, worst \(LatencyTrace.ms(worst)) ms"
