@@ -54,8 +54,10 @@ final class SessionLibrary {
 
     /// Saves and copies a session that just ended, and returns what the pill should say.
     func finished(_ session: Session, folder: URL) async -> PillNotice {
+        LatencyLog.shared.mark(.delivered)
         save(session, in: folder)
         let items = copy(session)
+        LatencyLog.shared.mark(.copied)
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
         lastCopy = (session.id, Self.text(of: items))
         let pasted = settings.autoPaste && touchesClipboard ? await BundleWriter.paste() : false
@@ -66,6 +68,7 @@ final class SessionLibrary {
     /// Saves a session again once its last words settled. When the clipboard still holds the copy made when it
     /// ended, the copy is replaced with the settled one; anything you copied since is left alone.
     func refined(_ session: Session, folder: URL) {
+        LatencyLog.shared.mark(.refined)
         save(session, in: folder)
         guard let lastCopy, lastCopy.id == session.id,
               paster.clipboardReads(lastCopy.text) || paster.delivering else { return }

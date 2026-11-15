@@ -33,9 +33,10 @@ public enum RecorderPhase: Sendable, Equatable {
     public var isOpen: Bool { self == .recording || self == .paused }
 }
 
-/// When a stopped session can be copied. Koe gives the model a moment to settle the last words, as a copy made
-/// before then can miss them, then copies with what it has and refines the copy when they settle. It waits longer
-/// only for a tool you still have open, or when the model has not produced a single word yet but is still working.
+/// When a stopped session can be copied. Koe gives the model's last pass what is left of the 50 ms budget
+/// (`lastWordsWait`), as a copy made before then can miss the last words, then copies with what it has and refines
+/// the copy when they settle. It waits longer only for a tool you still have open, or when the model has not produced
+/// a single word yet but is still working.
 public enum Delivery: Sendable, Equatable {
     /// A tool is still open on the session: its annotation belongs in the copy.
     case wait
@@ -46,6 +47,16 @@ public enum Delivery: Sendable, Equatable {
     /// The short wait is over, nothing is heard yet and the model is still catching up: the session ends now and
     /// copies once it has the words.
     case whenSettled
+
+    /// What the copy takes once the wait is over: the main actor waking (up to about 7 ms late), the snapshot, the
+    /// dictionary and the clipboard.
+    public static let copyMargin: TimeInterval = 0.015
+
+    /// How long finishing waits for the last pass, `elapsed` seconds after the shortcut: the rest of
+    /// `LatencyTrace.budget`, less the time the copy takes.
+    public static func lastWordsWait(after elapsed: TimeInterval) -> TimeInterval {
+        max(0, LatencyTrace.budget - copyMargin - elapsed)
+    }
 
     public static func decide(openTools: Int, hasContent: Bool, transcriptDone: Bool, waitedForWords: Bool)
         -> Delivery {

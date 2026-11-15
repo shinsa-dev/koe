@@ -57,3 +57,21 @@ public enum SetupAction: Sendable, Equatable {
     case request
     case openSettings
 }
+
+/// How a start treats the microphone permission. Asking macOS takes 50 to 100 ms, more than the whole start may, so a
+/// start trusts the last answer and asks again once the session runs.
+public enum MicrophoneGate: Sendable, Equatable {
+    /// Start now and ask macOS again behind the session.
+    case startThenRecheck
+    /// The last answer wasn't granted: ask macOS now, as it may have changed since.
+    case askFirst
+
+    public static func onStart(lastKnown: PermissionStatus) -> MicrophoneGate {
+        lastKnown == .granted ? .startThenRecheck : .askFirst
+    }
+
+    /// After the check behind a started session: anything but granted means access is gone.
+    public static func isRevoked(recheck: PermissionStatus) -> Bool {
+        recheck != .granted
+    }
+}
