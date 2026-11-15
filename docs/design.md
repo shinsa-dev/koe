@@ -45,7 +45,11 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - **No waiting states.** The hotkey opens the microphone at once and the pill is recording straight away.
   `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
   the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
-  assets, format) is worked out at launch and kept.
+  assets, format) is worked out at launch and kept. Starting takes a few milliseconds: the microphone engine is
+  prepared at launch and again after each session, so a start only asks the device to run, and the audio follows on
+  the engine's own queue. Asking macOS about the microphone takes 50 to 100 ms, so a start trusts the last answer and
+  asks again behind the session (`MicrophoneGate`); if access is gone, the session is thrown away and setup opens.
+  Only an answer other than granted is asked before starting.
 - **Finishing copies within 50 ms** (`Delivery`): when you finish, the audio ends at once and the model's last pass
   starts straight away. Koe waits for it only for what is left of the 50 ms budget, less 15 ms for the copy itself
   (`Delivery.lastWordsWait`). If the pass is back by then, its words are the copy. Past that it copies what it has,

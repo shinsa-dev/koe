@@ -149,11 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func toggleSession() {
         LatencyLog.shared.mark(sessions.phase.toggleIntent == .start ? .startPressed : .finishPressed)
         if sessions.phase.toggleIntent == .start, audioFile == nil, !LatencyRun.isOn {
-            permissions.refresh()
-            guard permissions.checklist.status(of: .microphone) == .granted else {
-                openSetup()
-                return
-            }
+            if !permissions.startWithMicrophone(start: sessions.toggle, revoked: { [weak self] in
+                self?.sessions.cancel()
+                self?.openSetup()
+            }) { openSetup() }
+            return
         }
         sessions.toggle()
     }

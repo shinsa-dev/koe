@@ -80,6 +80,8 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         running = false
+        // Stopping frees what `prepare` allocated; ready it again so the next session only starts the device.
+        engine.prepare()
     }
 
     private func deviceChanged() {
