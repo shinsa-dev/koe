@@ -40,6 +40,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
             guard !stream.isStopped else { return }
             do {
                 try startEngine()
+                LatencyLog.shared.mark(.deviceStarted)
             } catch {
                 Self.log.error("Could not open the microphone: \(error.localizedDescription, privacy: .public)")
                 stream.stop()

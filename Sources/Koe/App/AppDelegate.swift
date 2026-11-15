@@ -7,10 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let permissions = PermissionCenter(defaults: Launch.defaults)
     private let vocabulary = Vocabulary()
-    private lazy var transcriber = ActiveTranscriber(hints: vocabulary.hints)
+    private(set) lazy var transcriber = ActiveTranscriber(hints: vocabulary.hints)
     private let models = ModelStore()
     private(set) lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
-        if let audioFile { FileSource(url: audioFile) } else { MicrophoneSource() }
+        LatencyRun.source(playing: audioFile)
     }
     private(set) lazy var tools = ToolCoordinator(
         sessions: sessions, permissions: permissions,
@@ -147,7 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func toggleSession() {
-        if sessions.phase.toggleIntent == .start, audioFile == nil {
+        LatencyLog.shared.mark(sessions.phase.toggleIntent == .start ? .startPressed : .finishPressed)
+        if sessions.phase.toggleIntent == .start, audioFile == nil, !LatencyRun.isOn {
             permissions.refresh()
             guard permissions.checklist.status(of: .microphone) == .granted else {
                 openSetup()

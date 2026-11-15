@@ -130,6 +130,7 @@ final class PillController {
     var isVisible: Bool { panel.isVisible }
 
     func show() {
+        defer { LatencyLog.shared.mark(.pillShown) }
         guard !Launch.isBackground else { return }
         pendingHide?.cancel()
         if !panel.isVisible {

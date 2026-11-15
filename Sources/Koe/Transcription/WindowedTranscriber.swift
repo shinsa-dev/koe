@@ -88,6 +88,8 @@ struct WindowedTranscriber: Transcriber {
             return Int(from * rate)
         }
         let samples = snapshot.samples
+        if snapshot.ended { LatencyLog.shared.mark(.lastPassStarted) }
+        defer { if snapshot.ended { LatencyLog.shared.mark(.lastPassDone) } }
         let tokens: [TimedToken]
         if samples.isEmpty {
             tokens = []

@@ -54,8 +54,10 @@ final class SessionLibrary {
 
     /// Saves and copies a session that just ended, and returns what the pill should say.
     func finished(_ session: Session, folder: URL) async -> PillNotice {
+        LatencyLog.shared.mark(.delivered)
         save(session, in: folder)
         let items = copy(session)
+        LatencyLog.shared.mark(.copied)
         guard !items.isEmpty else { return PillNotice(kind: .neutral, title: "Nothing to copy") }
         lastCopy = (session.id, Self.text(of: items))
         let pasted = settings.autoPaste && touchesClipboard ? await BundleWriter.paste() : false

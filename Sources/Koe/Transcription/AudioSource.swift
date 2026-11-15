@@ -63,6 +63,7 @@ final class CaptureStream: @unchecked Sendable {
     private var listener: Listener?
 
     func open(recording url: URL?) throws {
+        defer { LatencyLog.shared.mark(.captureOpen) }
         guard let url else { return }
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
@@ -83,6 +84,7 @@ final class CaptureStream: @unchecked Sendable {
         let level = samples.map { AudioLevel.normalized(rms: AudioLevel.rms($0)) } ?? 0
         lock.withLock {
             guard !paused, !stopped else { return }
+            if frames == 0 { LatencyLog.shared.mark(.firstAudio) }
             do {
                 try file?.write(from: buffer)
             } catch {
@@ -132,6 +134,7 @@ final class CaptureStream: @unchecked Sendable {
         let finish = lock.withLock { () -> (@Sendable () -> Void)? in
             guard !stopped else { return nil }
             stopped = true
+            LatencyLog.shared.mark(.audioEnded)
             file = nil
             defer { listener = nil }
             return listener?.finish
