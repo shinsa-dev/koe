@@ -10,6 +10,10 @@ if let flag = CommandLine.arguments.firstIndex(of: "--bench") {
     dispatchMain()
 }
 
+if let flag = CommandLine.arguments.firstIndex(of: "--names") {
+    exit(MainActor.assumeIsolated { NamesCommand.run(Array(CommandLine.arguments.dropFirst(flag + 1))) })
+}
+
 let app = NSApplication.shared
 // A background run never joins the Dock, ⌘Tab or the menu bar, and never takes focus.
 app.setActivationPolicy(Launch.isBackground ? .prohibited : .accessory)
