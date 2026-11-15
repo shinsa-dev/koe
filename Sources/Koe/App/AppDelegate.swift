@@ -5,7 +5,7 @@ import KoeCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
-    private let permissions = PermissionCenter()
+    private let permissions = PermissionCenter(defaults: Launch.defaults)
     private let transcriber = ActiveTranscriber()
     private let models = ModelStore()
     private(set) lazy var sessions = SessionController(transcriber: transcriber) { [audioFile] in
@@ -20,8 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let nowPlaying = NowPlaying()
     /// Whether the last phase took audio, so pausing what plays follows the session opening and closing.
     private var sessionWasOpen = false
-    private var pausesMedia: Bool { library.settings.pauseMedia && audioFile == nil }
-    private lazy var library = SessionLibrary(root: SessionController.defaultRoot)
+    private var pausesMedia: Bool { library.settings.pauseMedia && audioFile == nil && !Launch.isBackground }
+    private var clickToComment: Bool { library.settings.clickToComment && !Launch.isBackground }
+    private lazy var library = SessionLibrary(
+        root: SessionController.defaultRoot, defaults: Launch.defaults, touchesClipboard: !Launch.isBackground
+    )
     private lazy var updater = Updater(library: library)
     private lazy var settingsWindow: SettingsWindowController = {
         let controller = SettingsWindowController(
@@ -51,19 +54,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Typography.registerFonts()
         applyAppearance()
         NSApp.mainMenu = MainMenu.build(target: self)
-        statusItem = makeStatusItem()
 
         wireSessions()
-        if audioFile == nil, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
-            MicrophoneSource.prewarm()
-        }
         startTranscription()
-        updater.start()
         library.onSettingsChange = { [weak self] settings in
             if let self { transcriber.update(chosen: settings.transcriptionModel, store: models) }
             self?.applyAppearance()
-            self?.clicks.setActive(settings.clickToComment)
-            if settings.shortcuts != ShortcutCenter.shared.shortcuts { ShortcutCenter.shared.apply(settings.shortcuts) }
+            if let self { clicks.setActive(clickToComment) }
+            if settings.shortcuts != ShortcutCenter.shared.shortcuts, !Launch.isBackground {
+                ShortcutCenter.shared.apply(settings.shortcuts)
+            }
             if let self { nowPlaying.prepare(enabled: pausesMedia) }
         }
         permissions.onSystemAudioChange = { [weak self] in if let self { nowPlaying.prepare(enabled: pausesMedia) } }
@@ -77,26 +77,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .screenshot: { [weak self] in self?.takeScreenshot() },
             .clip: { [weak self] in self?.recordClip() },
         ]
-        ShortcutCenter.shared.apply(library.settings.shortcuts)
         ShortcutCenter.shared.onTrustChange = { [weak self] in
             guard let self else { return }
             permissions.refresh()
             clicks.setActive(false)
-            clicks.setActive(library.settings.clickToComment)
+            clicks.setActive(clickToComment)
         }
         clicks.onClick = { [weak self] in self?.commentWhereClicked($0) ?? false }
         clicks.onOtherClick = { [weak self] in self?.tools.clickedElsewhere(at: $0) }
-        clicks.setActive(library.settings.clickToComment)
+        clicks.setActive(clickToComment)
         if let path = Launch.value(after: "--backdrop"), let image = NSImage(contentsOfFile: path) {
             tools.backdrop = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
         tools.freezesScreen = { [weak self] in self?.library.settings.freezeScreen ?? true }
         tools.clipFile = Launch.value(after: "--clip-file").map { URL(fileURLWithPath: $0) }
 
+        if !Launch.isBackground { joinTheMac() }
+        followLaunchFlags()
+    }
+
+    /// What a run for tests (`--background`) leaves out: the menu bar item, the shortcuts, the microphone warming up,
+    /// updates and the setup window.
+    private func joinTheMac() {
+        statusItem = makeStatusItem()
+        ShortcutCenter.shared.apply(library.settings.shortcuts)
+        if audioFile == nil, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            MicrophoneSource.prewarm()
+        }
+        updater.start()
         if audioFile == nil, !permissions.checklist.isReady || Launch.has("--setup") {
             openSetup()
         }
-        followLaunchFlags()
     }
 
     /// The flags that drive Koe for screenshots and tests (README, Notes).
@@ -115,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.settingsWindow.snapshot(to: URL(fileURLWithPath: path))
             }
+        }
+        if let path = Launch.value(after: "--snapshots") {
+            SettingsWatch.start(into: URL(fileURLWithPath: path), models: models, window: settingsWindow)
         }
     }
 
@@ -211,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// A window open means Koe is an app you switch to: it joins the Dock and ⌘Tab until the window closes.
     private func present() {
+        guard !Launch.isBackground else { return }
         NSApp.setActivationPolicy(.regular)
         settingsWindow.present()
     }
@@ -247,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         // Asked again on each change, so the click is kept from the app under it once Accessibility is allowed.
-        clicks.setActive(library.settings.clickToComment)
+        clicks.setActive(clickToComment)
         if phase == .finishing { tools.sessionStopping() }
     }
 
@@ -293,6 +308,14 @@ extension AppDelegate {
 
 enum Launch {
     static func has(_ flag: String) -> Bool { CommandLine.arguments.contains(flag) }
+
+    /// `--background`: a run for tests (`scripts/sandbox.sh`) that never shows itself or reaches into your Mac: no
+    /// menu bar item, windows, pill, shortcuts, clicks, clipboard, media pausing or updates.
+    static let isBackground = has("--background")
+    /// A background run keeps its settings apart from every other Koe's; `scripts/sandbox.sh --fresh` clears them.
+    static var defaults: UserDefaults {
+        isBackground ? UserDefaults(suiteName: "studio.shinsa.koe.sandbox") ?? .standard : .standard
+    }
 
     static func value(after flag: String) -> String? {
         guard let index = CommandLine.arguments.firstIndex(of: flag), CommandLine.arguments.indices.contains(index + 1)

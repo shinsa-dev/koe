@@ -20,34 +20,45 @@ actor WhisperDecoder: WindowDecoder {
         _ = try await gate.run { try await self.loaded() }
     }
 
-    func decode(_ samples: [Float]) async throws -> [TimedToken] {
+    func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow {
         try await gate.run {
             let whisper = try await self.loaded()
             let options = DecodingOptions(
-                task: .transcribe, detectLanguage: true, skipSpecialTokens: true, wordTimestamps: true,
-                chunkingStrategy: .vad
+                task: .transcribe, language: language, detectLanguage: language == nil, skipSpecialTokens: true,
+                wordTimestamps: true, chunkingStrategy: .vad
             )
             let results = try await whisper.value.transcribe(audioArray: samples, decodeOptions: options)
-            return results.flatMap(\.segments).flatMap { $0.words ?? [] }
+            let tokens = results.flatMap(\.segments).flatMap { $0.words ?? [] }
                 .map { TimedToken($0.word, start: Double($0.start), end: Double($0.end)) }
+            return DecodedWindow(tokens: tokens, language: language == nil ? results.first?.language : nil)
         }
+    }
+
+    /// Compiles the model for this Mac's Neural Engine and lets it go again, so the next load takes seconds.
+    static func prepare(folder: URL, variant: String) async throws {
+        _ = try await WhisperKit(config(folder: folder, variant: variant, prewarm: true))
     }
 
     private nonisolated func loaded() async throws -> Unchecked<WhisperKit> {
         if let whisper { return Unchecked(whisper) }
-        let config = WhisperKitConfig(
+        let whisper = try await WhisperKit(Self.config(folder: folder, variant: variant, prewarm: false))
+        self.whisper = whisper
+        return Unchecked(whisper)
+    }
+
+    /// `prewarm` loads each model one at a time and unloads it, which compiles them without holding them in memory.
+    private static func config(folder: URL, variant: String, prewarm: Bool) -> WhisperKitConfig {
+        WhisperKitConfig(
             model: variant,
             modelFolder: ModelStore.whisperFolder(in: folder, variant: variant).path,
             tokenizerFolder: folder,
             verbose: false,
             logLevel: .error,
-            load: true,
+            prewarm: prewarm,
+            load: !prewarm,
             // Everything is on disk already: loading never goes online.
             download: false
         )
-        let whisper = try await WhisperKit(config)
-        self.whisper = whisper
-        return Unchecked(whisper)
     }
 }
 

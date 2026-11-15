@@ -23,16 +23,17 @@ actor ParakeetDecoder: WindowDecoder {
         _ = try await gate.run { try await self.loaded() }
     }
 
-    func decode(_ samples: [Float]) async throws -> [TimedToken] {
+    func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow {
         try await gate.run {
             let manager = try await self.loaded()
             let length = Double(samples.count) / WindowedTranscriber.rate
             let padded = samples.count < Self.minimumSamples
                 ? samples + [Float](repeating: 0, count: Self.minimumSamples - samples.count) : samples
             let result = try await manager.value.transcribe(padded, source: .microphone)
-            return (result.tokenTimings ?? [])
+            let tokens = (result.tokenTimings ?? [])
                 .filter { $0.startTime < length }
                 .map { TimedToken($0.token, start: $0.startTime, end: min($0.endTime, length)) }
+            return DecodedWindow(tokens: tokens)
         }
     }
 

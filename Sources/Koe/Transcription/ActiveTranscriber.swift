@@ -2,7 +2,7 @@ import Foundation
 import KoeCore
 import os
 
-/// The transcriber sessions use: the model chosen in Settings when it is downloaded and loads, otherwise Apple's.
+/// The transcriber sessions use: the model chosen in Settings once it is downloaded and has loaded, otherwise Apple's.
 /// It switches as soon as the choice or a download changes, without a relaunch; a session already running keeps the
 /// model it started with.
 final class ActiveTranscriber: Transcriber, @unchecked Sendable {
@@ -13,6 +13,8 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     private var current: (id: ModelID, model: WindowedTranscriber?) = (.apple, nil)
     private var loaded: [ModelID: WindowedTranscriber] = [:]
     private var loadErrors: [ModelID: String] = [:]
+    /// Models that have loaded in this run. Only these take a session, so none waits on a load.
+    private var ready: Set<ModelID> = []
     private var route = TranscriberRoute.resolve(chosen: .apple, install: .installed, canRun: true, loadError: nil)
     /// Called on the main actor whenever the model that runs, or the reason it isn't the chosen one, changes.
     @MainActor var onRouteChange: ((TranscriberRoute) -> Void)?
@@ -29,25 +31,35 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
             self.update(chosen: chosen, store: store)
         }
         let install = store.install(chosen)
-        let next = lock.withLock { () -> (route: TranscriberRoute, model: WindowedTranscriber?)? in
+        let next = lock.withLock { () -> (route: TranscriberRoute, warm: (ModelID, WindowedTranscriber?))? in
             // A model downloaded again gets another chance to load.
             for id in loadErrors.keys where !store.isInstalled(id) { loadErrors[id] = nil }
             for id in loaded.keys where !store.isInstalled(id) || id != chosen { loaded[id] = nil }
-            let route = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
-                                                 loadError: loadErrors[chosen])
+            ready = ready.filter { loaded[$0] != nil }
+            let runnable = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
+                                                    loadError: loadErrors[chosen])
             var model: WindowedTranscriber?
-            if route.model != .apple {
+            if runnable.model != .apple {
                 model = loaded[chosen] ?? Self.make(chosen, store: store)
                 loaded[chosen] = model
             }
+            let route = TranscriberRoute.resolve(chosen: chosen, install: install, canRun: store.canDownload,
+                                                 loadError: loadErrors[chosen], isLoaded: ready.contains(chosen))
             let changed = route != self.route || current.id != route.model
             self.route = route
-            current = (route.model, model)
-            return changed ? (route, model) : nil
+            current = route.model == .apple ? (.apple, nil) : (chosen, model)
+            // Until the chosen model has loaded, it loads in the background while Apple's takes the sessions.
+            let warm: (ModelID, WindowedTranscriber?) = route.fallback == .preparing && model != nil
+                ? (chosen, model) : current
+            return changed ? (route, warm) : nil
         }
         guard let next else { return }
         onRouteChange?(next.route)
-        Task { await self.prewarm(next.model, id: next.route.model) }
+        let (id, model) = next.warm
+        Task {
+            if model != nil, id != next.route.model { await self.apple.prewarm() }
+            await self.prewarm(model, id: id)
+        }
     }
 
     func prewarm() async {
@@ -96,10 +108,16 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
         guard let model else { return await apple.prewarm() }
         do {
             try await model.load()
+            loadedNow(id)
         } catch {
             failed(id, error)
             await apple.prewarm()
         }
+    }
+
+    private func loadedNow(_ id: ModelID) {
+        let first = lock.withLock { loaded[id] != nil && ready.insert(id).inserted }
+        if first { Task { @MainActor in self.refresh?() } }
     }
 
     private func failed(_ id: ModelID, _ error: any Error) {
@@ -107,6 +125,7 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
         lock.withLock {
             loadErrors[id] = error.localizedDescription
             loaded[id] = nil
+            ready.remove(id)
         }
         Task { @MainActor in self.refresh?() }
     }

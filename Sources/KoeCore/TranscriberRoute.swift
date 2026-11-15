@@ -6,6 +6,7 @@ public struct TranscriberRoute: Sendable, Equatable {
     public enum Fallback: Sendable, Equatable {
         case notDownloaded
         case downloading
+        case preparing
         case needsAppleSilicon
         case failedToLoad(String)
     }
@@ -16,18 +17,24 @@ public struct TranscriberRoute: Sendable, Equatable {
     /// The model that runs.
     public var model: ModelID { fallback == nil ? chosen : .apple }
 
-    public static func resolve(chosen: ModelID, install: ModelInstall, canRun: Bool, loadError: String?)
-        -> TranscriberRoute {
+    /// `isLoaded` is whether the chosen model has loaded in this run: until it has, a session would wait on its load,
+    /// which takes minutes when macOS has to compile it again (after an update), so Apple's model runs meanwhile.
+    public static func resolve(chosen: ModelID, install: ModelInstall, canRun: Bool, loadError: String?,
+                               isLoaded: Bool = true) -> TranscriberRoute {
         let model = TranscriptionModel.model(chosen)
         guard model.needsDownload else { return TranscriberRoute(chosen: chosen, fallback: nil) }
         let fallback: Fallback? = if !canRun {
             .needsAppleSilicon
         } else if install.isDownloading {
             .downloading
+        } else if install == .preparing {
+            .preparing
         } else if !install.isInstalled {
             .notDownloaded
         } else if let loadError {
             .failedToLoad(loadError)
+        } else if !isLoaded {
+            .preparing
         } else {
             nil
         }
@@ -41,6 +48,7 @@ public struct TranscriberRoute: Sendable, Equatable {
         return switch fallback {
         case .notDownloaded: "\(name) isn't downloaded, so Koe uses Apple's model."
         case .downloading: "Koe uses Apple's model until \(name) finishes downloading."
+        case .preparing: "Koe uses Apple's model while \(name) gets ready for this Mac."
         case .needsAppleSilicon: "\(name) needs a Mac with Apple silicon, so Koe uses Apple's model."
         case .failedToLoad(let error): "\(name) didn't load, so Koe uses Apple's model. \(error)"
         }

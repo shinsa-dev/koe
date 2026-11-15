@@ -36,6 +36,19 @@ struct ModelPickerTests {
         #expect(picker(.parakeetV3, [.parakeetV3: .downloading(fraction: 0)]).detail == "Starting the 483 MB download.")
     }
 
+    @Test func aModelPreparingForThisMacSaysItTakesAFewMinutesAndCantBeCancelled() {
+        let models = ModelPicker(chosen: .parakeetV3, pending: .whisperTurbo, inUse: .parakeetV3,
+                                 installs: [.parakeetV3: .installed, .whisperTurbo: .preparing], canDownload: true)
+        #expect(models.chosen == .whisperTurbo)
+        #expect(models.action == nil)
+        #expect(models.fraction == nil)
+        #expect(!models.isError)
+        #expect(models.detail
+            == "Preparing it for this Mac. This happens once and takes a few minutes. Koe uses Parakeet v3 until then.")
+        #expect(models.options[2].note == "Preparing")
+        #expect(models.deletable.map(\.id) == [.parakeetV3])
+    }
+
     @Test func aFailedDownloadSaysWhyAndOffersToTryAgain() {
         let models = picker(.whisperTurbo, [.whisperTurbo: .failed("The download needs an internet connection.")])
         #expect(models.action == .retry)
@@ -87,6 +100,7 @@ struct ModelPickerTests {
         #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .failed("x")) == .keep)
         #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo,
                                    install: .downloading(fraction: 0.3)) == .keep)
+        #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .whisperTurbo, install: .preparing) == .keep)
         #expect(ModelPicker.settle(pending: .whisperTurbo, changed: .parakeetV2, install: .installed) == .keep)
         #expect(ModelPicker.settle(pending: nil, changed: .whisperTurbo, install: .installed) == .keep)
     }

@@ -202,3 +202,18 @@ struct SpokenSpanTests {
         #expect(transcript.text(in: VoiceSpan(start: 4, end: 6)).isEmpty)
     }
 }
+
+struct EmptyEndingTests {
+    @Test func silenceTheModelSettledIsThrownAway() {
+        #expect(EmptyEnding.decide(modelSettled: true, modelFailed: false) == .discard)
+    }
+
+    @Test func aRecordingTheModelNeverAnsweredIsKept() {
+        #expect(EmptyEnding.decide(modelSettled: false, modelFailed: false) == .keep)
+    }
+
+    @Test func aRecordingWhoseModelFailedIsKept() {
+        #expect(EmptyEnding.decide(modelSettled: true, modelFailed: true) == .keep)
+        #expect(EmptyEnding.decide(modelSettled: false, modelFailed: true) == .keep)
+    }
+}

@@ -85,6 +85,10 @@ public struct ModelPicker: Sendable, Equatable {
                 ? "Starting the \(model.sizeLabel) download.\(meanwhile)"
                 : "Downloading, \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)) of \(model.sizeLabel)."
                     + meanwhile
+        case .preparing:
+            // Core ML's compile can't be interrupted, so there is nothing to cancel.
+            action = nil
+            detail = "Preparing it for this Mac. This happens once and takes a few minutes." + meanwhile
         case .failed(let message):
             action = .retry
             isError = true
@@ -119,7 +123,7 @@ public struct ModelPicker: Sendable, Equatable {
         return switch install {
         case .installed: .adopt
         case .notInstalled: .drop
-        case .downloading, .failed: .keep
+        case .downloading, .preparing, .failed: .keep
         }
     }
 
@@ -128,6 +132,7 @@ public struct ModelPicker: Sendable, Equatable {
         return switch install {
         case .installed: "Downloaded"
         case .downloading(let done): "Downloading, \(Int(done * 100))%"
+        case .preparing: "Preparing"
         case .failed: "Download failed"
         case .notInstalled where !canDownload: "Needs Apple silicon"
         case .notInstalled: "\(model.sizeLabel) download"

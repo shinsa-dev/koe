@@ -145,7 +145,10 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   sessions too (`filesAllowed`). Without Accessibility, or with the setting off, everything goes on the clipboard at
   once as above.
 - Finishing before the model has any words says "Copying your words" and only says "Copied" once they are on the
-  clipboard. A model that never settles is given 10 s (`settleLimit`); then the session is copied with what it has.
+  clipboard. A model that never settles is given 10 s (`settleLimit`); then the session is copied with what it has. When it has
+  nothing at all, its folder is kept as an unfinished recording (`EmptyEnding`) and the pill says "Recording kept":
+  launch recovery transcribes it. A model that failed keeps it too. Only a model that settled the whole recording and
+  heard nothing earns "We couldn't hear you", which deletes the folder.
 - "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
@@ -165,12 +168,17 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
-  short never counts. FluidAudio reports no progress, so the card measures the folder against the expected size.
+  short never counts. Whisper's first load has Core ML compile it for the Neural Engine, which takes a few minutes
+  (then about a second, cached per app until the next macOS update), so its download ends by prewarming it: the row
+  reads "Preparing it for this Mac" (`ModelInstall.preparing`, which can't be cancelled) and Apple's model runs
+  until it is done. FluidAudio reports no progress, so the card measures the folder against the expected size.
   Besides updates ([development.md](development.md) → Updates), nothing else goes online: audio and text never leave the Mac.
 - **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
   transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
   changes, without a relaunch; a session already running keeps its model. A chosen model that isn't downloaded,
-  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`).
+  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`). So does one that
+  hasn't loaded yet in this run: it loads in the background and takes sessions only once it has, so a session never
+  waits on a load, even the minutes-long compile after a macOS update empties the cache (`TranscriberRoute.preparing`).
 - **Streaming with models that don't stream.** Parakeet and Whisper read whole stretches of audio, so
   `WindowedTranscriber` decodes again every 0.9 s from the first unsettled word to the newest audio, with 1.5 s of
   settled audio ahead as context. Words that end 2 s or more before the newest audio settle as a final update; the
@@ -182,10 +190,16 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
   the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
   those last words before copying (`finalWait`).
+- **Whisper's language.** Whisper finds the language itself, but guessing it on every 0.9 s pass costs a decoder
+  step and can flip on a short or quiet window. A session settles it once, from the first pass that read at least
+  4 s of audio (`LanguageLock`), and every later pass decodes in it. A whole recording read back is detected afresh.
 - **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
-  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3. It prints whether each
-  ends with the same three words as one decode of the whole recording (`TailScore`), and the total. It reads only
-  local recordings; none is in the repository.
+  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3, or the model
+  `--model <id>` names (Parakeet v3, Parakeet v2 or Whisper; Apple's streams on its own and can't be replayed). It
+  prints whether each ends with the same three words as one decode of the whole recording (`TailScore`), and the
+  total; how long the model took to load; and for each recording and in all, how long the passes took against the
+  0.9 s they have and how long the whole decode took (`StepTimings`). It reads only local recordings; none is in the
+  repository.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile

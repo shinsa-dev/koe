@@ -68,6 +68,9 @@ final class ModelStore {
             let outcome: ModelInstall
             do {
                 try await Self.fetch(model, into: folder)
+                self?.installs[id] = .preparing
+                self?.onChange?(id)
+                try await Self.prepare(model, in: folder)
                 try Data().write(to: folder.appending(path: Self.marker))
                 outcome = .installed
             } catch {
@@ -139,6 +142,14 @@ final class ModelStore {
         case .apple:
             return
         }
+        try Task.checkCancellation()
+    }
+
+    /// Loads the model once, so Core ML compiles it for the Neural Engine now rather than when a session needs it.
+    /// Whisper's compile takes minutes the first time and is then cached; Parakeet's download already compiled it.
+    private nonisolated static func prepare(_ model: TranscriptionModel, in folder: URL) async throws {
+        guard model.engine == .whisper, let variant = model.id.whisperVariant else { return }
+        try await WhisperDecoder.prepare(folder: folder, variant: variant)
         try Task.checkCancellation()
     }
 

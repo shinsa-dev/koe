@@ -13,7 +13,21 @@ Needs macOS 26 and Xcode 26 or later (Swift 6.2).
 KOE_VERSION=1.2.0 KOE_BUILD=42 ./build.sh  # stamps a release's version and build number
 swift test            # KoeCore's unit tests
 .build/debug/Koe --bench  # replays your newest recordings and scores how often their endings are complete
+.build/debug/Koe --bench --model whisper-large-v3-turbo 3  # the same with another model, newest three recordings
 ```
+
+`scripts/sandbox.sh` runs a debug Koe for tests without getting in your way: `--background` leaves out the menu bar
+item, windows, the pill, shortcuts, ⌘⇧-click, the clipboard, media pausing and updates, and never takes focus. It runs
+in its own home (`$TMPDIR/koe-sandbox`, or `KOE_SANDBOX`) with its own settings, so it never touches the installed
+Koe's sessions, models or preferences.
+
+```sh
+scripts/sandbox.sh --fresh --with-models --snapshots /tmp/shots --download whisper-large-v3-turbo
+scripts/sandbox.sh --with-models --audio-file session.caf --start --print-session
+```
+
+`--snapshots <folder>` draws the settings page into the folder each time it changes and prints which model runs and
+each model's install state when that changes.
 
 There is no Xcode project: SwiftPM builds the binary and `build.sh` assembles and signs the app. It signs with
 `KOE_SIGN_IDENTITY` or the first Apple Development certificate in your keychain, so macOS keeps Koe's permissions

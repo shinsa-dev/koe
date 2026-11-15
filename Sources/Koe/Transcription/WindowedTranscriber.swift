@@ -6,8 +6,14 @@ import KoeCore
 protocol WindowDecoder: Sendable {
     /// Loads the model from disk. Cheap once it is loaded.
     func load() async throws
-    /// What was said in `samples`, with times counted from their start.
-    func decode(_ samples: [Float]) async throws -> [TimedToken]
+    /// What was said in `samples`, with times counted from their start. A model that finds the language itself decodes
+    /// in `language` when one is given, and says which it detected otherwise.
+    func decode(_ samples: [Float], language: String?) async throws -> DecodedWindow
+}
+
+struct DecodedWindow: Sendable {
+    var tokens: [TimedToken]
+    var language: String?
 }
 
 /// Streams with a model that doesn't stream (Parakeet, Whisper): about every second it decodes the audio not yet
@@ -42,7 +48,7 @@ struct WindowedTranscriber: Transcriber {
         try await decoder.load()
         let samples = try SampleBuffer.read(file)
         var transcript = LiveTranscript()
-        let runs = TokenRuns.words(try await decoder.decode(samples))
+        let runs = TokenRuns.words(try await decoder.decode(samples, language: nil).tokens)
         transcript.apply(TranscriptUpdate(runs: runs, isFinal: true, start: 0, end: Double(samples.count) / Self.rate))
         return transcript.words
     }
@@ -60,10 +66,11 @@ struct WindowedTranscriber: Transcriber {
         source.attach(format: CaptureStream.format, deliver: { buffer.append($0) }, finish: { buffer.end() })
         events.yield(.listening)
         var window = RollingWindow()
+        var language = LanguageLock()
         while true {
             try await buffer.wait(upTo: interval)
             try Task.checkCancellation()
-            let (updates, ended) = try await step(&window, buffer: buffer, decoder: decoder)
+            let (updates, ended) = try await step(&window, language: &language, buffer: buffer, decoder: decoder)
             for update in updates { events.yield(.update(update)) }
             if ended { return }
         }
@@ -71,15 +78,24 @@ struct WindowedTranscriber: Transcriber {
 
     /// One pass of the window over the audio heard so far: the updates it gives and whether the audio has ended.
     /// Once it has, the decode reaches far back, as Parakeet often hears nothing in a short window at the end.
-    static func step(_ window: inout RollingWindow, buffer: SampleBuffer, decoder: any WindowDecoder)
-        async throws -> (updates: [TranscriptUpdate], ended: Bool) {
+    /// The language is settled once in a session, from the first pass that read enough audio.
+    static func step(
+        _ window: inout RollingWindow, language: inout LanguageLock, buffer: SampleBuffer, decoder: any WindowDecoder
+    ) async throws -> (updates: [TranscriptUpdate], ended: Bool) {
         let current = window
         let snapshot = buffer.snapshot { total, ended in
             let from = ended ? current.finalDecodeFrom(heard: Double(total) / rate) : current.decodeFrom
             return Int(from * rate)
         }
         let samples = snapshot.samples
-        let tokens = samples.isEmpty ? [] : try await decoder.decode(samples)
+        let tokens: [TimedToken]
+        if samples.isEmpty {
+            tokens = []
+        } else {
+            let decoded = try await decoder.decode(samples, language: language.language)
+            language.observe(decoded.language, heard: Double(samples.count) / rate)
+            tokens = decoded.tokens
+        }
         let runs = TokenRuns.words(tokens, offset: Double(snapshot.total - samples.count) / rate)
         let heard = Double(snapshot.total) / rate
         let (final, volatile) = window.take(runs, heard: heard, ended: snapshot.ended)

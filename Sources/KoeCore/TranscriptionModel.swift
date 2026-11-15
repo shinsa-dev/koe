@@ -57,6 +57,9 @@ public enum ModelInstall: Sendable, Equatable {
     case notInstalled
     /// `fraction` is 0 to 1. FluidAudio reports no progress, so it is measured from the bytes already on disk.
     case downloading(fraction: Double)
+    /// Every file is in, and the model loads for the first time: Core ML compiles it for this Mac's Neural Engine,
+    /// which takes Whisper a few minutes. It can't be stopped halfway.
+    case preparing
     case installed
     case failed(String)
 

@@ -194,7 +194,8 @@ final class ShortcutCenter {
         ids.values.forEach(HotKeys.shared.unregister)
         ids = [:]
         FnKey.shared.stop()
-        guard !suspended else { return }
+        // A run for tests must never take your keys, or Fn would start its sessions too.
+        guard !suspended, !Launch.isBackground else { return }
         var taken: Set<ShortcutAction> = []
         var needsAccessibility: Set<ShortcutAction> = []
         for action in ShortcutAction.allCases where dictating || !action.isSessionOnly {
