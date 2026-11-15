@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 import KoeCore
 
-/// `Koe --background --latency [--model <id>] [--tail <s>] [count | audio files…]`, run through `scripts/sandbox.sh`: plays recordings
+/// `Koe --background --latency [--tail <s>] [count | audio files…]`, run through `scripts/sandbox.sh`: plays recordings
 /// into real sessions, presses the shortcut to start and to finish each one as you would, and prints how long every
 /// stage of starting and finishing took (`LatencyTrace`). Each recording plays at its own pace, then silence follows
 /// until the run finishes it, as a microphone would. With no files it takes your newest recordings of 30 s or less.
@@ -24,22 +24,13 @@ enum LatencyRun {
         return MicrophoneSource()
     }
 
-    /// Picks the model before Koe reads its settings, then runs once Koe has launched.
+    /// Runs once Koe has launched.
     static func start(_ app: AppDelegate) {
         guard Launch.isBackground else {
             print("Run it in the background: scripts/sandbox.sh --with-models --latency")
             exit(1)
         }
         var arguments = Array(CommandLine.arguments.drop { $0 != "--latency" }.dropFirst())
-        if let flag = arguments.firstIndex(of: "--model") {
-            let id = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : ""
-            arguments.removeSubrange(flag...min(flag + 1, arguments.count - 1))
-            guard ModelID(rawValue: id) != nil else {
-                print("No model named \(id).")
-                exit(1)
-            }
-            Launch.defaults.set(id, forKey: KoeSettings.Key.transcriptionModel)
-        }
         if let flag = arguments.firstIndex(of: "--tail") {
             let value = arguments.indices.contains(flag + 1) ? Double(arguments[flag + 1]) : nil
             arguments.removeSubrange(flag...min(flag + 1, arguments.count - 1))
@@ -98,9 +89,11 @@ enum LatencyRun {
         return nil
     }
 
-    /// Waits until Koe has launched and the chosen model has loaded, so no session falls back to Apple's meanwhile.
+    /// Waits until Koe has launched and the model it streams with (`ModelPlan`) has loaded, so no session falls back
+    /// to Apple's meanwhile.
     private static func loadedRoute(_ transcriber: ActiveTranscriber) async -> TranscriberRoute? {
-        let chosen = KoeSettings(values: Launch.defaults.dictionaryRepresentation()).transcriptionModel
+        let deleted = KoeSettings(values: Launch.defaults.dictionaryRepresentation()).deletedModels
+        let chosen = ModelStore().plan(deleted: deleted).liveCandidate
         for _ in 0..<600 {
             let route = transcriber.currentRoute
             if route.chosen == chosen, route.fallback == nil { return route }

@@ -59,8 +59,8 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - **The 50 ms cap.** Starting (shortcut to pill shown and recording open) and finishing (shortcut to the words on the
   clipboard) each take at most 50 ms. Every session stamps its stages (`LatencyTrace`, `LatencyLog`) and logs them,
   with a line on when the microphone itself started; one over the cap also logs the slowest step (category
-  `latency`; `log show --last 1h --predicate 'category == "latency"'` reads them). `scripts/sandbox.sh --with-models --latency
-  [--model <id>]` plays your recordings into real sessions, prints each stage and a verdict for the model, and exits
+  `latency`; `log show --last 1h --predicate 'category == "latency"'` reads them). `scripts/sandbox.sh --with-models
+  --latency` plays your recordings into real sessions, prints each stage and a verdict for the model, and exits
   with 2 when any start or finish went over. Parakeet's last pass takes 60 to 220 ms, so its copy usually goes out
   before the last words, which then refine it. Whisper's passes take about 0.67 s: it can't settle the last words
   within the cap, so it suits refining a copy, not streaming one. The microphone device's own start and Koe's paste
@@ -173,13 +173,17 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 
 ## Transcription
 
-- **Models.** Settings' Transcription card has one Model dropdown (`TranscriptionModel.catalog`, `ModelPicker`), a
-  system menu with each model's state under its name: Parakeet v3 (recommended and the default, 25 European
-  languages, about 480 MB), Parakeet v2 (English, about 460 MB), Whisper large-v3 turbo (99 languages, about 650 MB)
-  and Apple's on-device model (built in). Choosing a model that isn't downloaded starts its download; the row shows
-  its progress with Cancel, or Try again after a failure. The model in use keeps transcribing until the download is
-  in (`ModelStore.pending`), and only then becomes the chosen one, so cancelling or a failure leaves you where you were. "Delete a download" at the foot of the menu frees a
-  model's disk space. The line under the card says which model runs and why when it isn't the chosen one.
+- **Models.** Nobody picks a model: Koe picks its own (`ModelPlan`). It streams with Parakeet v3 (25 European
+  languages, about 480 MB) once it is downloaded and has loaded, and with Apple's on-device model (built in) until
+  then. A Parakeet v2 (English, about 460 MB) already on the Mac streams only while v3 isn't ready; Koe never
+  downloads it. Whisper large-v3 turbo (99 languages, about 650 MB) never streams, as its passes run past the 0.9 s
+  budget; it is the refine's best reader. Koe downloads Parakeet v3 first, then Whisper, in the background with no
+  click (`ModelPlan.nextDownload`, one at a time). On an Intel Mac it streams with Apple's model.
+- **The Transcription card** shows a read-only row per model (`ModelStatus`): its name, a badge for what Koe uses it
+  for ("Live", "Refine", "Live and refine", from what the plan will use once downloads are in), and its state:
+  downloading with a progress bar, preparing, loading, ready, didn't load, or failed with Try again. "Delete a
+  download" is the only other control, a menu of the models on disk. A model you delete is remembered
+  (`deletedModels`), so the automatic downloads leave it alone; its row offers Download to bring it back.
 - **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
   WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
@@ -188,10 +192,11 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   reads "Preparing it for this Mac" (`ModelInstall.preparing`, which can't be cancelled) and Apple's model runs
   until it is done. FluidAudio reports no progress, so the card measures the folder against the expected size.
   Besides updates ([development.md](development.md) → Updates), nothing else goes online: audio and text never leave the Mac.
-- **First launch** starts downloading Parakeet v3 (`startedFirstDownload`, retried each launch until it lands) and
-  transcribes with Apple's model meanwhile. `ActiveTranscriber` switches as soon as a download lands or the choice
-  changes, without a relaunch; a session already running keeps its model. A chosen model that isn't downloaded,
-  fails to load, or needs Apple silicon on an Intel Mac falls back to Apple's (`TranscriberRoute`). So does one that
+- **First launch** starts downloading Parakeet v3 (a download cut short starts again next launch) and transcribes
+  with Apple's model meanwhile. An old `transcriptionModel` choice is ignored, so someone who had chosen Apple's model
+  keeps it only until Parakeet is ready. `ActiveTranscriber` switches as soon as a download lands, without a relaunch;
+  a session already running keeps its model. A live model that isn't downloaded, fails to load, or needs Apple
+  silicon falls back to Apple's (`TranscriberRoute`). So does one that
   hasn't loaded yet in this run: it loads in the background and takes sessions only once it has, so a session never
   waits on a load, even the minutes-long compile after a macOS update empties the cache (`TranscriberRoute.preparing`).
 - **Streaming with models that don't stream.** Parakeet and Whisper read whole stretches of audio, so
@@ -403,6 +408,5 @@ frames picked so far.
   "App:x,y,w,h;…"` lists the windows drawn on it (points from its top left, front to back) for the picker to frame. `--clip-file
   <mov>` stands in for every recorded clip (a scripted one still shows the recording outline for its length). A
   script needs a session, so pair it with `--start`.
-- `-transcriptionModel parakeet-v3|parakeet-v2|whisper-large-v3-turbo|apple` at launch picks the model for that run.
-  `--download <model>` starts that model's download, and `--snapshot <png>` draws the whole settings page into a
+- `--download <model>` starts that model's download, and `--snapshot <png>` draws the whole settings page into a
   PNG three seconds in, which works while the screen is locked.

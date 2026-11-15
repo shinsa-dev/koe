@@ -35,7 +35,7 @@ When you stop, Koe copies one bundle: your words, with every attachment placed a
 into Claude, ChatGPT, Slack or a terminal agent, and the agent reads each screenshot right where you talked about it.
 
 Koe (声) means voice. It transcribes on device, on the Neural Engine, so nothing you say or capture leaves your Mac.
-The only things it downloads are the speech model and its own updates.
+The only things it downloads are its speech models and its own updates.
 
 ## How it works
 
