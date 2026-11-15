@@ -21,10 +21,39 @@ final class PermissionCenter {
     }
 
     func refresh() {
-        let statuses = Dictionary(uniqueKeysWithValues: Permission.allCases.map { ($0, status(of: $0)) })
-        let next = SetupChecklist(statuses: statuses)
+        apply(Self.read(defaults), audio: SystemAudioAccess.status)
+    }
+
+    /// Runs `start` behind the microphone permission, and says whether it ran. A granted answer is trusted and asked
+    /// again behind the session, calling `revoked` if access is gone; any other answer is asked now.
+    func startWithMicrophone(start: () -> Void, revoked: @escaping @MainActor () -> Void) -> Bool {
+        switch MicrophoneGate.onStart(lastKnown: checklist.status(of: .microphone)) {
+        case .startThenRecheck:
+            start()
+            refreshInBackground { if MicrophoneGate.isRevoked(recheck: $0.status(of: .microphone)) { revoked() } }
+        case .askFirst:
+            refresh()
+            guard checklist.status(of: .microphone) == .granted else { return false }
+            start()
+        }
+        return true
+    }
+
+    /// Asks macOS on another thread, as each answer takes 10 to 50 ms, and calls `then` on the main actor.
+    func refreshInBackground(then: @escaping @MainActor (SetupChecklist) -> Void) {
+        let defaults = UncheckedDefaults(defaults)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let next = Self.read(defaults.value)
+            let audio = SystemAudioAccess.status
+            Task { @MainActor in
+                self.apply(next, audio: audio)
+                then(next)
+            }
+        }
+    }
+
+    private func apply(_ next: SetupChecklist, audio: PermissionStatus) {
         if next != checklist { checklist = next }
-        let audio = SystemAudioAccess.status
         if audio != systemAudio {
             systemAudio = audio
             onSystemAudioChange?()
@@ -81,7 +110,13 @@ final class PermissionCenter {
         NSApp.terminate(nil)
     }
 
-    private func status(of permission: Permission) -> PermissionStatus {
+    nonisolated private static func read(_ defaults: UserDefaults) -> SetupChecklist {
+        SetupChecklist(statuses: Dictionary(uniqueKeysWithValues: Permission.allCases.map {
+            ($0, status(of: $0, defaults: defaults))
+        }))
+    }
+
+    nonisolated private static func status(of permission: Permission, defaults: UserDefaults) -> PermissionStatus {
         switch permission {
         case .microphone:
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -90,13 +125,13 @@ final class PermissionCenter {
             default: return .denied
             }
         case .screenRecording:
-            return CGPreflightScreenCaptureAccess() ? .granted : asked(permission)
+            return CGPreflightScreenCaptureAccess() ? .granted : asked(permission, defaults: defaults)
         case .accessibility:
-            return AXIsProcessTrusted() ? .granted : asked(permission)
+            return AXIsProcessTrusted() ? .granted : asked(permission, defaults: defaults)
         }
     }
 
-    private func asked(_ permission: Permission) -> PermissionStatus {
+    nonisolated private static func asked(_ permission: Permission, defaults: UserDefaults) -> PermissionStatus {
         defaults.bool(forKey: askedKey(permission)) ? .denied : .notDetermined
     }
 
@@ -104,5 +139,12 @@ final class PermissionCenter {
         defaults.set(true, forKey: askedKey(permission))
     }
 
-    private func askedKey(_ permission: Permission) -> String { "asked.\(permission.rawValue)" }
+    private func askedKey(_ permission: Permission) -> String { Self.askedKey(permission) }
+    nonisolated private static func askedKey(_ permission: Permission) -> String { "asked.\(permission.rawValue)" }
+}
+
+/// UserDefaults is thread safe, but not marked Sendable.
+private struct UncheckedDefaults: @unchecked Sendable {
+    let value: UserDefaults
+    init(_ value: UserDefaults) { self.value = value }
 }

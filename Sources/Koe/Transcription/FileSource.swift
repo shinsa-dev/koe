@@ -2,14 +2,17 @@
 import KoeCore
 
 /// Plays an audio file into a session at its own pace, as if it were spoken: `--audio-file` at launch, for trying
-/// Koe and capturing it without talking. The session ends when the file does.
+/// Koe and capturing it without talking. The session ends when the file does, unless `holdOpen` keeps it going with
+/// silence, as a microphone would, until you finish (`Koe --latency`).
 final class FileSource: AudioSource, @unchecked Sendable {
     private let url: URL
+    private let holdOpen: Bool
     private let stream = CaptureStream()
     private var playback: Task<Void, Never>?
 
-    init(url: URL) {
+    init(url: URL, holdOpen: Bool = false) {
         self.url = url
+        self.holdOpen = holdOpen
     }
 
     var currentTime: AudioTime { stream.currentTime }
@@ -24,6 +27,7 @@ final class FileSource: AudioSource, @unchecked Sendable {
         try? stream.open(recording: recording)
         let stream = stream
         let chunk = AVAudioFrameCount(file.processingFormat.sampleRate / 10)
+        let holdOpen = holdOpen
         playback = Task.detached {
             while !stream.isStopped,
                   let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk),
@@ -31,6 +35,12 @@ final class FileSource: AudioSource, @unchecked Sendable {
                 if let converted = AudioConversion.convert(buffer, with: converter, to: CaptureStream.format) {
                     stream.ingest(converted)
                 }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            let silence = AVAudioPCMBuffer(pcmFormat: CaptureStream.format, frameCapacity: 1600)
+            silence?.frameLength = 1600
+            while holdOpen, !stream.isStopped, let silence {
+                stream.ingest(silence)
                 try? await Task.sleep(for: .milliseconds(100))
             }
             stream.stop()

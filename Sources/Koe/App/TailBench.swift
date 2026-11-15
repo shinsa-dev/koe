@@ -1,7 +1,7 @@
 import Foundation
 import KoeCore
 
-/// `Koe --bench [--model <id>] [count | audio files…]`: replays recorded sessions through the live window, fed 0.9 s
+/// `Koe --bench [--model <id> | --refine] [count | audio files…]`: replays recorded sessions through the live window, fed 0.9 s
 /// at a time as the microphone would, and checks each ends with the same words as one decode of the whole recording.
 /// It prints how long the model took to load and each pass took, against the 0.9 s it has. It reads the newest
 /// sessions on this Mac with the default model, or the one named; nothing leaves it.
@@ -11,6 +11,12 @@ enum TailBench {
 
     static func run(_ arguments: [String]) async -> Int32 {
         var arguments = arguments
+        if let flag = arguments.firstIndex(of: "--refine") {
+            arguments.remove(at: flag)
+            arguments.removeAll { $0 == "--text" }
+            return await RefineBench.run(recordings(arguments.isEmpty ? [String(Int.max)] : arguments),
+                                         vocabulary: vocabulary)
+        }
         guard let model = chosenModel(&arguments) else {
             let ids = TranscriptionModel.catalog.filter { $0.engine != .apple }.map(\.id.rawValue)
             print("Name a model to bench: \(ids.joined(separator: ", ")).")
@@ -31,6 +37,8 @@ enum TailBench {
             return 1
         }
         let clock = ContinuousClock()
+        await vocabulary.rescan()
+        print("Dictionary: \(dictionary.entries.count) words")
         do {
             let load = try await clock.measure { try await transcriber.decoder.load() }
             print("\(model.name) loaded in \(seconds(load))")
@@ -58,7 +66,8 @@ enum TailBench {
     private static func bench(_ file: URL, transcriber: WindowedTranscriber) async throws
         -> (TailScore.Result, StepTimings) {
         let samples = try SampleBuffer.read(file)
-        let (live, steps) = try await replay(samples, decoder: transcriber.decoder)
+        let (transcript, steps) = try await replay(samples, decoder: transcriber.decoder)
+        let live = transcript.text
         var words: [TimedWord] = []
         let whole = try await ContinuousClock().measure { words = try await transcriber.transcribe(file: file) }
         let result = TailScore.compare(live: live, reference: words.map(\.text).joined(separator: " "))
@@ -68,6 +77,7 @@ enum TailBench {
             + "  whole: …\(result.reference.joined(separator: " "))")
         print("     \(String(format: "%.0f s", length)) of audio, steps: \(steps.summary), whole decode \(seconds(whole))")
         print("     \(cleanup(words, samples: samples, folder: file.deletingLastPathComponent()))")
+        print("     \(spelling(words, folder: file.deletingLastPathComponent()))")
         return (result, steps)
     }
 
@@ -87,6 +97,38 @@ enum TailBench {
         }
         return line
     }
+
+    /// What the dictionary spells differently in the whole decode and in the words this session was copied with, and
+    /// how long it takes.
+    private static func spelling(_ words: [TimedWord], folder: URL) -> String {
+        var fixed: [TimedWord] = []
+        let took = ContinuousClock().measure { fixed = dictionary.apply(words) }
+        var line = "dictionary \(String(format: "%.2f ms", milliseconds(took))), replaced: \(replaced(words, fixed))"
+        if let saved = savedWords(in: folder) {
+            line += "\n     copied words, replaced: \(replaced(saved, dictionary.apply(saved)))"
+        }
+        return line
+    }
+
+    /// Each replaced run of heard words with what it became: a word the fix made that wasn't heard, against the heard
+    /// words it spans.
+    private static func replaced(_ words: [TimedWord], _ fixed: [TimedWord]) -> String {
+        let changes = fixed.filter { !words.contains($0) }.map { word in
+            let before = words.drop { $0.start < word.start }.prefix(CustomDictionary.maxSpan)
+                .prefix { $0.end <= word.end }.map(\.text)
+            return "\(before.joined(separator: " ")) → \(word.text)"
+        }
+        return changes.isEmpty ? "nothing" : changes.joined(separator: ", ")
+    }
+
+    /// Your words and the names learned from this Mac, scanned fresh into a scratch cache so the bench saves nothing.
+    static let vocabulary: Vocabulary = {
+        let vocabulary = Vocabulary(cache: FileManager.default.temporaryDirectory.appending(path: "koe-bench-names.json"))
+        vocabulary.update(settings: KoeSettings(values: UserDefaults.standard.dictionaryRepresentation()))
+        return vocabulary
+    }()
+
+    private static var dictionary: CustomDictionary { vocabulary.dictionary }
 
     private static func removed(from words: [TimedWord], kept: [TimedWord]) -> String {
         let starts = Set(kept.map(\.start))
@@ -122,13 +164,13 @@ enum TailBench {
         }
     }
 
-    private static func seconds(_ duration: Duration) -> String {
+    static func seconds(_ duration: Duration) -> String {
         String(format: "%.2f s", Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18)
     }
 
     /// The live transcript a session of `samples` ends with, stepped as `WindowedTranscriber` steps a session, and how
     /// long each step took.
-    static func replay(_ samples: [Float], decoder: any WindowDecoder) async throws -> (String, StepTimings) {
+    static func replay(_ samples: [Float], decoder: any WindowDecoder) async throws -> (LiveTranscript, StepTimings) {
         try await decoder.load()
         let buffer = SampleBuffer()
         var window = RollingWindow()
@@ -151,12 +193,12 @@ enum TailBench {
             let took = started.duration(to: clock.now)
             timings.record(Double(took.components.seconds) + Double(took.components.attoseconds) / 1e18)
             for update in updates { transcript.apply(update) }
-            if ended { return (transcript.text, timings) }
+            if ended { return (transcript, timings) }
         }
     }
 
     /// The files named, or the newest `count` (40 when not given) recorded sessions.
-    private static func recordings(_ arguments: [String]) -> [URL] {
+    static func recordings(_ arguments: [String]) -> [URL] {
         if let first = arguments.first, Int(first) == nil {
             return arguments.map { URL(filePath: $0) }
         }

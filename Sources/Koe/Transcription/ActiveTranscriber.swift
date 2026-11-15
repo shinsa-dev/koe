@@ -8,7 +8,8 @@ import os
 final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     private static let log = Logger(subsystem: "studio.shinsa.koe", category: "transcription")
 
-    private let apple = AppleSpeechTranscriber()
+    private let apple: AppleSpeechTranscriber
+    private let hints: HintWords
     private let lock = NSLock()
     private var current: (id: ModelID, model: WindowedTranscriber?) = (.apple, nil)
     private var loaded: [ModelID: WindowedTranscriber] = [:]
@@ -20,7 +21,11 @@ final class ActiveTranscriber: Transcriber, @unchecked Sendable {
     @MainActor var onRouteChange: ((TranscriberRoute) -> Void)?
     @MainActor private var refresh: (() -> Void)?
 
-    @MainActor init() {}
+    /// `hints` are your dictionary, which Apple's model hears before it decodes.
+    @MainActor init(hints: HintWords = HintWords()) {
+        self.hints = hints
+        apple = AppleSpeechTranscriber(hints: hints)
+    }
 
     var currentRoute: TranscriberRoute { lock.withLock { route } }
 
