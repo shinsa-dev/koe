@@ -150,7 +150,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **One ⌘V for everything** ("Paste everything with one ⌘V", on by default, needs Accessibility). A chat box given
   text and files in one paste keeps one and drops the other. So `BundlePaster` leaves only the words on the
   clipboard and watches every ⌘V; when the text being pasted is a bundle Koe copied (`PasteIndex`, the last 200,
-  reloaded from the saved sessions at launch), once ⌘ is let go and 180 ms more, Koe puts that bundle's files on, presses ⌘V itself and
+  reloaded from the saved sessions at launch), 80 ms after your ⌘V (`PastePlan.filesDelay`, enough for the app in front to
+  read the words, however long you hold ⌘), Koe puts that bundle's files on, presses ⌘V itself and
   puts back whatever the clipboard held (`PastePlan.split`). It goes by the words, not by who wrote the clipboard
   last, so it still works after you copied other things, or when you paste the words out of a clipboard history;
   any other paste is left alone. The files upload like any pasted file, so this works for a remote agent too. In a
@@ -163,7 +164,7 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   nothing at all, its folder is kept as an unfinished recording (`EmptyEnding`) and the pill says "Recording kept":
   launch recovery transcribes it. A model that failed keeps it too. Only a model that settled the whole recording and
   heard nothing earns "We couldn't hear you", which deletes the folder.
-- "Paste for you" presses ⌘V after 250 ms, with Accessibility allowed. Koe's panels never take focus, so it lands
+- "Paste for you" presses ⌘V 100 ms (`PastePlan.autoPasteDelay`) after you let go of the stop hotkey's keys (at most 1 s, `PastePlan.keysHeld`), so a held ⌥ or ⇧ never joins its ⌘V, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
   anywhere."), or that it heard nothing.

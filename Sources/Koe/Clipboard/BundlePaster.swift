@@ -58,9 +58,7 @@ final class BundlePaster {
         delivering = true
         Task {
             defer { delivering = false }
-            // You let go of ⌘V (or a clipboard history's paste ends), then the app in front reads the words first.
-            for _ in 0..<30 where Self.commandHeld { try? await Task.sleep(for: .milliseconds(50)) }
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: PastePlan.filesDelay)
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == front?.processIdentifier else { return }
             // A clipboard history may already have put back what was there before; whatever it is comes back after.
             let before = Self.snapshot(pasteboard)
@@ -73,10 +71,6 @@ final class BundlePaster {
             pasteboard.clearContents()
             pasteboard.writeObjects(before)
         }
-    }
-
-    private static var commandHeld: Bool {
-        CGEventSource.flagsState(.combinedSessionState).contains(.maskCommand)
     }
 
     private static func snapshot(_ pasteboard: NSPasteboard) -> [NSPasteboardItem] {

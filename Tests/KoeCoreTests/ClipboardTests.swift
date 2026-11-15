@@ -96,6 +96,40 @@ struct PastePlanTests {
     @Test func anUnknownAppGetsTheFiles() {
         #expect(PastePlan.takesFiles(appWithBundleID: nil))
     }
+
+    @Test func theFilesFollowTheWordsWithoutAWaitYouCanSee() {
+        for delay in [PastePlan.filesDelay, PastePlan.autoPasteDelay] {
+            #expect(delay > .zero)
+            #expect(delay <= .milliseconds(100))
+        }
+    }
+
+    @Test func pasteForYouWaitsWhileAStopHotkeyKeyIsDown() {
+        #expect(!PastePlan.keysHeld(0))
+        #expect(!PastePlan.keysHeld(1 << 8))
+        for bit in [17, 18, 19, 20, 23] { #expect(PastePlan.keysHeld(1 << UInt64(bit))) }
+        #expect(PastePlan.keyReleaseLimit > PastePlan.autoPasteDelay)
+    }
+
+    @Test func pasteForYouPressesRightAwayWhenNoKeyIsDown() async {
+        let waited = await PastePlan.waitForAutoPaste(flags: { 0 }, sleep: { _ in })
+        #expect(waited == PastePlan.autoPasteDelay)
+    }
+
+    @Test func pasteForYouPressesOnceTheHeldKeyIsLetGo() async {
+        var polls = 0
+        let option: UInt64 = 1 << 19
+        let waited = await PastePlan.waitForAutoPaste(flags: {
+            polls += 1
+            return polls <= 3 ? option : 0
+        }, sleep: { _ in })
+        #expect(waited == .milliseconds(60) + PastePlan.autoPasteDelay)
+    }
+
+    @Test func pasteForYouStopsWaitingForAStuckKeyAfterTheLimit() async {
+        let waited = await PastePlan.waitForAutoPaste(flags: { 1 << 20 }, sleep: { _ in })
+        #expect(waited == PastePlan.keyReleaseLimit + PastePlan.autoPasteDelay)
+    }
 }
 
 struct KoeSettingsTests {
