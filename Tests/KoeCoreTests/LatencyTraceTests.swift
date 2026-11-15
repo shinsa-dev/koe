@@ -84,6 +84,11 @@ struct LatencyTraceTests {
         #expect(!LatencyReport([]).meetsBudget)
     }
 
+    @Test func theMicrophonesOwnStartIsReportedOnALineOfItsOwn() {
+        #expect(trace(quick).microphone == "Microphone started 300.0 ms after the shortcut, first audio after 410.0 ms.")
+        #expect(trace([.startPressed: 0, .captureOpen: 0.002]).microphone == nil)
+    }
+
     @Test func aSessionWithinTheCapLogsNothing() {
         #expect(trace(quick).breach == nil)
     }

@@ -25,6 +25,8 @@ final class LatencyLog: @unchecked Sendable {
             }
             current?.mark(stage, at: now)
             if stage == .copied, let trace = current {
+                Self.log.notice("Session \(trace.summary, privacy: .public)")
+                if let microphone = trace.microphone { Self.log.notice("\(microphone, privacy: .public)") }
                 if let breach = trace.breach { Self.log.error("\(breach, privacy: .public)") }
                 done.append(trace)
                 last = trace

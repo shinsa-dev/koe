@@ -57,8 +57,9 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
 - **The 50 ms cap.** Starting (shortcut to pill shown and recording open) and finishing (shortcut to the words on the
-  clipboard) each take at most 50 ms. Every session stamps its stages (`LatencyTrace`, `LatencyLog`); one over the cap
-  writes a line to the log naming the slowest step (category `latency`). `scripts/sandbox.sh --with-models --latency
+  clipboard) each take at most 50 ms. Every session stamps its stages (`LatencyTrace`, `LatencyLog`) and logs them,
+  with a line on when the microphone itself started; one over the cap also logs the slowest step (category
+  `latency`; `log show --last 1h --predicate 'category == "latency"'` reads them). `scripts/sandbox.sh --with-models --latency
   [--model <id>]` plays your recordings into real sessions, prints each stage and a verdict for the model, and exits
   with 2 when any start or finish went over. Parakeet's last pass takes 60 to 220 ms, so its copy usually goes out
   before the last words, which then refine it. Whisper's passes take about 0.67 s: it can't settle the last words

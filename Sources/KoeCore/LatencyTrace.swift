@@ -95,6 +95,14 @@ public struct LatencyTrace: Sendable, Equatable {
         return "Over the \(Self.ms(Self.budget)) ms cap: start \(Self.ms(start)) ms, finish \(Self.ms(finish)) ms\(slowest)."
     }
 
+    /// One line on how long the microphone itself took to start, which the cap leaves out: it is what an
+    /// always-open microphone would save. Nil when no microphone started, as when a recording is played.
+    public var microphone: String? {
+        guard let pressed = marks[.startPressed], let started = marks[.deviceStarted] else { return nil }
+        let audio = marks[.firstAudio].map { ", first audio after \(Self.ms($0 - pressed)) ms" } ?? ""
+        return "Microphone started \(Self.ms(started - pressed)) ms after the shortcut\(audio)."
+    }
+
     /// Seconds the last pass took, from the audio's end to its words.
     public var lastPass: TimeInterval? {
         guard let started = marks[.lastPassStarted], let done = marks[.lastPassDone] else { return nil }
