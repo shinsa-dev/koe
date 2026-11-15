@@ -46,8 +46,9 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
   `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
   the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
   assets, format) is worked out at launch and kept.
-- **Finishing copies the settled words** (`Delivery`): when you finish, Koe waits up to 1.5 s (`finalWait`) for the
-  model's last words to settle, whichever model runs, so a quick paste gets them. Past that it copies what it has,
+- **Finishing copies within 50 ms** (`Delivery`): when you finish, the audio ends at once and the model's last pass
+  starts straight away. Koe waits for it only for what is left of the 50 ms budget, less 15 ms for the copy itself
+  (`Delivery.lastWordsWait`). If the pass is back by then, its words are the copy. Past that it copies what it has,
   the model's latest guess included; when the last words settle later, the session is saved again and the clipboard
   is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
@@ -188,8 +189,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **Keeping the last words.** Parakeet sometimes hears nothing in a few seconds of speech, which is what the end of a
   session looks like. So an empty pass never drops the guess: mid-session the same audio is decoded again, and the
   last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
-  the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
-  those last words before copying (`finalWait`).
+  the rest of the guess is kept, and a word it times again is never added twice. When that pass returns after the
+  copy, its words refine it.
 - **Whisper's language.** Whisper finds the language itself, but guessing it on every 0.9 s pass costs a decoder
   step and can flip on a short or quiet window. A session settles it once, from the first pass that read at least
   4 s of audio (`LanguageLock`), and every later pass decodes in it. A whole recording read back is detected afresh.

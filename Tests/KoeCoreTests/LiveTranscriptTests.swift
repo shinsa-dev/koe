@@ -155,6 +155,14 @@ struct DeliveryTests {
             == .waitForWords)
     }
 
+    @Test func theLastPassGetsWhatIsLeftOfTheBudgetLessTheCopy() {
+        #expect(Delivery.lastWordsWait(after: 0) == LatencyTrace.budget - Delivery.copyMargin)
+        #expect(abs(Delivery.lastWordsWait(after: 0.012) - 0.023) < 1e-9)
+        #expect(Delivery.lastWordsWait(after: 0.040) == 0)
+        #expect(Delivery.lastWordsWait(after: 2) == 0)
+        #expect(LatencyTrace.budget - Delivery.copyMargin < 0.05)
+    }
+
     @Test func endsTheSessionWhenTheModelHasNoWordAfterTheWait() {
         #expect(Delivery.decide(openTools: 0, hasContent: false, transcriptDone: false, waitedForWords: true)
             == .whenSettled)

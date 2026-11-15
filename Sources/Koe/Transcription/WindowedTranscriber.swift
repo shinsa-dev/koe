@@ -115,6 +115,7 @@ final class SampleBuffer: @unchecked Sendable {
     private var base = 0
     private var samples: [Float] = []
     private var ended = false
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
 
     func append(_ buffer: AVAudioPCMBuffer) {
         guard let channel = buffer.floatChannelData?[0] else { return }
@@ -124,7 +125,14 @@ final class SampleBuffer: @unchecked Sendable {
 
     func append(_ new: [Float]) { lock.withLock { samples.append(contentsOf: new) } }
 
-    func end() { lock.withLock { ended = true } }
+    func end() {
+        let waiting = lock.withLock {
+            ended = true
+            defer { waiters.removeAll() }
+            return Array(waiters.values)
+        }
+        for waiter in waiting { waiter.resume() }
+    }
 
     var isEnded: Bool { lock.withLock { ended } }
 
@@ -159,13 +167,31 @@ final class SampleBuffer: @unchecked Sendable {
         }
     }
 
-    /// Sleeps for `interval`, waking early once the audio ends so a finished session settles at once.
+    /// Sleeps for `interval`, waking the moment the audio ends so the last pass starts at once.
     func wait(upTo interval: Duration) async throws {
-        let step = Duration.milliseconds(50)
-        var waited = Duration.zero
-        while waited < interval, !isEnded {
-            try await Task.sleep(for: step)
-            waited += step
+        guard !isEnded else { return }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await Task.sleep(for: interval) }
+            group.addTask { await self.untilEnded() }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
+    /// Returns once the audio ends, or once the task waiting is cancelled.
+    private func untilEnded() async {
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { waiter in
+                let now = lock.withLock {
+                    if ended || Task.isCancelled { return true }
+                    waiters[id] = waiter
+                    return false
+                }
+                if now { waiter.resume() }
+            }
+        } onCancel: {
+            lock.withLock { waiters.removeValue(forKey: id) }?.resume()
         }
     }
 

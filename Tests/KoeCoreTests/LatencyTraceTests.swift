@@ -31,6 +31,13 @@ struct LatencyTraceTests {
         #expect(abs(finish - 0.045) < 1e-9)
     }
 
+    @Test func aRefinementAfterTheCopyIsReportedButNotCounted() throws {
+        let measured = trace(quick.merging([.lastPassDone: 20.09, .refined: 20.092]) { _, late in late })
+        #expect(measured.finishStages.map(\.stage).last == .refined)
+        #expect(abs(try #require(measured.finish) - 0.045) < 1e-9)
+        #expect(measured.meetsBudget)
+    }
+
     @Test func onlyTheFirstMarkOfAStageCounts() {
         var measured = trace(quick)
         measured.mark(.pillShown, at: 25)

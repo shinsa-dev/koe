@@ -68,6 +68,7 @@ final class SessionLibrary {
     /// Saves a session again once its last words settled. When the clipboard still holds the copy made when it
     /// ended, the copy is replaced with the settled one; anything you copied since is left alone.
     func refined(_ session: Session, folder: URL) {
+        LatencyLog.shared.mark(.refined)
         save(session, in: folder)
         guard let lastCopy, lastCopy.id == session.id,
               paster.clipboardReads(lastCopy.text) || paster.delivering else { return }

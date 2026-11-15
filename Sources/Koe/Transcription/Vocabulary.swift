@@ -51,6 +51,8 @@ final class Vocabulary {
         dictionary = CustomDictionary(words: Array(words.prefix(yours)), learned: Array(words.dropFirst(yours)),
                                       isOrdinary: OrdinaryWords.check)
         hints.words = DictionaryWords.hints(dictionary.entries)
+        // The spell checker's first answer takes about 12 ms; pay it now, not in a session's copy.
+        _ = OrdinaryWords.contains("koe")
         Self.log.info("Dictionary has \(words.count) words")
     }
 

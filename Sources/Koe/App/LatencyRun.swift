@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 import KoeCore
 
-/// `Koe --background --latency [--model <id>] [count | audio files…]`, run through `scripts/sandbox.sh`: plays recordings
+/// `Koe --background --latency [--model <id>] [--tail <s>] [count | audio files…]`, run through `scripts/sandbox.sh`: plays recordings
 /// into real sessions, presses the shortcut to start and to finish each one as you would, and prints how long every
 /// stage of starting and finishing took (`LatencyTrace`). Each recording plays at its own pace, then silence follows
 /// until the run finishes it, as a microphone would. With no files it takes your newest recordings of 30 s or less.
@@ -13,6 +13,8 @@ enum LatencyRun {
     nonisolated(unsafe) static var recording: URL?
 
     private static let longest: TimeInterval = 30
+    /// Seconds after a recording's end that the run finishes it: `--tail -1.5` stops mid-sentence, as you might.
+    private static var tail: TimeInterval = 0.5
 
     /// What a session records from: the run's recording, or `--audio-file`, or the microphone.
     nonisolated static func source(playing file: URL?) -> any AudioSource {
@@ -36,6 +38,15 @@ enum LatencyRun {
                 exit(1)
             }
             Launch.defaults.set(id, forKey: KoeSettings.Key.transcriptionModel)
+        }
+        if let flag = arguments.firstIndex(of: "--tail") {
+            let value = arguments.indices.contains(flag + 1) ? Double(arguments[flag + 1]) : nil
+            arguments.removeSubrange(flag...min(flag + 1, arguments.count - 1))
+            guard let value else {
+                print("--tail takes seconds, such as 0.5 or -1.5.")
+                exit(1)
+            }
+            tail = value
         }
         let files = recordings(arguments)
         Task { @MainActor in exit(await run(app, files: files)) }
@@ -71,14 +82,14 @@ enum LatencyRun {
         _ = LatencyLog.shared.takeFinished()
         recording = file.url
         app.toggleSession()
-        try? await Task.sleep(for: .seconds(file.length + 0.5))
+        try? await Task.sleep(for: .seconds(max(1, file.length + tail)))
         app.toggleSession()
         for _ in 0..<300 {
             if let trace = LatencyLog.shared.takeFinished().last {
                 recording = nil
-                // The next session starts from rest, as yours do.
+                // The next session starts from rest, as yours do; meanwhile the last pass may refine the copy.
                 try? await Task.sleep(for: .seconds(1))
-                return trace
+                return LatencyLog.shared.lastCopied ?? trace
             }
             try? await Task.sleep(for: .milliseconds(50))
         }

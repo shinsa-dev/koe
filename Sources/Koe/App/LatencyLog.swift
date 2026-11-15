@@ -9,18 +9,29 @@ final class LatencyLog: @unchecked Sendable {
     private let lock = NSLock()
     private var current: LatencyTrace?
     private var done: [LatencyTrace] = []
+    /// The session copied last, which its last pass may still refine.
+    private var last: LatencyTrace?
 
     func mark(_ stage: LatencyTrace.Stage) {
         let now = ProcessInfo.processInfo.systemUptime
         lock.withLock {
             if stage == .startPressed { current = LatencyTrace() }
+            // The last pass and its refinement can come after the copy: they belong to the session copied last.
+            if current == nil {
+                last?.mark(stage, at: now)
+                return
+            }
             current?.mark(stage, at: now)
             if stage == .copied, let trace = current {
                 done.append(trace)
+                last = trace
                 current = nil
             }
         }
     }
+
+    /// The session copied last, with its refinement if one came.
+    var lastCopied: LatencyTrace? { lock.withLock { last } }
 
     /// The traces of sessions copied since the last call.
     func takeFinished() -> [LatencyTrace] {

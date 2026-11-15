@@ -6,7 +6,7 @@ import Foundation
 public struct LatencyTrace: Sendable, Equatable {
     public enum Stage: String, CaseIterable, Sendable {
         case startPressed, captureOpen, pillShown, deviceStarted, firstAudio
-        case finishPressed, audioEnded, lastPassStarted, lastPassDone, delivered, copied
+        case finishPressed, audioEnded, lastPassStarted, lastPassDone, delivered, copied, refined
 
         public var name: String {
             switch self {
@@ -20,6 +20,7 @@ public struct LatencyTrace: Sendable, Equatable {
             case .lastPassDone: "last pass done"
             case .delivered: "delivered"
             case .copied: "copied"
+            case .refined: "refined"
             }
         }
 
@@ -28,6 +29,8 @@ public struct LatencyTrace: Sendable, Equatable {
         /// Reported after a start, but the device's own warm-up isn't part of the cap.
         static let afterStart: [Stage] = [.deviceStarted, .firstAudio]
         static let finish: [Stage] = [.audioEnded, .lastPassStarted, .lastPassDone, .delivered, .copied]
+        /// The last pass's words replacing the copy, after the cap: reported, but not part of it.
+        static let afterFinish: [Stage] = [.refined]
     }
 
     public static let budget: TimeInterval = 0.05
@@ -64,7 +67,7 @@ public struct LatencyTrace: Sendable, Equatable {
 
     /// Each finish stage reached, as seconds since the shortcut, in order.
     public var finishStages: [(stage: Stage, after: TimeInterval)] {
-        stages(Stage.finish, since: .finishPressed)
+        stages(Stage.finish + Stage.afterFinish, since: .finishPressed)
     }
 
     /// Whether both start and finish are measured and within the budget.
@@ -120,7 +123,7 @@ public struct LatencyReport: Sendable, Equatable {
             [("start", traces.compactMap(\.start))]
             + start.map { stage in ("  " + stage.name, traces.compactMap { $0.startStages.first { $0.stage == stage }?.after }) }
             + [("finish", traces.compactMap(\.finish))]
-            + LatencyTrace.Stage.finish.map { stage in
+            + (LatencyTrace.Stage.finish + LatencyTrace.Stage.afterFinish).map { stage in
                 ("  " + stage.name, traces.compactMap { $0.finishStages.first { $0.stage == stage }?.after })
             }
         return rows.map { name, times in
