@@ -108,6 +108,15 @@ struct TranscriberRouteTests {
         #expect(route.fallback == nil)
     }
 
+    @Test func onlyAFailedLoadGivesTheRowsAnError() {
+        let failed = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true,
+                                              loadError: "Missing file.")
+        #expect(failed.loadErrors == [.parakeetV3: "Missing file."])
+        let loading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .installed, canRun: true,
+                                               loadError: nil, isLoaded: false)
+        #expect(loading.loadErrors.isEmpty)
+    }
+
     @Test func theReasonSaysWhatToExpect() {
         let downloading = TranscriberRoute.resolve(chosen: .parakeetV3, install: .downloading(fraction: 0.1),
                                                    canRun: true, loadError: nil)

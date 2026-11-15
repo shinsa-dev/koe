@@ -41,6 +41,12 @@ public struct TranscriberRoute: Sendable, Equatable {
         return TranscriberRoute(chosen: chosen, fallback: fallback)
     }
 
+    /// The live candidate's load error, keyed by model, for the Settings rows.
+    public var loadErrors: [ModelID: String] {
+        guard case .failedToLoad(let error) = fallback else { return [:] }
+        return [chosen: error]
+    }
+
     /// Why Apple's model runs instead of the live candidate, or nil when the candidate runs.
     public var reason: String? {
         guard let fallback else { return nil }
