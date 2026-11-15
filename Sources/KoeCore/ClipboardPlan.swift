@@ -75,6 +75,24 @@ public enum PastePlan {
         return flags & (shift | control | option | command | function) != 0
     }
 
+    /// Waits until `flags` reads no held key or `keyReleaseLimit` passes, then `autoPasteDelay` more. Returns how long
+    /// it waited, so the time to Koe's ⌘V can be checked without the system's keys.
+    @discardableResult
+    public static func waitForAutoPaste(
+        isolation: isolated (any Actor)? = #isolation,
+        flags: () -> UInt64,
+        sleep: (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+    ) async -> Duration {
+        let step = Duration.milliseconds(20)
+        var waited = Duration.zero
+        while waited < keyReleaseLimit, keysHeld(flags()) {
+            await sleep(step)
+            waited += step
+        }
+        await sleep(autoPasteDelay)
+        return waited + autoPasteDelay
+    }
+
     /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out. So do
     /// code editors, whose editor and built-in terminal paste a file the same way.
     public static func takesFiles(appWithBundleID id: String?) -> Bool {
