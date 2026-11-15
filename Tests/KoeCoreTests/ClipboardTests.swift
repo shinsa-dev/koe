@@ -103,6 +103,13 @@ struct PastePlanTests {
             #expect(delay <= .milliseconds(100))
         }
     }
+
+    @Test func pasteForYouWaitsWhileAStopHotkeyKeyIsDown() {
+        #expect(!PastePlan.keysHeld(0))
+        #expect(!PastePlan.keysHeld(1 << 8))
+        for bit in [17, 18, 19, 20, 23] { #expect(PastePlan.keysHeld(1 << UInt64(bit))) }
+        #expect(PastePlan.keyReleaseLimit > PastePlan.autoPasteDelay)
+    }
 }
 
 struct KoeSettingsTests {

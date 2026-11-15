@@ -62,8 +62,18 @@ public enum PastePlan {
     /// outlast that, not your hold on ⌘: Koe's own ⌘V carries the flag itself.
     public static let filesDelay: Duration = .milliseconds(80)
 
-    /// From copying to "Paste for you" pressing ⌘V, so the app in front sees the new clipboard first.
+    /// From copying to "Paste for you" pressing ⌘V, so the app in front sees the new clipboard first. It counts from
+    /// the moment you let go of the stop hotkey's keys (`keysHeld`), waiting at most `keyReleaseLimit` for that.
     public static let autoPasteDelay: Duration = .milliseconds(100)
+    public static let keyReleaseLimit: Duration = .seconds(1)
+
+    /// Whether any of fn, ⇧, ⌃, ⌥ or ⌘ is down in these CGEventFlags bits. Koe's ⌘V would pick up a held one: ⌥⇧⌘V
+    /// pastes without formatting, and Fn held is the default stop hotkey still on its way up.
+    public static func keysHeld(_ flags: UInt64) -> Bool {
+        let shift: UInt64 = 1 << 17, control: UInt64 = 1 << 18, option: UInt64 = 1 << 19
+        let command: UInt64 = 1 << 20, function: UInt64 = 1 << 23
+        return flags & (shift | control | option | command | function) != 0
+    }
 
     /// A terminal pastes a file as its path, and the words already end with every path, so the files stay out. So do
     /// code editors, whose editor and built-in terminal paste a file the same way.

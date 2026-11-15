@@ -28,7 +28,13 @@ enum BundleWriter {
     /// is in front (its settings were open), or Accessibility isn't allowed, it does nothing and says so.
     static func paste() async -> Bool {
         guard AXIsProcessTrusted(), !NSApp.isActive else { return false }
-        // Gives the app in front a moment to see the new clipboard, and you to let go of the stop hotkey's keys.
+        let step = Duration.milliseconds(20)
+        var waited = Duration.zero
+        while waited < PastePlan.keyReleaseLimit,
+              PastePlan.keysHeld(CGEventSource.flagsState(.combinedSessionState).rawValue) {
+            try? await Task.sleep(for: step)
+            waited += step
+        }
         try? await Task.sleep(for: PastePlan.autoPasteDelay)
         BundlePaster.pressPaste()
         return true

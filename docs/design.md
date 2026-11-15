@@ -164,7 +164,7 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   nothing at all, its folder is kept as an unfinished recording (`EmptyEnding`) and the pill says "Recording kept":
   launch recovery transcribes it. A model that failed keeps it too. Only a model that settled the whole recording and
   heard nothing earns "We couldn't hear you", which deletes the folder.
-- "Paste for you" presses ⌘V after 100 ms (`PastePlan.autoPasteDelay`), with Accessibility allowed. Koe's panels never take focus, so it lands
+- "Paste for you" presses ⌘V 100 ms (`PastePlan.autoPasteDelay`) after you let go of the stop hotkey's keys (at most 1 s, `PastePlan.keysHeld`), so a held ⌥ or ⇧ never joins its ⌘V, with Accessibility allowed. Koe's panels never take focus, so it lands
   in the app you were in; when Koe itself is in front it does nothing and the pill says "Copied to clipboard".
 - The pill stays up 2.5 s after you stop to say what it copied ("Copied the transcript and 2 files. Paste it
   anywhere."), or that it heard nothing.
