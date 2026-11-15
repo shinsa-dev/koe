@@ -45,12 +45,26 @@ is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behin
 - **No waiting states.** The hotkey opens the microphone at once and the pill is recording straight away.
   `CaptureStream` writes every buffer (16 kHz mono) to the session's `audio.caf` as it arrives and holds it until
   the speech model attaches; the model then catches up on what it missed. The model's setup (`SpeechSetup`: locale,
-  assets, format) is worked out at launch and kept.
-- **Finishing copies the settled words** (`Delivery`): when you finish, Koe waits up to 1.5 s (`finalWait`) for the
-  model's last words to settle, whichever model runs, so a quick paste gets them. Past that it copies what it has,
+  assets, format) is worked out at launch and kept. Starting takes a few milliseconds: the microphone engine is
+  prepared at launch and again after each session, so a start only asks the device to run, and the audio follows on
+  the engine's own queue. Asking macOS about the microphone takes 50 to 100 ms, so a start trusts the last answer and
+  asks again behind the session (`MicrophoneGate`); if access is gone, the session is thrown away and setup opens.
+  Only an answer other than granted is asked before starting.
+- **Finishing copies within 50 ms** (`Delivery`): when you finish, the audio ends at once and the model's last pass
+  starts straight away. Koe waits for it only for what is left of the 50 ms budget, less 15 ms for the copy itself
+  (`Delivery.lastWordsWait`). If the pass is back by then, its words are the copy. Past that it copies what it has,
   the model's latest guess included; when the last words settle later, the session is saved again and the clipboard
   is replaced, unless you copied something else meanwhile (`SessionLibrary.refined`). Beyond that Koe waits only for a
   tool you still have open, or when the model has not produced a single word yet.
+- **The 50 ms cap.** Starting (shortcut to pill shown and recording open) and finishing (shortcut to the words on the
+  clipboard) each take at most 50 ms. Every session stamps its stages (`LatencyTrace`, `LatencyLog`) and logs them,
+  with a line on when the microphone itself started; one over the cap also logs the slowest step (category
+  `latency`; `log show --last 1h --predicate 'category == "latency"'` reads them). `scripts/sandbox.sh --with-models --latency
+  [--model <id>]` plays your recordings into real sessions, prints each stage and a verdict for the model, and exits
+  with 2 when any start or finish went over. Parakeet's last pass takes 60 to 220 ms, so its copy usually goes out
+  before the last words, which then refine it. Whisper's passes take about 0.67 s: it can't settle the last words
+  within the cap, so it suits refining a copy, not streaming one. The microphone device's own start and Koe's paste
+  into the app you're in come after the cap and aren't part of it.
 - **Nothing is lost.** The audio is on disk as it is recorded (CAF stays readable when Koe is killed mid-write) and
   `draft.json` lists the attachments so far. At launch, a folder with audio and no `session.json` is a recording Koe
   never finished: it is transcribed from the file and saved to Recent sessions (`SessionArchive.unfinished`,
@@ -188,11 +202,34 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 - **Keeping the last words.** Parakeet sometimes hears nothing in a few seconds of speech, which is what the end of a
   session looks like. So an empty pass never drops the guess: mid-session the same audio is decoded again, and the
   last pass reaches 12 s back (`finalContext`, inside Parakeet's 15 s single pass). When that pass still stops short,
-  the rest of the guess is kept, and a word it times again is never added twice. Finishing waits up to 1.5 s for
-  those last words before copying (`finalWait`).
+  the rest of the guess is kept, and a word it times again is never added twice. When that pass returns after the
+  copy, its words refine it.
 - **Whisper's language.** Whisper finds the language itself, but guessing it on every 0.9 s pass costs a decoder
   step and can flip on a short or quiet window. A session settles it once, from the first pass that read at least
   4 s of audio (`LanguageLock`), and every later pass decodes in it. A whole recording read back is detected afresh.
+- **Refine after the copy.** Once a session is copied, `Refiner` reads its `audio.caf` again with every installed
+  model at once (Whisper turbo, Parakeet, and Apple's), each in its own task, in the background. `TranscriptVote`
+  (`KoeCore`) combines them: the most trusted reading (Whisper, then Parakeet, then Apple's) is the backbone, the
+  others are lined up against it by text and by time (words said more than 1.5 s apart never stand for each other),
+  and each word goes to a vote. A word most readings agree on is kept; one most didn't hear is dropped, leaving its
+  full stop to the word before; one most add is added; a tie goes to the most trusted. The backbone has no vote
+  against a word said where it heard nothing within 1.5 s, so a stretch it skipped keeps the others' words.
+  Punctuation is voted too: the backbone's own mark stands, and where it has none the others' mark is added when at
+  least as many readings close the word as leave it open, a reading in a run-on of 25 words or more with no
+  sentence end having no say (Whisper reads some stretches without punctuating them). Every sentence then starts
+  with a capital. When most models heard
+  nothing at all, nothing was said: the one that heard words in a near-silent clip made them up. The result gets the
+  cleanup and the dictionary and replaces the session through `SessionLibrary.refined`, so Recent sessions and the
+  clipboard (when it still holds that copy) take it; text already pasted into an app stays as it was. A model that
+  fails is left out; a recording under 0.5 s of audio is not read, as Apple's model never answers on one. The copy
+  itself never waits: it comes from the live words, as fast as before. A session that starts pauses the refine
+  (`RefineQueue`), since its live passes need the Neural Engine, and the recording is read again once it ends. The
+  refine's models unload after ten idle minutes.
+- **Whisper's long recordings.** Whisper reads 30 s at a time, and WhisperKit's own cuts lost the punctuation and
+  whole passages past the first window. A whole recording is cut by Koe instead (`SpeechStretches`): at its pauses,
+  into stretches under 28 s, skipping any without half a second of speech (Whisper writes "Thank you." over
+  silence), and each is read on its own and timed from where it starts. No stretch is prompted with the text before
+  it, as a prompt put every word's time at the end of the window, which broke the vote.
 - **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
   `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3, or the model
   `--model <id>` names (Parakeet v3, Parakeet v2 or Whisper; Apple's streams on its own and can't be replayed). It
@@ -202,6 +239,12 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   the whole decode and of the words the session was copied with, and how long it took, and the same for what the
   dictionary spells differently (with a fresh scan of this Mac's names, saved nowhere). It reads only local
   recordings; none is in the repository.
+- **Refine benchmark.** `Koe --bench --refine` reads every recording on this Mac (or a count, or the files named) the
+  way `Refiner` does, and scores the live transcript and each model's against the combined one by word error rate
+  (`WordErrorRate`), with whether the live ending matches. With no hand-checked transcripts, that is a distance, not
+  an accuracy; a `reference.txt` in a session folder holding the right text is scored as the truth. It also times
+  the live passes alone and again while a refine runs beside them, and how long each refine took. `--text` prints
+  each transcript.
 - **Cleanup.** What is copied and saved goes through `TranscriptCleanup` (`KoeCore`) first, for every model, in
   `snapshot()` and in recovery. It drops filler words ("um", "uh", "erm" and the like; a sentence that started with
   one starts with the next word, capitalized), the words at the start of the guess that repeat the last settled ones

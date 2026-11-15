@@ -19,4 +19,5 @@ let app = NSApplication.shared
 app.setActivationPolicy(Launch.isBackground ? .prohibited : .accessory)
 let delegate = AppDelegate()
 app.delegate = delegate
+if LatencyRun.isOn { LatencyRun.start(delegate) }
 app.run()

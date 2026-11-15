@@ -40,6 +40,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
             guard !stream.isStopped else { return }
             do {
                 try startEngine()
+                LatencyLog.shared.mark(.deviceStarted)
             } catch {
                 Self.log.error("Could not open the microphone: \(error.localizedDescription, privacy: .public)")
                 stream.stop()
@@ -79,6 +80,8 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         running = false
+        // Stopping frees what `prepare` allocated; ready it again so the next session only starts the device.
+        engine.prepare()
     }
 
     private func deviceChanged() {
