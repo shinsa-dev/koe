@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.mainMenu = MainMenu.build(target: self)
 
         vocabulary.update(settings: library.settings)
-        vocabulary.refreshIfStale()
+        vocabulary.keepFresh()
         wireSessions()
         startTranscription()
         library.onSettingsChange = { [weak self] settings in

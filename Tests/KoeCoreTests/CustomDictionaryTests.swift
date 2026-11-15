@@ -43,6 +43,15 @@ struct CustomDictionaryTests {
         #expect(text(fix.apply(words("my buzz kit project"))) == "my BuzzKit project")
     }
 
+    @Test func aLearnedNameOfSeveralPartsNeverRewritesSeveralHeardWords() {
+        let fix = CustomDictionary(words: [], learned: ["Superwall", "superwall-docs", "shinsa-browser",
+                                                        "ios-web-purchase", "Shinsa"]) { Self.english.contains($0) }
+        #expect(text(fix.apply(words("Check the Superwall docs"))) == "Check the Superwall docs")
+        #expect(text(fix.apply(words("the Shinza browser"))) == "the Shinsa browser")
+        #expect(text(fix.apply(words("The iOS web purchase flow"))) == "The iOS web purchase flow")
+        #expect(text(dictionary(["shinsa-browser"]).apply(words("the shinsa browser"))) == "the shinsa-browser")
+    }
+
     @Test func aRunNeverSwallowsAWordThatAddsNoSoundOrCrossesPunctuation() {
         let fix = dictionary(["Shinsa"])
         #expect(text(fix.apply(words("Shinza you know"))) == "Shinsa you know")

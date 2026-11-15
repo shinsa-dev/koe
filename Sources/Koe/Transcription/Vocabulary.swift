@@ -18,6 +18,8 @@ final class Vocabulary {
     /// What Apple's model and Whisper hear as hints, read by them when a session or a recording starts.
     @ObservationIgnored let hints = HintWords()
     @ObservationIgnored private var settings = KoeSettings()
+    /// The words the dictionary was last built from, before it drops duplicates.
+    @ObservationIgnored private var built: [String]?
 
     @ObservationIgnored private let cache: URL
     @ObservationIgnored private let home: URL
@@ -43,12 +45,25 @@ final class Vocabulary {
 
     private func rebuild() {
         let words = DictionaryWords.list(settings: settings, learned: learned)
-        guard words != dictionary.entries else { return }
+        guard words != built else { return }
+        built = words
         let yours = settings.dictionaryWords.count
         dictionary = CustomDictionary(words: Array(words.prefix(yours)), learned: Array(words.dropFirst(yours)),
                                       isOrdinary: OrdinaryWords.check)
         hints.words = DictionaryWords.hints(dictionary.entries)
         Self.log.info("Dictionary has \(words.count) words")
+    }
+
+    /// Checks every hour, for as long as Koe runs, whether the names are stale, so new repositories show up without a
+    /// relaunch.
+    func keepFresh() {
+        refreshIfStale()
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3600))
+                self?.refreshIfStale()
+            }
+        }
     }
 
     /// Scans again when the last scan is missing or stale.

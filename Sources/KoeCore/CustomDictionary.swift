@@ -5,7 +5,9 @@ import Foundation
 /// `maxSpan` words, is compared with every entry by how it sounds (`soundKey`). A run that sounds exactly like an entry
 /// becomes it. One that only comes close becomes it only when it is a single word that isn't ordinary English, so
 /// "shine" never turns into "Shinsa". A learned name is a guess at what you might say, so it never replaces a run made
-/// only of ordinary words ("can" stays, not Kanna); one you added yourself does ("shins" becomes Shinsa). Each replaced
+/// only of ordinary words ("can" stays, not Kanna); one you added yourself does ("shins" becomes Shinsa). A learned name
+/// of several parts (`superwall-docs`) never replaces several heard words either: "the Superwall docs" is more likely
+/// prose than the repository, and its words are already spelled. Each replaced
 /// word keeps its times, so attachments still land between words.
 public struct CustomDictionary: Sendable {
     /// The longest run of heard words one entry can replace: "pay wall next" for `paywall-next`.
@@ -23,6 +25,8 @@ public struct CustomDictionary: Sendable {
     private let exact: [String: Int]
     private let neighbours: [Key: [Int]]
     private let entryKeys: [Key]
+    /// Whether each entry is written as several parts ("superwall-docs", "Shinsa browser").
+    private let multiPart: [Bool]
     /// Every start of an entry's sound key, so a run of heard words stops growing once no entry could still match it.
     private let prefixes: Set<String>
     /// The lengths of heard sound keys a near match could reach, so most words skip the search.
@@ -64,6 +68,9 @@ public struct CustomDictionary: Sendable {
         self.neighbours = neighbours
         self.prefixes = prefixes
         self.entryKeys = entryKeys
+        multiPart = entries.map { entry in
+            entry.split(whereSeparator: { $0 == "-" || $0 == "_" || $0 == " " }).count > 1
+        }
         self.nearLengths = nearLengths
         self.isOrdinary = isOrdinary
     }
@@ -132,6 +139,7 @@ public struct CustomDictionary: Sendable {
             let entry = entries[found]
             if span == 1 && letters[index] == Self.letters(of: entry) { return (entry, span) }
             guard key.utf8.count >= Self.minKey else { continue }
+            if found >= yours, span > 1, multiPart[found] { continue }
             if found >= yours, (index..<index + span).allSatisfy({ isOrdinary(Self.string(letters[$0])) }) { continue }
             return (entry, span)
         }

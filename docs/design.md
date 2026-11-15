@@ -219,12 +219,15 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   keys) does only as a single word the system's spell checker doesn't know, so "shine" stays. Keys under three
   letters only fix casing. A learned name never replaces a run made only of ordinary words (the bench found "can"
   becoming Kanna and "drop" becoming Droppy); a word you added does, so add Shinsa yourself to also catch "shins".
+  A learned name of several parts (`superwall-docs`) never replaces several heard words, so "the Superwall docs"
+  stays prose; one you added (`paywall-next`) does.
   A replaced run keeps its first start and last end, its outer punctuation and a capital at a
   sentence start. It takes well under 5 ms for a long session (tested). Apple's model also gets the words as
   contextual strings, and Whisper as prompt tokens (`HintWords`), read when a session starts; Parakeet has no hints
   and relies on the fix.
 - **Learned names.** `Vocabulary` shows the last scan's names at once from `Koe/LearnedNames.json` in Application
-  Support and scans again in the background when that is over six hours old, never on the path of a session.
+  Support and scans again in the background when that is over six hours old (checked at launch and every hour while Koe
+  runs), never on the path of a session.
   `NameScan` walks the home folder (six levels, at most 40,000 folders) for git repositories, skipping the folders
   macOS guards (Desktop, Documents, Downloads, Library, the media folders) so it never prompts, and lists the apps in
   `/Applications` and `~/Applications`. Only your repositories count: ones you committed in, local-only ones, and ones
