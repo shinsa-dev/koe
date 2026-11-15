@@ -14,7 +14,8 @@ struct CustomDictionaryTests {
 
     private static let english: Set<String> = [
         "the", "a", "in", "on", "open", "shins", "shine", "shin", "pay", "wall", "next", "buzz", "kit", "code",
-        "notion", "cursor", "it", "is", "and", "my", "project", "fix", "so", "look", "at", "page", "koala",
+        "notion", "cursor", "it", "is", "and", "my", "project", "fix", "so", "look", "at", "page", "koala", "can",
+        "drop", "we",
     ]
     private func dictionary(_ entries: [String]) -> CustomDictionary {
         CustomDictionary(words: entries) { Self.english.contains($0) }
@@ -40,6 +41,13 @@ struct CustomDictionaryTests {
         #expect(text(fix.apply(words("open shin za and pay wall next"))) == "open Shinsa and paywall-next")
         #expect(text(fix.apply(words("the paywall next page"))) == "the paywall-next page")
         #expect(text(fix.apply(words("my buzz kit project"))) == "my BuzzKit project")
+    }
+
+    @Test func aRunNeverSwallowsAWordThatAddsNoSoundOrCrossesPunctuation() {
+        let fix = dictionary(["Shinsa"])
+        #expect(text(fix.apply(words("Shinza you know"))) == "Shinsa you know")
+        #expect(text(fix.apply(words("Shinza, you see"))) == "Shinsa, you see")
+        #expect(text(fix.apply(words("shin, za"))) == "shin, za")
     }
 
     @Test func aReplacedRunSpansTheTimesOfTheWordsItReplaced() {
@@ -72,6 +80,22 @@ struct CustomDictionaryTests {
         let fix = dictionary(["Shinsa", "Koala", "Kodama"])
         #expect(text(fix.apply(words("shine a shin on the code"))) == "shine a shin on the code")
         #expect(text(fix.apply(words("koala"))) == "Koala")
+    }
+
+    @Test func aLearnedNameNeverReplacesOnlyOrdinaryWords() {
+        let fix = CustomDictionary(words: [], learned: ["Kanna", "Droppy", "Shinsa", "BuzzKit"]) {
+            Self.english.contains($0)
+        }
+        #expect(text(fix.apply(words("we can drop it"))) == "we can drop it")
+        #expect(text(fix.apply(words("so shins and buzz kit"))) == "so shins and buzz kit")
+        #expect(text(fix.apply(words("open Shinza and shin za"))) == "open Shinsa and Shinsa")
+        #expect(text(fix.apply(words("open kanna"))) == "open Kanna")
+    }
+
+    @Test func yourOwnWordsReplaceOrdinaryWordsThatSoundTheSame() {
+        let fix = CustomDictionary(words: ["Shinsa"], learned: ["Kanna"]) { Self.english.contains($0) }
+        #expect(text(fix.apply(words("open shins but we can"))) == "open Shinsa but we can")
+        #expect(fix.entries == ["Shinsa", "Kanna"])
     }
 
     @Test func shortEntriesOnlyFixTheirOwnCasing() {

@@ -31,6 +31,8 @@ enum TailBench {
             return 1
         }
         let clock = ContinuousClock()
+        await vocabulary.rescan()
+        print("Dictionary: \(dictionary.entries.count) words")
         do {
             let load = try await clock.measure { try await transcriber.decoder.load() }
             print("\(model.name) loaded in \(seconds(load))")
@@ -68,6 +70,7 @@ enum TailBench {
             + "  whole: …\(result.reference.joined(separator: " "))")
         print("     \(String(format: "%.0f s", length)) of audio, steps: \(steps.summary), whole decode \(seconds(whole))")
         print("     \(cleanup(words, samples: samples, folder: file.deletingLastPathComponent()))")
+        print("     \(spelling(words, folder: file.deletingLastPathComponent()))")
         return (result, steps)
     }
 
@@ -87,6 +90,38 @@ enum TailBench {
         }
         return line
     }
+
+    /// What the dictionary spells differently in the whole decode and in the words this session was copied with, and
+    /// how long it takes.
+    private static func spelling(_ words: [TimedWord], folder: URL) -> String {
+        var fixed: [TimedWord] = []
+        let took = ContinuousClock().measure { fixed = dictionary.apply(words) }
+        var line = "dictionary \(String(format: "%.2f ms", milliseconds(took))), replaced: \(replaced(words, fixed))"
+        if let saved = savedWords(in: folder) {
+            line += "\n     copied words, replaced: \(replaced(saved, dictionary.apply(saved)))"
+        }
+        return line
+    }
+
+    /// Each replaced run of heard words with what it became: a word the fix made that wasn't heard, against the heard
+    /// words it spans.
+    private static func replaced(_ words: [TimedWord], _ fixed: [TimedWord]) -> String {
+        let changes = fixed.filter { !words.contains($0) }.map { word in
+            let before = words.drop { $0.start < word.start }.prefix(CustomDictionary.maxSpan)
+                .prefix { $0.end <= word.end }.map(\.text)
+            return "\(before.joined(separator: " ")) → \(word.text)"
+        }
+        return changes.isEmpty ? "nothing" : changes.joined(separator: ", ")
+    }
+
+    /// Your words and the names learned from this Mac, scanned fresh into a scratch cache so the bench saves nothing.
+    private static let vocabulary: Vocabulary = {
+        let vocabulary = Vocabulary(cache: FileManager.default.temporaryDirectory.appending(path: "koe-bench-names.json"))
+        vocabulary.update(settings: KoeSettings(values: UserDefaults.standard.dictionaryRepresentation()))
+        return vocabulary
+    }()
+
+    private static var dictionary: CustomDictionary { vocabulary.dictionary }
 
     private static func removed(from words: [TimedWord], kept: [TimedWord]) -> String {
         let starts = Set(kept.map(\.start))
@@ -117,7 +152,7 @@ enum TailBench {
     private static func windowed(_ model: TranscriptionModel, store: ModelStore) -> WindowedTranscriber? {
         switch model.engine {
         case .parakeet: WindowedTranscriber.parakeet(model.id, store: store)
-        case .whisper: WindowedTranscriber.whisper(model.id, store: store, hints: HintWords())
+        case .whisper: WindowedTranscriber.whisper(model.id, store: store, hints: vocabulary.hints)
         case .apple: nil
         }
     }

@@ -4,7 +4,9 @@ import Foundation
 /// hear a name they don't know as the words it sounds like ("Shinza", "shin za"), so each heard word, or run of up to
 /// `maxSpan` words, is compared with every entry by how it sounds (`soundKey`). A run that sounds exactly like an entry
 /// becomes it. One that only comes close becomes it only when it is a single word that isn't ordinary English, so
-/// "shine" never turns into "Shinsa". Each replaced word keeps its times, so attachments still land between words.
+/// "shine" never turns into "Shinsa". A learned name is a guess at what you might say, so it never replaces a run made
+/// only of ordinary words ("can" stays, not Kanna); one you added yourself does ("shins" becomes Shinsa). Each replaced
+/// word keeps its times, so attachments still land between words.
 public struct CustomDictionary: Sendable {
     /// The longest run of heard words one entry can replace: "pay wall next" for `paywall-next`.
     public static let maxSpan = 4
@@ -16,7 +18,9 @@ public struct CustomDictionary: Sendable {
 
     /// The words to spell, in the order given: the first of two entries that sound alike wins.
     public let entries: [String]
-    private let exact: [String: String]
+    /// How many of `entries`, from the first, are your own words; the rest were learned.
+    private let yours: Int
+    private let exact: [String: Int]
     private let neighbours: [Key: [Int]]
     private let entryKeys: [Key]
     /// Every start of an entry's sound key, so a run of heard words stops growing once no entry could still match it.
@@ -28,11 +32,18 @@ public struct CustomDictionary: Sendable {
     private typealias Key = [UInt8]
 
     /// `isOrdinary` says whether a lowercased word is ordinary English. The app asks the system's spell checker.
-    public init(words: [String], isOrdinary: @escaping @Sendable (String) -> Bool = { _ in false }) {
+    /// `learned` follow `words` and only replace runs that hold a word that isn't ordinary.
+    public init(words: [String], learned: [String] = [],
+                isOrdinary: @escaping @Sendable (String) -> Bool = { _ in false }) {
         var seen = Set<String>()
-        entries = words.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
-        var exact: [String: String] = [:]
+        let clean = { (list: [String]) in
+            list.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        }
+        let own = clean(words)
+        yours = own.count
+        entries = own + clean(learned)
+        var exact: [String: Int] = [:]
         var neighbours: [Key: [Int]] = [:]
         var prefixes = Set<String>()
         var entryKeys: [Key] = []
@@ -44,7 +55,7 @@ public struct CustomDictionary: Sendable {
             for end in key.indices { prefixes.insert(Self.string(key[...end])) }
             guard !key.isEmpty else { continue }
             let name = Self.string(key)
-            if exact[name] == nil { exact[name] = entry }
+            if exact[name] == nil { exact[name] = index }
             guard key.count >= Self.minNearKey else { continue }
             nearLengths.formUnion((key.count - 2)...(key.count + 2))
             for variant in Self.deletions(of: key) + [key] { neighbours[variant, default: []].append(index) }
@@ -71,11 +82,12 @@ public struct CustomDictionary: Sendable {
         guard !entries.isEmpty else { return words }
         let letters = words.map { Self.heardLetters($0.text) }
         let sounds = letters.map { Self.string(Self.fold($0)) }
+        let pauses = words.map { $0.text.last.map { ",.;:?!".contains($0) } ?? false }
         var result: [TimedWord] = []
         result.reserveCapacity(words.count)
         var index = 0
         while index < words.count {
-            if let (entry, span) = match(at: index, letters: letters, sounds: sounds) {
+            if let (entry, span) = match(at: index, letters: letters, sounds: sounds, pauses: pauses) {
                 result.append(Self.replace(words[index..<index + span], with: entry))
                 index += span
             } else {
@@ -87,8 +99,9 @@ public struct CustomDictionary: Sendable {
     }
 
     /// The entry the words from `index` sound like, and how many words it takes: the longest run first. `sounds`
-    /// holds each word's own sound key, so a word that can't start an entry costs one lookup.
-    private func match(at index: Int, letters: [Key], sounds: [String]) -> (String, Int)? {
+    /// holds each word's own sound key, so a word that can't start an entry costs one lookup. A run stops at a word
+    /// that ends in punctuation, and at one that adds nothing to its sound ("Shinza you" sounds like "Shinza").
+    private func match(at index: Int, letters: [Key], sounds: [String], pauses: [Bool]) -> (String, Int)? {
         let first = sounds[index]
         guard !first.isEmpty else { return nil }
         var keys = [first]
@@ -96,23 +109,33 @@ public struct CustomDictionary: Sendable {
             var run = letters[index]
             for offset in 1..<min(Self.maxSpan, letters.count - index) {
                 let word = letters[index + offset]
-                guard !word.isEmpty else { break }
+                guard !word.isEmpty, !pauses[index + offset - 1] else { break }
                 run += word
                 let key = Self.string(Self.fold(run))
+                guard key != keys.last else { break }
                 guard prefixes.contains(key) else { break }
                 keys.append(key)
             }
         }
+        if let found = exactMatch(keys, at: index, letters: letters) { return found }
+        guard first.utf8.count >= Self.minNearKey, nearLengths.contains(first.utf8.count) else { return nil }
+        // The spell checker is the slow part, so it is only asked about a word that comes close to an entry.
+        guard let entry = near(Array(first.utf8)), !isOrdinary(Self.string(letters[index])) else { return nil }
+        return (entry, 1)
+    }
+
+    /// The entry a run from `index` sounds exactly like, the longest run first; `keys` holds each run's sound key.
+    private func exactMatch(_ keys: [String], at index: Int, letters: [Key]) -> (String, Int)? {
         for span in stride(from: keys.count, through: 1, by: -1) {
             let key = keys[span - 1]
-            guard let entry = exact[key] else { continue }
-            if key.utf8.count >= Self.minKey || span == 1 && letters[index] == Self.letters(of: entry) {
-                return (entry, span)
-            }
+            guard let found = exact[key] else { continue }
+            let entry = entries[found]
+            if span == 1 && letters[index] == Self.letters(of: entry) { return (entry, span) }
+            guard key.utf8.count >= Self.minKey else { continue }
+            if found >= yours, (index..<index + span).allSatisfy({ isOrdinary(Self.string(letters[$0])) }) { continue }
+            return (entry, span)
         }
-        guard first.utf8.count >= Self.minNearKey, nearLengths.contains(first.utf8.count) else { return nil }
-        guard !isOrdinary(Self.string(letters[index])) else { return nil }
-        return near(Array(first.utf8)).map { ($0, 1) }
+        return nil
     }
 
     /// The entry whose sound key is one edit from `key` (two for long keys), the closest first.

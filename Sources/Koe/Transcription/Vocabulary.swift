@@ -44,7 +44,9 @@ final class Vocabulary {
     private func rebuild() {
         let words = DictionaryWords.list(settings: settings, learned: learned)
         guard words != dictionary.entries else { return }
-        dictionary = CustomDictionary(words: words, isOrdinary: OrdinaryWords.check)
+        let yours = settings.dictionaryWords.count
+        dictionary = CustomDictionary(words: Array(words.prefix(yours)), learned: Array(words.dropFirst(yours)),
+                                      isOrdinary: OrdinaryWords.check)
         hints.words = DictionaryWords.hints(dictionary.entries)
         Self.log.info("Dictionary has \(words.count) words")
     }
@@ -104,11 +106,18 @@ enum OrdinaryWords {
         return answer
     }
 
-    /// The same from any thread: the spell checker only answers on the main one.
+    /// The same from any thread: the spell checker only answers on the main queue. Under `dispatchMain()` (the
+    /// command line modes) the main queue runs on other threads, so it is told by a mark on the queue, not the thread.
     nonisolated static func check(_ word: String) -> Bool {
-        if Thread.isMainThread { return MainActor.assumeIsolated { contains(word) } }
+        if DispatchQueue.getSpecific(key: mainMark) != nil { return MainActor.assumeIsolated { contains(word) } }
         return DispatchQueue.main.sync { MainActor.assumeIsolated { contains(word) } }
     }
+
+    private nonisolated static let mainMark: DispatchSpecificKey<Bool> = {
+        let key = DispatchSpecificKey<Bool>()
+        DispatchQueue.main.setSpecific(key: key, value: true)
+        return key
+    }()
 }
 
 /// `Koe --names [--home <folder>]`: scans the home folder, or the one named, and the app folders, and prints every name

@@ -21,7 +21,7 @@ Everything that floats over other apps (the pill, the attachment list, the clip 
 is a dark HUD, like the notch: Shinsa's dark canvas over a blur of what is behind with one hairline ring
 (`floatingSurface`, `Palette.hudRing`), dark whatever the theme. Copy is sentence case, full sentences, no em dashes.
 
-- One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation,
+- One window: Settings, one page with no tabs: Koe's icon and name, then Shinsa's cards for Permissions, Dictation (with the Dictionary card under Transcription),
   While you dictate, When you finish and General. No system toolbar; the page fades out under the window's controls. First launch
   opens it. Every shortcut can be changed: click it and press the new keys (`ShortcutRow`). Starting and
   finishing (Fn alone, watched by `FnKey` as Carbon cannot hold it; it needs Accessibility, and its monitors are added again once Accessibility flips, so no relaunch is needed. Koe only listens, so "Press 🌐 key to" in Keyboard settings should be Do Nothing; the shortcut row says so while it is not) works everywhere, so it needs ⌘, ⌃ or ⌥ (or to be Fn or a function key). The tools are ⌥⇧C to comment, ⌥⇧S for a
@@ -199,7 +199,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   prints whether each ends with the same three words as one decode of the whole recording (`TailScore`), and the
   total; how long the model took to load; and for each recording and in all, how long the passes took against the
   0.9 s they have and how long the whole decode took (`StepTimings`). It also prints what the cleanup takes out of
-  the whole decode and of the words the session was copied with, and how long it took. It reads only local
+  the whole decode and of the words the session was copied with, and how long it took, and the same for what the
+  dictionary spells differently (with a fresh scan of this Mac's names, saved nowhere). It reads only local
   recordings; none is in the repository.
 - **Cleanup.** What is copied and saved goes through `TranscriptCleanup` (`KoeCore`) first, for every model, in
   `snapshot()` and in recovery. It drops filler words ("um", "uh", "erm" and the like; a sentence that started with
@@ -209,6 +210,29 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   `LevelTrack` (the level of each 50 ms) as it captures, and recovery reads one from the file. A word stays unless
   its audio, read 0.35 s either side as models time a word early, never rises 10 dB over the floor (the session's
   10th percentile). Kept words keep their times. On the bench it takes about 2 ms for three minutes of audio.
+- **Dictionary.** Settings' Dictionary card (`DictionaryGroup`, rules in `DictionaryCard`) holds the words you add
+  and the names Koe learned from this Mac, each learned one with where it came from. After the cleanup, every copy,
+  refine and recovered recording goes through `CustomDictionary` (`KoeCore`), for every model. It compares each heard
+  word, and each run of up to four, with every entry by a sound key (lower case letters, z as s, c as k, ph as f,
+  doubled letters and trailing vowels dropped), so "Shinza", "shin za" and "shins" become Shinsa and "paywall next"
+  becomes `paywall-next`. A run that sounds exactly like an entry becomes it; one only one edit off (two for long
+  keys) does only as a single word the system's spell checker doesn't know, so "shine" stays. Keys under three
+  letters only fix casing. A learned name never replaces a run made only of ordinary words (the bench found "can"
+  becoming Kanna and "drop" becoming Droppy); a word you added does, so add Shinsa yourself to also catch "shins".
+  A replaced run keeps its first start and last end, its outer punctuation and a capital at a
+  sentence start. It takes well under 5 ms for a long session (tested). Apple's model also gets the words as
+  contextual strings, and Whisper as prompt tokens (`HintWords`), read when a session starts; Parakeet has no hints
+  and relies on the fix.
+- **Learned names.** `Vocabulary` shows the last scan's names at once from `Koe/LearnedNames.json` in Application
+  Support and scans again in the background when that is over six hours old, never on the path of a session.
+  `NameScan` walks the home folder (six levels, at most 40,000 folders) for git repositories, skipping the folders
+  macOS guards (Desktop, Documents, Downloads, Library, the media folders) so it never prompts, and lists the apps in
+  `/Applications` and `~/Applications`. Only your repositories count: ones you committed in, local-only ones, and ones
+  whose GitHub owner is one of those. `NameSources` reads each one's folder name, README title and manifest name
+  (`Package.swift`, `package.json`, `Cargo.toml` and the like) and keeps the most deliberately cased spelling
+  (BuzzKit over buzzkit); a name made only of ordinary words ("website") or that a model already spells is left out.
+  Turning learning off or removing a name keeps it out, even when a scan finds it again. `Koe --names` prints what a
+  scan would learn, and saves nothing.
 - Apple's `SpeechAnalyzer` with `SpeechTranscriber` (macOS 26) streams on its own. It asks for volatile results and
   for audio time ranges, which time the words.
 - `LiveTranscript` (`KoeCore`) keeps settled words and the current guess. A final result times each run; a volatile
