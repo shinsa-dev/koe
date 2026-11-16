@@ -3,7 +3,7 @@
 Koe ships the way Shinsa does (`shinsa/docs/release.md`): a release is a GitHub release of `shinsa-dev/koe` made by
 the Release workflow (`.github/workflows/release.yml`), and nothing is bumped by hand, since the version lives in the
 tag. There are two channels: **Stable**, cut by hand, and **Canary**, built from every merge to `main` that passes the
-tests. There is no beta. Both are the same app (`studio.shinsa.koe`), so Settings → Updates switches between them
+tests. There is no beta. Both are the same app (`studio.overclock.koe`), so Settings → Updates switches between them
 and Koe updates itself in place with Sparkle, keeping its settings, sessions and model.
 
 ## Cutting a release

@@ -42,7 +42,7 @@ enum AudioSourceError: LocalizedError {
 final class CaptureStream: @unchecked Sendable {
     static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1,
                                       interleaved: false)!
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "capture")
+    private static let log = Logger(subsystem: "studio.overclock.koe", category: "capture")
 
     private struct Listener {
         let converter: AVAudioConverter?

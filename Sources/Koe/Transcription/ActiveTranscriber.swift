@@ -6,7 +6,7 @@ import os
 /// Apple's. It switches as soon as a download lands or is deleted, without a relaunch; a session already running keeps
 /// the model it started with.
 final class ActiveTranscriber: Transcriber, @unchecked Sendable {
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "transcription")
+    private static let log = Logger(subsystem: "studio.overclock.koe", category: "transcription")
 
     private let apple: AppleSpeechTranscriber
     private let hints: HintWords

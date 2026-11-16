@@ -32,7 +32,7 @@ final class ToolCoordinator {
         guard let self else { return done(nil) }
         pickClipRegion(preset: preset, done: done)
     })
-    static let log = Logger(subsystem: "studio.shinsa.koe", category: "tools")
+    static let log = Logger(subsystem: "studio.overclock.koe", category: "tools")
 
     /// Replaces the live screen capture for `--backdrop`, so captures of Koe show a known image, not your screen.
     var backdrop: CGImage?

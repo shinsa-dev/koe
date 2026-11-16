@@ -8,7 +8,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
     // Creating the input node takes about 0.4 s and starting the device about as long again, so one engine lives for
     // the whole app, made ready at launch (`prewarm`), on its own queue: the session and the pill start the moment you
     // ask and the audio follows. Every engine call goes through `queue`, in order.
-    private static let queue = DispatchQueue(label: "studio.shinsa.koe.microphone", qos: .userInteractive)
+    private static let queue = DispatchQueue(label: "studio.overclock.koe.microphone", qos: .userInteractive)
     private static let engine = AVAudioEngine()
     nonisolated(unsafe) private static var running = false
     private var queue: DispatchQueue { Self.queue }
@@ -19,7 +19,7 @@ final class MicrophoneSource: AudioSource, @unchecked Sendable {
     }
     private let stream = CaptureStream()
     private var observer: NSObjectProtocol?
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "microphone")
+    private static let log = Logger(subsystem: "studio.overclock.koe", category: "microphone")
 
     /// Builds the input node and readies the engine, so the first session only has to start the device.
     static func prewarm() {

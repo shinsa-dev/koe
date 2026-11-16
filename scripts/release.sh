@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUNDLE_ID="studio.shinsa.koe"
+BUNDLE_ID="studio.overclock.koe"
 BUCKET="shinsa-releases"
 R2_ACCOUNT_ID="e8563b02f2bf2b6a136f2781445a486f"
 R2_ENDPOINT="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"

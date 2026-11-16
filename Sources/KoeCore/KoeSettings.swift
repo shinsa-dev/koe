@@ -4,7 +4,7 @@ public enum ThemeChoice: String, CaseIterable, Sendable {
     case system, light, dark
 }
 
-/// What you can change in Koe's settings. Each value is its own defaults key, so `defaults write studio.shinsa.koe`
+/// What you can change in Koe's settings. Each value is its own defaults key, so `defaults write studio.overclock.koe`
 /// and `-appearance dark` at launch reach it too. A missing or mistyped value falls back to the default.
 public struct KoeSettings: Sendable, Equatable {
     /// Put the screenshots, clips and files on the clipboard beside the text, so pasting brings them in.

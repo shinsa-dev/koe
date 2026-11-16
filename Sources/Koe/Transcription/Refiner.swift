@@ -14,7 +14,7 @@ final class Refiner {
         var id: UUID { session.id }
     }
 
-    nonisolated private static let log = Logger(subsystem: "studio.shinsa.koe", category: "refine")
+    nonisolated private static let log = Logger(subsystem: "studio.overclock.koe", category: "refine")
     /// How long the models stay loaded after the last recording, so back-to-back sessions don't reload them.
     var idleUnload: Duration = .seconds(600)
     private let store: ModelStore
