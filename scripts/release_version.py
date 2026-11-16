@@ -3,6 +3,7 @@
 release reaches and the appcast Sparkle reads for each. The Release workflow calls it; docs/release.md explains it.
 
     release_version.py plan <stable|canary> <patch|minor|major>   prints version, tag, prerelease, notes_start_tag
+    release_version.py tagged <tag> <built.json>                        prints version, tag, prerelease of a stable tag
     release_version.py canary                                           prints build and reason, from git
     release_version.py channels <version> <pointers.json>                prints the channels the release moves
     release_version.py pointer <version> <size> <sha256>                 prints a channel's download pointer
@@ -94,6 +95,18 @@ def plan(tags: list[str], channel: str, part: str) -> dict[str, str]:
     }
 
 
+def tagged(tag: str, built: list[str]) -> dict[str, str]:
+    """A stable release made on GitHub: its version is its tag. built lists the tags whose release has Koe.dmg, so an
+    empty release made by hand never counts as shipped, and the tag itself may be built again to retry."""
+    if not STABLE_TAG.match(tag):
+        raise ValueError(f"{tag!r} is not a stable release tag such as v1.2.0.")
+    version = tag[1:]
+    shipped = newest([other for other in built if other != tag], STABLE_TAG)
+    if shipped and version_key(version) <= version_key(shipped):
+        raise ValueError(f"{tag} is not above v{shipped}, the newest stable release with {DMG_NAME}.")
+    return {"version": version, "tag": tag, "prerelease": "false"}
+
+
 def is_app_change(path: str) -> bool:
     return not any(fnmatch.fnmatch(path, pattern) for pattern in CANARY_IGNORED)
 
@@ -173,6 +186,9 @@ def main(argv: list[str]) -> int:
     command, *rest = argv or [""]
     if command == "plan" and len(rest) == 2:
         emit(plan(git("tag", "--list", "v*").split(), rest[0], rest[1]))
+    elif command == "tagged" and len(rest) == 2:
+        with open(rest[1], encoding="utf-8") as file:
+            emit(tagged(rest[0], json.load(file)))
     elif command == "canary" and not rest:
         base = newest(git("tag", "--list", "v*").split(), CANARY_TAG)
         changed = git("diff", "--name-only", f"v{base}", "HEAD").split() if base else []

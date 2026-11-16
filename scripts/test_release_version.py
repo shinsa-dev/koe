@@ -48,6 +48,33 @@ class PlanTests(unittest.TestCase):
             release.plan([], "stable", "huge")
 
 
+class TaggedTests(unittest.TestCase):
+    def test_a_tag_above_every_built_stable_is_its_own_version(self):
+        built = ["v1.0.0", "v1.1.1-canary.3"]
+        self.assertEqual(release.tagged("v1.2.0", built), {"version": "1.2.0", "tag": "v1.2.0", "prerelease": "false"})
+        self.assertEqual(release.tagged("v1.0.0", [])["version"], "1.0.0")
+
+    def test_empty_releases_made_by_hand_do_not_count(self):
+        # v1.0.1 and v1.1.0 have no Koe.dmg, so they are not in built and do not block v1.0.5.
+        self.assertEqual(release.tagged("v1.0.5", ["v1.0.0"])["version"], "1.0.5")
+
+    def test_a_canary_above_the_tag_does_not_block_it(self):
+        self.assertEqual(release.tagged("v1.1.0", ["v1.0.0", "v1.1.1-canary.3"])["version"], "1.1.0")
+
+    def test_the_tag_itself_can_be_built_again(self):
+        self.assertEqual(release.tagged("v1.2.0", ["v1.0.0", "v1.2.0"])["version"], "1.2.0")
+
+    def test_refuses_a_tag_at_or_below_a_built_stable(self):
+        for tag in ("v1.0.0", "v0.9.9", "v1.1.9"):
+            with self.subTest(tag=tag), self.assertRaisesRegex(ValueError, "v1.2.0"):
+                release.tagged(tag, ["v1.2.0", "v1.0.0"])
+
+    def test_refuses_a_tag_that_is_not_a_stable_release(self):
+        for tag in ("1.2.0", "v1.2", "v1.2.0-canary.1", "v1.2.0-beta.1", "release-1.2.0", ""):
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                release.tagged(tag, [])
+
+
 class OrderTests(unittest.TestCase):
     def test_a_prerelease_sorts_before_its_release(self):
         ordered = ["1.2.0-canary.1", "1.2.0-canary.10", "1.2.0", "1.10.0"]
@@ -138,6 +165,17 @@ class CommandTests(unittest.TestCase):
             code, text = self.run_main("appcast", update)
             self.assertEqual(code, 0)
             self.assertIn("<sparkle:version>3</sparkle:version>", text)
+
+    def test_tagged_reads_the_built_tags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            built = os.path.join(directory, "built.json")
+            with open(built, "w", encoding="utf-8") as file:
+                json.dump(["v1.0.0", "v1.1.1-canary.3"], file)
+            self.assertEqual(self.run_main("tagged", "v1.2.0", built),
+                             (0, "version=1.2.0\ntag=v1.2.0\nprerelease=false\n"))
+            with self.assertRaises(ValueError):
+                self.run_main("tagged", "v0.9.0", built)
+            self.assertEqual(self.run_main("tagged", "v1.2.0")[0], 2)
 
     def test_pointer_prints_json(self):
         code, text = self.run_main("pointer", "1.0.0", "5", "b" * 64)
