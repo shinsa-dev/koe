@@ -137,5 +137,5 @@ for an existing release line.
 
 ## Cost
 
-`shinsa-dev/koe` is private, so its macOS minutes count ten times against the organization's Actions minutes. A
+`shinsa-dev/koe` is public, so its Actions minutes, macOS ones included, are free. A
 release run takes about fifteen minutes, mostly notarization; the Test workflow about five.
