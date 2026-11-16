@@ -1,8 +1,8 @@
 # Releasing Koe
 
-Koe ships the way Shinsa does (`shinsa/docs/release.md`): a release is a GitHub release of `shinsa-dev/koe` made by
-the Release workflow (`.github/workflows/release.yml`), and nothing is bumped by hand, since the version lives in the
-tag. There are two channels: **Stable**, cut by hand, and **Canary**, built from every merge to `main` that passes the
+Koe ships the way Shinsa does (`shinsa/docs/release.md`): a release is a GitHub release of `shinsa-dev/koe` built by
+the Release workflow (`.github/workflows/release.yml`), and nothing is bumped in the code, since the version lives in
+the tag. There are two channels: **Stable**, cut by hand on GitHub, and **Canary**, built from every merge to `main` that passes the
 tests. There is no beta. Both are the same app (`studio.overclock.koe`), so Settings → Updates switches between them
 and Koe updates itself in place with Sparkle, keeping its settings, sessions and model.
 
@@ -13,31 +13,52 @@ microphone, screen recording and Accessibility grants to the id and setup has to
 
 ## Cutting a release
 
+Create the release on GitHub, in the web or with the CLI:
+
 ```sh
-gh workflow run release.yml -f channel=stable -f bump=minor
+gh release create v1.3.0 -R shinsa-dev/koe --generate-notes
 ```
 
-The first stable release uses `bump=major`, which makes `1.0.0`; canaries before it are `0.0.1-canary.N`. A canary needs no run: every merge to
-`main` whose Test workflow passes makes one, unless it only changed docs (`*.md`, `docs/`, `.claude/`).
-`gh workflow run release.yml -f channel=canary` makes one of the current `main` by hand.
+Publishing a release that is not a pre-release starts the Release workflow at its tag's commit. It builds, signs and
+notarizes that commit, attaches `Koe.dmg` and `update.json` to your release (its title and notes stay yours), then
+copies it to shinsa.dev and moves the stable appcast. The tag must be `vX.Y.Z` and above every stable release that
+already has `Koe.dmg`; anything else fails the run before it builds. While the run takes its fifteen minutes, GitHub
+shows the release without files; the appcast moves only once the build succeeds.
+
+To build an existing release again, after a failed run or for a release made before this trigger existed:
+
+```sh
+gh workflow run release.yml -R shinsa-dev/koe -f tag=v1.3.0
+```
+
+A canary needs no run: every merge to `main` whose Test workflow passes makes one, unless it only changed docs
+(`*.md`, `docs/`, `.claude/`). `gh workflow run release.yml -f channel=canary` makes one of the current `main` by
+hand. `gh workflow run release.yml -f channel=stable -f bump=minor` still makes a stable release with a bumped
+version and its own release, without a tag of yours.
 
 | Input | Values | Default |
 |---|---|---|
 | `channel` | `stable`: a GitHub release marked latest. `canary`: a pre-release of `main` | `stable` |
 | `bump` | `patch`, `minor` or `major`: which part of the **last stable** version goes up; a canary ignores it | `patch` |
+| `tag` | An existing stable tag such as `v1.3.0`, built onto its release instead of bumping; needs `channel=stable` | empty |
 
 ## Versions
 
 `scripts/release_version.py` holds the rules, tested in `scripts/test_release_version.py`:
 
-- Stable is the last stable version bumped: `1.2.0` → `1.2.1`, `1.3.0` or `2.0.0`.
+- A release made on GitHub is its tag: `v1.3.0` is `1.3.0` (`release_version.py tagged`). Only releases with
+  `Koe.dmg` count as shipped, so one made by hand and never built is not the version to beat, and a tag can be built
+  again to retry.
+- Stable by `bump` is the last stable version bumped: `1.2.0` → `1.2.1`, `1.3.0` or `2.0.0`.
 - Canary is the next patch after the newest stable, with `-canary.N`.
 - The build number (`CFBundleVersion`, which Sparkle compares) is the workflow's run number, so every release on any
   channel is above every one before it. The version string is what Koe shows.
 
 ## What a run does
 
-1. `trigger` (Ubuntu) decides whether to build and which commit. A run by hand always builds; after a merge,
+1. `trigger` (Ubuntu) decides whether to build and which commit. A published release, or a run with `tag`, builds
+   that tag's commit as stable, with its version from `release_version.py tagged` (pre-releases and releases the
+   workflow made itself start nothing). Any other run by hand always builds; after a merge,
    `release_version.py canary` builds only when something but docs changed since the last canary.
 2. `mac` (macOS 26 with Xcode 26.3, as FluidAudio 0.9 fails to compile on 26.4 and later) marks the commit's
    `Release` status pending, works out the version, and runs the signing preflight: all six secrets set is a
@@ -51,8 +72,9 @@ The first stable release uses `bump=major`, which makes `1.0.0`; canaries before
      ticket when signed).
    - `dmg` packs `Koe.dmg` with `dmgbuild` (see [The disk image](#the-disk-image)), signs and notarizes it.
    - `update` signs the DMG with Sparkle's EdDSA key and writes `update.json`: version, build, length, signature.
-   - It publishes the GitHub release with `Koe.dmg` and `update.json`: a one-line channel note, then GitHub's
-     generated list of pull requests (since the last stable for a stable, the last canary for a canary).
+   - It attaches `Koe.dmg` and `update.json` to the tag's release when there is one. Otherwise it publishes the
+     release: a one-line channel note, then GitHub's generated list of pull requests (since the last stable for a
+     stable, the last canary for a canary).
 3. `downloads` (Ubuntu, signed releases only) copies the release to the `shinsa-releases` R2 bucket that serves
    shinsa.dev (`release.sh upload`). It is its own job, so Re-run failed jobs retries only the copy.
 4. `status` reports the outcome on the commit as the `Release` status, so a failed release turns it red.

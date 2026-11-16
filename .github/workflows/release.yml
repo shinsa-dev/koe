@@ -5,6 +5,10 @@ on:
     workflows: [Test]
     types: [completed]
     branches: [main]
+  # A stable release made on GitHub (the web or gh release create) is built at its tag. Releases this workflow makes
+  # use GITHUB_TOKEN, whose events start no workflow, so canaries never come back here.
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       channel:
@@ -17,6 +21,10 @@ on:
         type: choice
         options: [patch, minor, major]
         default: patch
+      tag:
+        description: Build this existing stable tag (such as v1.2.0) onto its release instead of bumping; empty bumps
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -25,6 +33,9 @@ jobs:
   trigger:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' &&
+       !github.event.release.prerelease &&
+       github.event.release.author.login != 'github-actions[bot]') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&
@@ -35,6 +46,8 @@ jobs:
       build: ${{ steps.decide.outputs.build }}
       channel: ${{ steps.decide.outputs.channel }}
       sha: ${{ steps.decide.outputs.sha }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,8 +58,37 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          tag="${RELEASE_TAG:-$INPUT_TAG}"
+          if [ -n "$tag" ]; then
+            if [ "$INPUT_CHANNEL" = canary ]; then
+              echo "::error title=Version::A tag builds a stable release; leave channel at stable."
+              exit 1
+            fi
+            # Only releases that carry Koe.dmg count as shipped, so one made by hand and never built is not the bar.
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+              --jq '.[] | select(any(.assets[]; .name == "Koe.dmg")) | .tag_name' | jq -Rn '[inputs]' > "$RUNNER_TEMP/built.json"
+            if ! decision=$(python3 scripts/release_version.py tagged "$tag" "$RUNNER_TEMP/built.json" 2>&1); then
+              echo "::error title=Version::$decision"
+              exit 1
+            fi
+            if ! sha=$(git rev-parse --verify --quiet "refs/tags/$tag^{commit}"); then
+              echo "::error title=Version::There is no tag $tag. Create the release on GitHub first."
+              exit 1
+            fi
+            {
+              echo "$decision"
+              echo "sha=$sha"
+              echo "channel=stable"
+              echo "build=true"
+            } >> "$GITHUB_OUTPUT"
+            printf 'Building the stable release %s at %s.\n' "$tag" "$sha" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = workflow_dispatch ]; then
             echo "channel=$INPUT_CHANNEL" >> "$GITHUB_OUTPUT"
@@ -98,8 +140,15 @@ jobs:
         env:
           CHANNEL: ${{ needs.trigger.outputs.channel }}
           BUMP: ${{ inputs.bump || 'patch' }}
+          TAGGED_VERSION: ${{ needs.trigger.outputs.version }}
+          TAGGED_TAG: ${{ needs.trigger.outputs.tag }}
         run: |
-          plan=$(python3 scripts/release_version.py plan "$CHANNEL" "$BUMP")
+          # A tagged release was decided in trigger, from this workflow's own scripts: the tag's commit may predate them.
+          if [ -n "$TAGGED_VERSION" ]; then
+            plan=$(printf 'version=%s\ntag=%s\nnotes_start_tag=\n' "$TAGGED_VERSION" "$TAGGED_TAG")
+          else
+            plan=$(python3 scripts/release_version.py plan "$CHANNEL" "$BUMP")
+          fi
           echo "$plan" >> "$GITHUB_OUTPUT"
           # Sparkle orders updates by build, so every release, on any channel, takes the next run number.
           echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
@@ -207,8 +256,15 @@ jobs:
           if [ -n "$NOTES_START_TAG" ]; then kind+=(--notes-start-tag "$NOTES_START_TAG"); fi
           files=(release/Koe.dmg)
           if [ -f release/update.json ]; then files+=(release/update.json); fi
-          gh release create "$TAG" --target "$RELEASE_SHA" --title "$title" --notes "$note" --generate-notes \
-            "${kind[@]}" "${files[@]}"
+          if gh release view "$TAG" --json tagName > /dev/null 2>&1; then
+            # A release made on GitHub keeps its own title and notes; it only gains the files.
+            gh release upload "$TAG" "${files[@]}" --clobber
+            title=$(gh release view "$TAG" --json name --jq '.name // empty')
+            title="${title:-$TAG}"
+          else
+            gh release create "$TAG" --target "$RELEASE_SHA" --title "$title" --notes "$note" --generate-notes \
+              "${kind[@]}" "${files[@]}"
+          fi
           printf '**Published** [%s](%s/%s/releases/tag/%s).\n' "$title" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$TAG" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove the keychain
         if: always() && steps.keychain.outcome == 'success'
@@ -248,7 +304,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.trigger.outputs.sha || github.event.workflow_run.head_sha || github.sha }}
-          CHANNEL: ${{ needs.trigger.outputs.channel || inputs.channel || 'canary' }}
+          CHANNEL: ${{ needs.trigger.outputs.channel || (github.event_name == 'release' && 'stable') || inputs.channel || 'canary' }}
           TAG: ${{ needs.mac.outputs.tag }}
           TRIGGER: ${{ needs.trigger.result }}
           MAC: ${{ needs.mac.result }}
