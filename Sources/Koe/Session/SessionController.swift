@@ -69,7 +69,7 @@ final class SessionController {
     private(set) var notice: PillNotice?
     @ObservationIgnored private var noticeDismissal: Task<Void, Never>?
 
-    @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "session")
+    @ObservationIgnored private static let log = Logger(subsystem: "studio.overclock.koe", category: "session")
     @ObservationIgnored var onPhaseChange: ((RecorderPhase) -> Void)?
     /// A session copied at once, with the folder its files are in.
     /// The session ended before the model had any words; they are copied once they arrive.

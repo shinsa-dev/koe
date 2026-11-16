@@ -10,7 +10,7 @@ final class SessionLibrary {
     private(set) var settings: KoeSettings
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let archive: SessionArchive
-    @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "library")
+    @ObservationIgnored private static let log = Logger(subsystem: "studio.overclock.koe", category: "library")
     @ObservationIgnored var onSettingsChange: ((KoeSettings) -> Void)?
     /// The session last put on the clipboard and the words it went on with, to tell whether they are still there
     /// when the session's last words settle.

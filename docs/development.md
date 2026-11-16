@@ -50,8 +50,9 @@ macOS: running it can drop the microphone grant of the other, so allow it again 
 Koe updates itself with Sparkle 2 (`Updater`). Each channel, Stable and Canary, has its own appcast at
 `https://shinsa.dev/koe/appcast/<channel>.xml` (`UpdateChannel`), and Sparkle installs an update only when it is
 signed with the EdDSA key whose public half is `SUPublicEDKey` in `Info.plist`. The private half lives in the login
-keychain under the account `studio.shinsa.koe` (Sparkle's `generate_keys --account studio.shinsa.koe`) and, for the
-Release workflow, in a repository secret. Settings → Updates picks the channel; until you pick one, Koe follows the
+keychain under the account `studio.shinsa.koe` (Sparkle's `generate_keys --account studio.shinsa.koe`), Koe's id
+before it became `studio.overclock.koe`: the account is only the key's label, so it keeps that name. For the Release
+workflow it also lives in a repository secret. Settings → Updates picks the channel; until you pick one, Koe follows the
 channel of the build you installed (`1.2.1-canary.3` is a canary). Sparkle never goes back a version, so moving from
 Canary to Stable waits for the next stable release. A release build checks once a day, and Check now checks at once.
 

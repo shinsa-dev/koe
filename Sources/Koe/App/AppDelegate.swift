@@ -319,7 +319,7 @@ enum Launch {
     static let isBackground = has("--background")
     /// A background run keeps its settings apart from every other Koe's; `scripts/sandbox.sh --fresh` clears them.
     static var defaults: UserDefaults {
-        isBackground ? UserDefaults(suiteName: "studio.shinsa.koe.sandbox") ?? .standard : .standard
+        isBackground ? UserDefaults(suiteName: "studio.overclock.koe.sandbox") ?? .standard : .standard
     }
 
     static func value(after flag: String) -> String? {

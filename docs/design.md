@@ -395,7 +395,7 @@ frames picked so far.
   (`asked.<permission>` in its defaults): before, a row offers the system prompt; after, it opens System Settings.
   macOS only applies a new screen recording grant once the app is reopened, so that row offers "Reopen Koe".
   The window checks again every second while it is open, since System Settings sends no notice.
-- `defaults write studio.shinsa.koe appearance light|dark` pins a theme. `--setup` and `--settings` open the settings
+- `defaults write studio.overclock.koe appearance light|dark` pins a theme. `--setup` and `--settings` open the settings
   window at launch, and `--open-menu` the menu, for
   screenshots. `--audio-file <path>` plays a recording into each session
   instead of the microphone, `--start` starts one at launch, and `--print-session` prints the finished bundle text
