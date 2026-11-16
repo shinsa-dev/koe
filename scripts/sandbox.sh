@@ -16,7 +16,7 @@ WITH_MODELS=0
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --fresh) rm -rf "$SANDBOX"; defaults delete studio.shinsa.koe.sandbox >/dev/null 2>&1 || true; shift ;;
+    --fresh) rm -rf "$SANDBOX"; defaults delete studio.overclock.koe.sandbox >/dev/null 2>&1 || true; shift ;;
     --with-models) WITH_MODELS=1; shift ;;
     *) ARGS+=("$1"); shift ;;
   esac

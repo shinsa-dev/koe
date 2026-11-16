@@ -71,7 +71,7 @@ private final class ClipWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unc
     }
 
     let started = Signal()
-    let queue = DispatchQueue(label: "studio.shinsa.koe.clip", qos: .userInitiated)
+    let queue = DispatchQueue(label: "studio.overclock.koe.clip", qos: .userInitiated)
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
     private var begun = false

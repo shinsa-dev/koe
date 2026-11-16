@@ -9,7 +9,7 @@ import WhisperKit
 /// Hugging Face and nothing else goes online: audio and text never leave the Mac.
 @MainActor @Observable
 final class ModelStore {
-    @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "models")
+    @ObservationIgnored private static let log = Logger(subsystem: "studio.overclock.koe", category: "models")
     /// Written last, once every file is in and the model loads, so a download cut short never counts as installed.
     private static let marker = ".koe-installed"
 

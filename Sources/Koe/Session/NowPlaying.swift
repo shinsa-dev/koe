@@ -8,7 +8,7 @@ import os
 @MainActor
 final class NowPlaying {
     private var pause = MediaPause()
-    nonisolated private static let log = Logger(subsystem: "studio.shinsa.koe", category: "media")
+    nonisolated private static let log = Logger(subsystem: "studio.overclock.koe", category: "media")
 
     /// The probe, set up ahead of time while pausing is on and allowed. Setting one up takes from a tenth of a second
     /// to seconds, so it happens off the main thread; starting a ready one hears the output within milliseconds, so

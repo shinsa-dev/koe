@@ -7,7 +7,7 @@ import os
 /// that is older than `staleAfter`, so a session never waits on a scan.
 @MainActor @Observable
 final class Vocabulary {
-    @ObservationIgnored private static let log = Logger(subsystem: "studio.shinsa.koe", category: "vocabulary")
+    @ObservationIgnored private static let log = Logger(subsystem: "studio.overclock.koe", category: "vocabulary")
     static let staleAfter: TimeInterval = 6 * 3600
 
     private(set) var learned: [LearnedName] = []

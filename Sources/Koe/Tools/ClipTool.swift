@@ -41,7 +41,7 @@ final class ClipTool {
     private var stopKeys: [UInt32] = []
     private var busy = false
     var clipFile: URL?
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "clip")
+    private static let log = Logger(subsystem: "studio.overclock.koe", category: "clip")
 
     init(sessions: SessionController, status: ToolStatus,
          pickRegion: @escaping (CGRect?, @escaping (RegionChoice?) -> Void) -> Void) {

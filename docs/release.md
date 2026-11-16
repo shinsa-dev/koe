@@ -3,8 +3,13 @@
 Koe ships the way Shinsa does (`shinsa/docs/release.md`): a release is a GitHub release of `shinsa-dev/koe` built by
 the Release workflow (`.github/workflows/release.yml`), and nothing is bumped in the code, since the version lives in
 the tag. There are two channels: **Stable**, cut by hand on GitHub, and **Canary**, built from every merge to `main` that passes the
-tests. There is no beta. Both are the same app (`studio.shinsa.koe`), so Settings → Updates switches between them
+tests. There is no beta. Both are the same app (`studio.overclock.koe`), so Settings → Updates switches between them
 and Koe updates itself in place with Sparkle, keeping its settings, sessions and model.
+
+Koe 1.2.0 and earlier were `studio.shinsa.koe`. Sparkle still installs the update over them: it finds `Koe.app` by
+name, and the EdDSA signature passes even though the code signature names another id. On its first launch Koe copies
+the old defaults into its own once (`SettingsCarryOver`), without the `asked.*` flags, since macOS ties the
+microphone, screen recording and Accessibility grants to the id and setup has to ask for them again.
 
 ## Cutting a release
 

@@ -1,4 +1,14 @@
 import AppKit
+import KoeCore
+
+if !Launch.isBackground, let domain = Bundle.main.bundleIdentifier {
+    let defaults = UserDefaults.standard
+    SettingsCarryOver.apply(
+        old: defaults.persistentDomain(forName: SettingsCarryOver.oldDomain),
+        current: defaults.persistentDomain(forName: domain),
+        to: defaults
+    )
+}
 
 // Text as the web draws it (`-webkit-font-smoothing: antialiased`): no stem darkening, which made ABC Areal read a
 // weight heavier than in Shinsa. It is read from Koe's own defaults, so it never touches other apps.

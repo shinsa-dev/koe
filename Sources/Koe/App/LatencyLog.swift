@@ -6,7 +6,7 @@ import OSLog
 /// transcriber, so it is thread safe. A trace begins at the shortcut that starts a session and ends once it is copied.
 final class LatencyLog: @unchecked Sendable {
     static let shared = LatencyLog()
-    private static let log = Logger(subsystem: "studio.shinsa.koe", category: "latency")
+    private static let log = Logger(subsystem: "studio.overclock.koe", category: "latency")
 
     private let lock = NSLock()
     private var current: LatencyTrace?
