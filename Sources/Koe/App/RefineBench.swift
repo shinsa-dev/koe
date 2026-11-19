@@ -1,7 +1,7 @@
 import Foundation
 import KoeCore
 
-/// `Koe --bench --refine [--text] [count | audio files…]`: for every recorded session on this Mac (or the newest `count`, or
+/// `Koe --bench --refine [--text] [--gain off] [count | audio files…]`: for every recorded session on this Mac (or the newest `count`, or
 /// the files named), streams it live with the fastest installed model as a session would, then reads it whole with
 /// every model the refine uses and combines them as `Refiner` does. It prints each one's word error rate against the
 /// combined transcript (and against a `reference.txt` in the session folder, when you add one), how long the refine
@@ -79,7 +79,8 @@ enum RefineBench {
         }
         let clock = ContinuousClock()
         print("Streams with \(TranscriptionModel.model(liveID).name); refines with "
-            + readers.map { TranscriptionModel.model($0.0).name }.joined(separator: ", ") + ".")
+            + readers.map { TranscriptionModel.model($0.0).name }.joined(separator: ", ")
+            + "; input gain \(RecordingGain.isOn ? "on" : "off").")
         do {
             let load = try await clock.measure { try await live.decoder.load() }
             print("\(TranscriptionModel.model(liveID).name) loaded in \(TailBench.seconds(load))")
@@ -122,8 +123,9 @@ enum RefineBench {
         guard Refiner.hasAudio(samples) else { throw CocoaError(.fileReadCorruptFile) }
         let levels = LevelTrack(samples: samples, rate: WindowedTranscriber.rate)
         let length = Double(samples.count) / WindowedTranscriber.rate
+        let heard = RecordingGain.apply(samples)
 
-        let (transcript, alone) = try await TailBench.replay(samples, decoder: live.decoder)
+        let (transcript, alone) = try await TailBench.replay(heard, decoder: live.decoder)
         let liveWords = dictionary.apply(
             TranscriptCleanup.apply(words: transcript.words, pending: transcript.pending, levels: levels))
 
@@ -133,7 +135,7 @@ enum RefineBench {
         let combined = Refiner.polish(TranscriptVote.combine(readings.map(\.0)), levels: levels, dictionary: dictionary)
 
         async let refining = Refiner.read(file, readers: readers, dictionary: dictionary)
-        let (_, beside) = try await TailBench.replay(samples, decoder: live.decoder)
+        let (_, beside) = try await TailBench.replay(heard, decoder: live.decoder)
         _ = await refining
 
         let text = { (words: [TimedWord]) in words.map(\.text).joined(separator: " ") }

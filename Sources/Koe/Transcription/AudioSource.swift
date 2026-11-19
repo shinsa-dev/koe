@@ -96,7 +96,7 @@ final class CaptureStream: @unchecked Sendable {
                 track.record(samples: Array(UnsafeBufferPointer(start: raw[0], count: count)),
                              rate: Self.format.sampleRate, at: Double(frames) / Self.format.sampleRate)
                 let samples = UnsafeMutableBufferPointer(start: boosted[0], count: count)
-                gain.apply(samples)
+                if RecordingGain.isOn { gain.apply(samples) }
                 lastLevel = AudioLevel.normalized(rms: AudioLevel.rms(samples))
             }
             frames += AVAudioFramePosition(buffer.frameLength)

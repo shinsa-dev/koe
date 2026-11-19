@@ -116,3 +116,18 @@ struct InputGainTests {
         #expect(output == expected)
     }
 }
+
+struct InputGainFlagTests {
+    @Test func gainIsOnUnlessTurnedOff() {
+        #expect(InputGain.isOn(arguments: ["Koe", "--bench"]))
+        #expect(!InputGain.isOn(arguments: ["Koe", "--bench", "--gain", "off", "5"]))
+        #expect(InputGain.isOn(arguments: ["Koe", "--gain", "on"]))
+        #expect(InputGain.isOn(arguments: ["Koe", "--gain"]))
+    }
+
+    @Test func theFlagLeavesTheOtherArguments() {
+        #expect(InputGain.dropFlag(from: ["--refine", "--gain", "off", "5"]) == ["--refine", "5"])
+        #expect(InputGain.dropFlag(from: ["3", "--gain"]) == ["3"])
+        #expect(InputGain.dropFlag(from: ["3"]) == ["3"])
+    }
+}

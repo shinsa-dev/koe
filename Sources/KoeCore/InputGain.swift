@@ -49,6 +49,20 @@ public struct InputGain: Sendable {
         blockSeconds = Float(blockSize) / Float(rate)
     }
 
+    /// Whether a run takes the gain: `--gain off` hands the models the microphone as it was, to compare on the bench.
+    public static func isOn(arguments: [String]) -> Bool {
+        guard let flag = arguments.firstIndex(of: "--gain"), arguments.indices.contains(flag + 1) else { return true }
+        return arguments[flag + 1] != "off"
+    }
+
+    /// `arguments` without `--gain` and its value.
+    public static func dropFlag(from arguments: [String]) -> [String] {
+        guard let flag = arguments.firstIndex(of: "--gain") else { return arguments }
+        var arguments = arguments
+        arguments.removeSubrange(flag...min(flag + 1, arguments.count - 1))
+        return arguments
+    }
+
     /// Gains `samples` in place.
     public mutating func apply(_ samples: UnsafeMutableBufferPointer<Float>) {
         for index in samples.indices {

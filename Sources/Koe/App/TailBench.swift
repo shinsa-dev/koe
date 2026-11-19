@@ -1,8 +1,8 @@
 import Foundation
 import KoeCore
 
-/// `Koe --bench [--model <id> | --refine] [count | audio files…]`: replays recorded sessions through the live window, fed 0.9 s
-/// at a time as the microphone would, and checks each ends with the same words as one decode of the whole recording.
+/// `Koe --bench [--model <id> | --refine] [--gain off] [count | audio files…]`: replays recorded sessions through the
+/// live window, fed 0.9 s at a time as the microphone would, and checks each ends with the same words as one decode of the whole recording.
 /// It prints how long the model took to load and each pass took, against the 0.9 s it has. It reads the newest
 /// sessions on this Mac with the default model, or the one named; nothing leaves it.
 @MainActor
@@ -10,7 +10,7 @@ enum TailBench {
     private static let interval: TimeInterval = 0.9
 
     static func run(_ arguments: [String]) async -> Int32 {
-        var arguments = arguments
+        var arguments = InputGain.dropFlag(from: arguments)
         if let flag = arguments.firstIndex(of: "--refine") {
             arguments.remove(at: flag)
             arguments.removeAll { $0 == "--text" }
@@ -38,7 +38,7 @@ enum TailBench {
         }
         let clock = ContinuousClock()
         await vocabulary.rescan()
-        print("Dictionary: \(dictionary.entries.count) words")
+        print("Dictionary: \(dictionary.entries.count) words; input gain \(RecordingGain.isOn ? "on" : "off")")
         do {
             let load = try await clock.measure { try await transcriber.decoder.load() }
             print("\(model.name) loaded in \(seconds(load))")
@@ -66,7 +66,7 @@ enum TailBench {
     private static func bench(_ file: URL, transcriber: WindowedTranscriber) async throws
         -> (TailScore.Result, StepTimings) {
         let samples = try SampleBuffer.read(file)
-        let (transcript, steps) = try await replay(samples, decoder: transcriber.decoder)
+        let (transcript, steps) = try await replay(RecordingGain.apply(samples), decoder: transcriber.decoder)
         let live = transcript.text
         var words: [TimedWord] = []
         let whole = try await ContinuousClock().measure { words = try await transcriber.transcribe(file: file) }

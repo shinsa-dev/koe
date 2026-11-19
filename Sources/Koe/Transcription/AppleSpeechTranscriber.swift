@@ -52,7 +52,9 @@ struct AppleSpeechTranscriber: Transcriber {
         let module = SpeechSetup.module(for: prepared.locale)
         let analyzer = SpeechAnalyzer(modules: [module])
         try await Self.hint(analyzer, hints.words)
-        let audio = try AVAudioFile(forReading: file)
+        let gained = try RecordingGain.copy(of: file)
+        defer { if gained != file { try? FileManager.default.removeItem(at: gained) } }
+        let audio = try AVAudioFile(forReading: gained)
         let results = Task {
             var transcript = LiveTranscript()
             for try await result in module.results { transcript.apply(TranscriptUpdate(result)) }

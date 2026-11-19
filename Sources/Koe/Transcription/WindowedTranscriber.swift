@@ -54,7 +54,7 @@ struct WindowedTranscriber: Transcriber {
 
     func transcribe(file: URL) async throws -> [TimedWord] {
         try await decoder.load()
-        let samples = try SampleBuffer.read(file)
+        let samples = RecordingGain.apply(try SampleBuffer.read(file))
         var transcript = LiveTranscript()
         let runs = TokenRuns.words(try await decoder.decodeWhole(samples).tokens)
         transcript.apply(TranscriptUpdate(runs: runs, isFinal: true, start: 0, end: Double(samples.count) / Self.rate))
