@@ -264,7 +264,9 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   getting worse; a rerun with nothing changed moves the combined score by no word. The first pass, on 729 words:
   gain on took the combined transcript from 20 words wrong to 18 (quiet 12 to 11, normal 5 to 4). Starting the
   limiter at 0.8, letting the gain add 24 dB, and a second of silence after each Parakeet decode (the live transcript
-  26 to 24 and endings 25 to 27 of 30, but finishing 38 to 47 ms) left it at 18, so they were dropped. What is left is
+  26 to 24 and endings 25 to 27 of 30, but finishing 38 to 47 ms) left it at 18, so they were dropped. Each of the
+  gain's own settings, one round each, did no better: a target of -15 or -21 dBFS gave 20, at most 12 dB gave 18 with
+  one ending fewer, and a speech margin of 6 dB gave 19 and of 14 dB gave 20, so -18 dBFS, 18 dB and 10 dB stay. What is left is
   mostly the models hearing a word wrong where they agree, which the vote cannot fix.
 - **Cleanup.** What is copied and saved goes through `TranscriptCleanup` (`KoeCore`) first, for every model, in
   `snapshot()` and in recovery. It drops filler words ("um", "uh", "erm" and the like; a sentence that started with
