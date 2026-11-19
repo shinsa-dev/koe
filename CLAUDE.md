@@ -25,6 +25,9 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   recordings and exits with 2 when either takes over 50 ms; run it after any change to the start or finish path.
   `--bench --refine` reads every recording with every installed model, as the refine after a copy does, and scores
   the live, single-model and combined transcripts by word error rate; run it after any change to the refine or vote.
+  `scripts/corpus.sh` writes 30 clips with a `reference.txt` each (three speech levels) to
+  `~/Library/Caches/Koe/Corpus`; `--bench --refine <that folder>/*/audio.caf` scores them against the truth, per
+  level. Both benches take `--gain off` to compare without the input gain on the same recordings.
 - Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
   (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
   R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.

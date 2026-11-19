@@ -250,7 +250,22 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   (`WordErrorRate`), with whether the live ending matches. With no hand-checked transcripts, that is a distance, not
   an accuracy; a `reference.txt` in a session folder holding the right text is scored as the truth. It also times
   the live passes alone and again while a refine runs beside them, and how long each refine took. `--text` prints
-  each transcript.
+  each transcript. Both benches take `--gain off` to hand the models the recording without `InputGain`.
+- **Input gain.** Microphones hand Koe speech around -28 dBFS, so `CaptureStream` runs `InputGain` (`KoeCore`) on a
+  copy of each buffer before the transcriber and the waveform see it: it measures 10 ms blocks, moves only on blocks
+  10 dB over the room's noise floor, aims speech at -18 dBFS, adds at most 18 dB, eases back to none 0.3 s into a
+  pause, and bends samples over 0.5 toward 0.98 so nothing clips. `audio.caf` and the `LevelTrack` stay raw, and
+  every reread of a recording (refine, recovery, both benches) runs the same gain, so a replay hears what the session
+  heard.
+- **Reference corpus.** `scripts/corpus.sh` speaks ten passages with the Mac's voices at three speech levels (quiet
+  -40, normal -28, loud -18 dBFS) over faint room noise, each beside a `reference.txt`, outside the repository.
+  `Koe --bench --refine` scores them against the truth, in all and per level. Tuning goes one change at a time, and a
+  change stays only when the combined transcript loses words wrong without the live ending or start and finish times
+  getting worse; a rerun with nothing changed moves the combined score by no word. The first pass, on 729 words:
+  gain on took the combined transcript from 20 words wrong to 18 (quiet 12 to 11, normal 5 to 4). Starting the
+  limiter at 0.8, letting the gain add 24 dB, and a second of silence after each Parakeet decode (the live transcript
+  26 to 24 and endings 25 to 27 of 30, but finishing 38 to 47 ms) left it at 18, so they were dropped. What is left is
+  mostly the models hearing a word wrong where they agree, which the vote cannot fix.
 - **Cleanup.** What is copied and saved goes through `TranscriptCleanup` (`KoeCore`) first, for every model, in
   `snapshot()` and in recovery. It drops filler words ("um", "uh", "erm" and the like; a sentence that started with
   one starts with the next word, capitalized), the words at the start of the guess that repeat the last settled ones
