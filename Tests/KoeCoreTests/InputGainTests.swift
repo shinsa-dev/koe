@@ -45,6 +45,15 @@ struct InputGainTests {
         #expect(abs(gain.gainDecibels - 10) < 1.5)
     }
 
+    @Test func quietSpeechFillsMostOfTheWaveform() {
+        var gain = InputGain()
+        let output = gain.apply(Self.talk(seconds: 4, speech: -28))
+        let raw = AudioLevel.normalized(rms: pow(10, -28 / 20))
+        let gained = AudioLevel.normalized(rms: pow(10, Self.speechLevel(output, from: 2, to: 4) / 20))
+        #expect(raw < 0.5)
+        #expect(gained > 0.6)
+    }
+
     @Test func theFirstWordsAreRaisedRightAway() {
         var gain = InputGain()
         let output = gain.apply(Self.talk(seconds: 0.55, speech: -30))

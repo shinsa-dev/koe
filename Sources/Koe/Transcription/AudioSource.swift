@@ -56,6 +56,7 @@ final class CaptureStream: @unchecked Sendable {
     private var frames: AVAudioFramePosition = 0
     private var lastLevel: Float = 0
     private var track = LevelTrack()
+    private var gain = InputGain(rate: format.sampleRate)
     private var paused = false
     private var stopped = false
     private var holding = true
@@ -78,10 +79,9 @@ final class CaptureStream: @unchecked Sendable {
     var isStopped: Bool { lock.withLock { stopped } }
     var levels: LevelTrack { lock.withLock { track } }
 
-    /// Takes one buffer in `CaptureStream.format`.
+    /// Takes one buffer in `CaptureStream.format`. The recording and the level track keep the microphone as it was;
+    /// the waveform and the transcriber get it through `InputGain`.
     func ingest(_ buffer: AVAudioPCMBuffer) {
-        let samples = buffer.floatChannelData.map { UnsafeBufferPointer(start: $0[0], count: Int(buffer.frameLength)) }
-        let level = samples.map { AudioLevel.normalized(rms: AudioLevel.rms($0)) } ?? 0
         lock.withLock {
             guard !paused, !stopped else { return }
             if frames == 0 { LatencyLog.shared.mark(.firstAudio) }
@@ -90,18 +90,33 @@ final class CaptureStream: @unchecked Sendable {
             } catch {
                 Self.log.error("Could not write the recording: \(error.localizedDescription, privacy: .public)")
             }
-            if let samples {
-                track.record(samples: Array(samples), rate: Self.format.sampleRate,
-                             at: Double(frames) / Self.format.sampleRate)
+            let gained = Self.copy(buffer)
+            if let raw = buffer.floatChannelData, let boosted = gained.floatChannelData {
+                let count = Int(buffer.frameLength)
+                track.record(samples: Array(UnsafeBufferPointer(start: raw[0], count: count)),
+                             rate: Self.format.sampleRate, at: Double(frames) / Self.format.sampleRate)
+                let samples = UnsafeMutableBufferPointer(start: boosted[0], count: count)
+                gain.apply(samples)
+                lastLevel = AudioLevel.normalized(rms: AudioLevel.rms(samples))
             }
             frames += AVAudioFramePosition(buffer.frameLength)
-            lastLevel = level
             if let listener {
-                send(buffer, to: listener)
+                send(gained, to: listener)
             } else if holding {
-                held.append(buffer)
+                held.append(gained)
             }
         }
+    }
+
+    /// A copy to gain, so the recording keeps the buffer the source handed in.
+    private static func copy(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: max(1, buffer.frameLength)),
+              let from = buffer.floatChannelData, let into = copy.floatChannelData else { return buffer }
+        copy.frameLength = buffer.frameLength
+        for channel in 0..<Int(buffer.format.channelCount) {
+            into[channel].update(from: from[channel], count: Int(buffer.frameLength))
+        }
+        return copy
     }
 
     func attach(format: AVAudioFormat, deliver: @escaping @Sendable (AVAudioPCMBuffer) -> Void,
