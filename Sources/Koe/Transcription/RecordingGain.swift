@@ -20,6 +20,7 @@ enum RecordingGain {
     static func copy(of file: URL) throws -> URL {
         guard isOn else { return file }
         let samples = apply(try SampleBuffer.read(file))
+        guard !samples.isEmpty else { return file }
         let format = CaptureStream.format
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(max(1, samples.count))),
               let channel = buffer.floatChannelData?[0] else { throw AudioSourceError.unconvertible }
