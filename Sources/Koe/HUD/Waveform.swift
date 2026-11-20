@@ -23,7 +23,7 @@ struct Waveform: View {
                 let step = size.width / CGFloat(bars)
                 let width = max(2, step - 2)
                 for (index, value) in meter.history.bars.enumerated() {
-                    let height = max(3, size.height * CGFloat(pow(value, 1.6)))
+                    let height = max(3, size.height * CGFloat(value))
                     let rect = CGRect(x: CGFloat(index) * step + (step - width) / 2, y: (size.height - height) / 2,
                                       width: width, height: height)
                     canvas.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(Palette.action))

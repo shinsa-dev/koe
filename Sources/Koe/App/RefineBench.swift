@@ -1,7 +1,7 @@
 import Foundation
 import KoeCore
 
-/// `Koe --bench --refine [--text] [count | audio files…]`: for every recorded session on this Mac (or the newest `count`, or
+/// `Koe --bench --refine [--text] [--gain off] [count | audio files…]`: for every recorded session on this Mac (or the newest `count`, or
 /// the files named), streams it live with the fastest installed model as a session would, then reads it whole with
 /// every model the refine uses and combines them as `Refiner` does. It prints each one's word error rate against the
 /// combined transcript (and against a `reference.txt` in the session folder, when you add one), how long the refine
@@ -24,6 +24,8 @@ enum RefineBench {
         var refine: Double = 0
         var audio: Double = 0
         var truths = 0
+        /// Against `reference.txt`, per corpus level group: each line's, then the combined one's.
+        var groups: [String: [WordErrorRate]] = [:]
 
         init(names: [String]) { lines = names.map { Line(name: $0) } }
 
@@ -33,6 +35,10 @@ enum RefineBench {
                 for index in lines.indices { lines[index].truth += truths[index] }
                 combined.truth += combinedTruth
                 self.truths += 1
+                if let group = result.group {
+                    let scores = truths + [combinedTruth]
+                    groups[group] = zip(groups[group] ?? scores.map { _ in WordErrorRate() }, scores).map(+)
+                }
             }
             endings.append(result.ending)
             alone.merge(result.alone)
@@ -48,6 +54,13 @@ enum RefineBench {
             if truths > 0 {
                 print("Word error rate against reference.txt (\(truths) recordings):")
                 for line in lines + [combined] { print("  \(pad(line.name)) \(line.truth.summary)") }
+            }
+            if !groups.isEmpty {
+                print("Word error rate against reference.txt by level:")
+                let names = lines.map(\.name) + [combined.name]
+                for (group, scores) in groups.sorted(by: { $0.key < $1.key }) {
+                    print("  \(pad(group)) " + zip(names, scores).map { "\($0) \($1.summary)" }.joined(separator: ", "))
+                }
             }
             print("Live ending matches the combined one: \(TailScore.total(endings))")
             print("Refine took \(String(format: "%.1f s", refine)) in all, "
@@ -79,7 +92,8 @@ enum RefineBench {
         }
         let clock = ContinuousClock()
         print("Streams with \(TranscriptionModel.model(liveID).name); refines with "
-            + readers.map { TranscriptionModel.model($0.0).name }.joined(separator: ", ") + ".")
+            + readers.map { TranscriptionModel.model($0.0).name }.joined(separator: ", ")
+            + "; input gain \(RecordingGain.isOn ? "on" : "off").")
         do {
             let load = try await clock.measure { try await live.decoder.load() }
             print("\(TranscriptionModel.model(liveID).name) loaded in \(TailBench.seconds(load))")
@@ -108,6 +122,7 @@ enum RefineBench {
         var scores: [WordErrorRate]
         var truths: [WordErrorRate]?
         var combinedTruth: WordErrorRate?
+        var group: String?
         var ending: TailScore.Result
         var alone: StepTimings
         var beside: StepTimings
@@ -122,8 +137,9 @@ enum RefineBench {
         guard Refiner.hasAudio(samples) else { throw CocoaError(.fileReadCorruptFile) }
         let levels = LevelTrack(samples: samples, rate: WindowedTranscriber.rate)
         let length = Double(samples.count) / WindowedTranscriber.rate
+        let heard = RecordingGain.apply(samples)
 
-        let (transcript, alone) = try await TailBench.replay(samples, decoder: live.decoder)
+        let (transcript, alone) = try await TailBench.replay(heard, decoder: live.decoder)
         let liveWords = dictionary.apply(
             TranscriptCleanup.apply(words: transcript.words, pending: transcript.pending, levels: levels))
 
@@ -133,7 +149,7 @@ enum RefineBench {
         let combined = Refiner.polish(TranscriptVote.combine(readings.map(\.0)), levels: levels, dictionary: dictionary)
 
         async let refining = Refiner.read(file, readers: readers, dictionary: dictionary)
-        let (_, beside) = try await TailBench.replay(samples, decoder: live.decoder)
+        let (_, beside) = try await TailBench.replay(heard, decoder: live.decoder)
         _ = await refining
 
         let text = { (words: [TimedWord]) in words.map(\.text).joined(separator: " ") }
@@ -162,13 +178,11 @@ enum RefineBench {
         }
         print("     live passes alone: \(alone.summary); beside a refine: \(beside.summary)")
         if Launch.has("--text") {
-            print("     live:     \(outputs[0])")
-            for (index, (id, _)) in readers.enumerated() {
-                print("     \(TranscriptionModel.model(id).name): \(outputs[index + 1])")
-            }
-            print("     combined: \(reference)")
+            let names = ["live"] + readers.map { TranscriptionModel.model($0.0).name } + ["combined"]
+            for (name, output) in zip(names, outputs + [reference]) { print("     \(name): \(output)") }
         }
-        return Result(scores: scores, truths: truths, combinedTruth: combinedTruth, ending: ending, alone: alone, beside: beside,
+        return Result(scores: scores, truths: truths, combinedTruth: combinedTruth,
+                      group: CorpusGroup.name(ofFolder: folder.lastPathComponent), ending: ending, alone: alone, beside: beside,
                       refine: Double(refine.components.seconds) + Double(refine.components.attoseconds) / 1e18,
                       length: length)
     }
