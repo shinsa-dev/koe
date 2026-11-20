@@ -351,7 +351,7 @@ extension AppDelegate {
         return item
     }
 
-    /// Koe picks its models itself (`ModelPlan`): it downloads Parakeet v3 and then Whisper, one after the other, and
+    /// Koe picks its models itself (`ModelPlan`): it downloads Fluid Speech Pro and then Whisper, one after the other, and
     /// streams with Parakeet once it has loaded; Apple's model transcribes until then.
     private func startTranscription() {
         models.onChange = { [weak self] _ in self?.followPlan() }

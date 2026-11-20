@@ -76,7 +76,7 @@ enum RefineBench {
         let store = ModelStore()
         let installed = Set(TranscriptionModel.catalog.map(\.id).filter(store.isInstalled))
         let models = RefinePlan.readers(installed: installed)
-        guard let liveID = [ModelID.parakeetV3, .parakeetV2].first(where: installed.contains),
+        guard let liveID = ModelID.parakeetFamily.first(where: installed.contains),
               let live = WindowedTranscriber.parakeet(liveID, store: store), !models.isEmpty else {
             print("Download Parakeet in Koe's settings first: it streams, and the refine needs it.")
             return 1

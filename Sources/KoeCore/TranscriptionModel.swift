@@ -7,10 +7,15 @@ public enum TranscriptionEngine: String, Sendable {
 
 /// Names a model in the settings and on disk.
 public enum ModelID: String, CaseIterable, Sendable {
+    case fluidSpeechPro = "fluid-speech-pro"
     case parakeetV3 = "parakeet-v3"
     case parakeetV2 = "parakeet-v2"
     case whisperTurbo = "whisper-large-v3-turbo"
     case apple
+
+    /// The models that run on Parakeet's decoder, the one Koe prefers first: FluidVoice's fine-tune of v3 hears noisy
+    /// rooms better than NVIDIA's v3, which covers more languages than the English-only v2.
+    public static let parakeetFamily: [ModelID] = [.fluidSpeechPro, .parakeetV3, .parakeetV2]
 }
 
 /// A speech model Koe can transcribe with. Every one runs on this Mac; the downloaded ones come from Hugging Face.
@@ -29,9 +34,13 @@ public struct TranscriptionModel: Sendable, Equatable, Identifiable {
         needsDownload ? ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) : "Built in"
     }
 
+    /// FluidVoice's Core ML build of Fluid Speech Pro, Parakeet v3 fine-tuned for noise. CC BY 4.0.
+    public static let fluidSpeechPro = TranscriptionModel(
+        id: .fluidSpeechPro, name: "Fluid Speech Pro", languages: "25 European languages", engine: .parakeet,
+        bytes: 652_000_000, isRecommended: true)
     public static let parakeetV3 = TranscriptionModel(
         id: .parakeetV3, name: "Parakeet v3", languages: "25 European languages", engine: .parakeet,
-        bytes: 483_000_000, isRecommended: true)
+        bytes: 483_000_000, isRecommended: false)
     public static let parakeetV2 = TranscriptionModel(
         id: .parakeetV2, name: "Parakeet v2", languages: "English", engine: .parakeet,
         bytes: 464_000_000, isRecommended: false)
@@ -43,9 +52,11 @@ public struct TranscriptionModel: Sendable, Equatable, Identifiable {
         bytes: 0, isRecommended: false)
 
     /// In the order the settings list them: the recommended model first, the built-in fallback last.
-    public static let catalog: [TranscriptionModel] = [.parakeetV3, .parakeetV2, .whisperTurbo, .apple]
+    public static let catalog: [TranscriptionModel] = [
+        .fluidSpeechPro, .parakeetV3, .parakeetV2, .whisperTurbo, .apple,
+    ]
 
-    public static let standard = parakeetV3
+    public static let standard = fluidSpeechPro
 
     public static func model(_ id: ModelID) -> TranscriptionModel {
         catalog.first { $0.id == id } ?? standard

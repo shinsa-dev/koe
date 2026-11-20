@@ -18,7 +18,7 @@ public enum TranscriptVote {
 
     /// Most trusted first: Whisper writes the cleanest sentences, Parakeet hears the most words right, and Apple's
     /// model makes up words in silence.
-    public static let trust: [ModelID] = [.whisperTurbo, .parakeetV3, .parakeetV2, .apple]
+    public static let trust: [ModelID] = [.whisperTurbo, .fluidSpeechPro, .parakeetV3, .parakeetV2, .apple]
 
     /// How far apart two words may be said and still be the same word: Apple's model times words up to a second off
     /// when it shares one range among them.

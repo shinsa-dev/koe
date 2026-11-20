@@ -47,7 +47,7 @@ final class ModelStore {
         ModelPlan(installs: installs, deleted: deleted, canDownload: canDownload)
     }
 
-    /// Starts the next download the plan has due, if any: Parakeet v3, then Whisper. Called at launch and whenever
+    /// Starts the next download the plan has due, if any: Fluid Speech Pro, then Whisper. Called at launch and whenever
     /// a download ends, so they come one after the other by themselves.
     func downloadNext(deleted: Set<ModelID>) {
         if let id = plan(deleted: deleted).nextDownload { download(id) }
@@ -133,7 +133,8 @@ final class ModelStore {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         switch model.engine {
         case .parakeet:
-            guard let version = model.id.parakeetVersion else { return }
+            // Without a source an empty folder would pass for the model.
+            guard let version = model.id.parakeetVersion else { throw CocoaError(.featureUnsupported) }
             // Downloads every file, then compiles the models once, which proves they load.
             try await AsrModels.download(to: parakeetFolder(in: folder, version: version), version: version)
         case .whisper:
@@ -202,7 +203,7 @@ extension ModelID {
         switch self {
         case .parakeetV3: .v3
         case .parakeetV2: .v2
-        case .whisperTurbo, .apple: nil
+        case .fluidSpeechPro, .whisperTurbo, .apple: nil
         }
     }
 

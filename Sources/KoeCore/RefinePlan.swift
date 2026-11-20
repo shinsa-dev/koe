@@ -2,12 +2,12 @@ import Foundation
 
 /// Which models read a finished recording again, and in what order the recordings wait for them.
 public enum RefinePlan {
-    /// The models that read a recording again, from the ones installed. Whisper and the newest Parakeet each read it;
+    /// The models that read a recording again, from the ones installed. Whisper and the first of the Parakeet family each read it;
     /// Apple's model joins only beside both, as a third reading breaks their ties and a second could not outvote the
     /// first. With nothing installed there is nothing better than what streamed.
     public static func readers(installed: Set<ModelID>) -> [ModelID] {
         let whisper = installed.contains(.whisperTurbo) ? [ModelID.whisperTurbo] : []
-        let parakeet = [ModelID.parakeetV3, .parakeetV2].first { installed.contains($0) }.map { [$0] } ?? []
+        let parakeet = ModelID.parakeetFamily.first { installed.contains($0) }.map { [$0] } ?? []
         let apple = whisper.isEmpty || parakeet.isEmpty ? [] : [ModelID.apple]
         return whisper + parakeet + apple
     }

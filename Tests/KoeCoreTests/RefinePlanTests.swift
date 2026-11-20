@@ -7,6 +7,12 @@ struct RefinePlanTests {
         #expect(RefinePlan.readers(installed: [.whisperTurbo, .parakeetV3]) == [.whisperTurbo, .parakeetV3, .apple])
     }
 
+    @Test func fluidSpeechProReadsInsteadOfNvidiasParakeets() {
+        #expect(RefinePlan.readers(installed: [.whisperTurbo, .parakeetV3, .fluidSpeechPro, .parakeetV2])
+            == [.whisperTurbo, .fluidSpeechPro, .apple])
+        #expect(RefinePlan.readers(installed: [.fluidSpeechPro]) == [.fluidSpeechPro])
+    }
+
     @Test func onlyTheNewestParakeetReads() {
         #expect(RefinePlan.readers(installed: [.whisperTurbo, .parakeetV2, .parakeetV3])
             == [.whisperTurbo, .parakeetV3, .apple])

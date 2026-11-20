@@ -220,4 +220,17 @@ struct TranscriptVoteTests {
         #expect(TranscriptVote.trust.first == .whisperTurbo)
         #expect(TranscriptVote.trust.last == .apple)
     }
+
+    @Test func everyModelHasATrustAndFluidSpeechProOutranksNvidiasParakeets() {
+        #expect(Set(TranscriptVote.trust) == Set(ModelID.allCases))
+        #expect(TranscriptVote.trust.firstIndex(of: .fluidSpeechPro)! < TranscriptVote.trust.firstIndex(of: .parakeetV3)!)
+    }
+
+    @Test func fluidSpeechProIsTheBackboneOverParakeetV3() {
+        let combined = TranscriptVote.combine([
+            reading(.parakeetV3, "it works now"),
+            reading(.fluidSpeechPro, "It works now."),
+        ])
+        #expect(text(combined) == "It works now.")
+    }
 }

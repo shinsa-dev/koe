@@ -31,8 +31,9 @@ public struct ModelStatus: Sendable, Equatable {
 
     /// `inUse` is the model that streams now; `loadErrors` the models that didn't load in this run.
     public init(plan: ModelPlan, inUse: ModelID, loadErrors: [ModelID: String] = [:]) {
+        // Fluid Speech Pro replaced NVIDIA's Parakeet models: they show only while one is on this Mac.
         let listed = TranscriptionModel.catalog.filter { model in
-            model.id != .parakeetV2 || plan.install(.parakeetV2) != .notInstalled
+            ![.parakeetV3, .parakeetV2].contains(model.id) || plan.install(model.id) != .notInstalled
         }
         rows = listed.map { Self.row($0, plan: plan, inUse: inUse, loadError: loadErrors[$0.id]) }
         deletable = TranscriptionModel.catalog
