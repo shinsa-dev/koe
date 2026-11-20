@@ -133,6 +133,12 @@ final class ModelStore {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         switch model.engine {
         case .parakeet:
+            if let snapshot = model.id.snapshot {
+                let hub = HubApiWrapper(downloadBase: folder)
+                _ = try await hub.snapshot(from: .init(id: snapshot.repository), revision: snapshot.revision,
+                                           matching: snapshot.files)
+                break
+            }
             // Without a source an empty folder would pass for the model.
             guard let version = model.id.parakeetVersion else { throw CocoaError(.featureUnsupported) }
             // Downloads every file, then compiles the models once, which proves they load.
@@ -149,10 +155,14 @@ final class ModelStore {
     }
 
     /// Loads the model once, so Core ML compiles it for the Neural Engine now rather than when a session needs it.
-    /// Whisper's compile takes minutes the first time and is then cached; Parakeet's download already compiled it.
+    /// Whisper's compile takes minutes the first time and is then cached; FluidAudio's download already compiled
+    /// Parakeet, and a snapshot's first load proves every file came.
     private nonisolated static func prepare(_ model: TranscriptionModel, in folder: URL) async throws {
-        guard model.engine == .whisper, let variant = model.id.whisperVariant else { return }
-        try await WhisperDecoder.prepare(folder: folder, variant: variant)
+        if let snapshot = model.id.snapshot {
+            _ = try await ParakeetDecoder.models(in: snapshotFolder(in: folder, snapshot: snapshot))
+        } else if model.engine == .whisper, let variant = model.id.whisperVariant {
+            try await WhisperDecoder.prepare(folder: folder, variant: variant)
+        }
         try Task.checkCancellation()
     }
 
@@ -160,6 +170,11 @@ final class ModelStore {
     nonisolated static func parakeetFolder(in folder: URL, version: AsrModelVersion) -> URL {
         folder.appending(path: version == .v2 ? Repo.parakeetV2.folderName : Repo.parakeet.folderName,
                          directoryHint: .isDirectory)
+    }
+
+    /// Where Hugging Face's client keeps a snapshot inside its folder.
+    nonisolated static func snapshotFolder(in folder: URL, snapshot: HubSnapshot) -> URL {
+        folder.appending(path: snapshot.folder, directoryHint: .isDirectory)
     }
 
     /// Where WhisperKit keeps a Whisper model inside its folder.
