@@ -22,7 +22,7 @@ in its own home (`$TMPDIR/koe-sandbox`, or `KOE_SANDBOX`) with its own settings,
 Koe's sessions, models or preferences.
 
 ```sh
-scripts/sandbox.sh --fresh --snapshots /tmp/shots   # no models: watch Koe download Parakeet, then Whisper
+scripts/sandbox.sh --fresh --snapshots /tmp/shots   # no models: watch Koe download Fluid Speech Pro, then Whisper
 scripts/sandbox.sh --with-models --audio-file session.caf --start --print-session
 ```
 
