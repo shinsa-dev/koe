@@ -1,6 +1,7 @@
 import FluidAudio
 import Foundation
 import KoeCore
+import Network
 import Observation
 import os
 import WhisperKit
@@ -86,7 +87,7 @@ final class ModelStore {
                     outcome = .notInstalled
                 } else {
                     Self.log.error("Download of \(id.rawValue, privacy: .public) failed: \(error, privacy: .public)")
-                    outcome = .failed(Self.message(for: error))
+                    outcome = .failed(DownloadFailure(error, online: await Self.isOnline()).message)
                 }
                 try? FileManager.default.removeItem(at: folder)
             }
@@ -136,7 +137,9 @@ final class ModelStore {
             if let snapshot = model.id.snapshot {
                 let hub = HubApiWrapper(downloadBase: folder)
                 _ = try await hub.snapshot(from: .init(id: snapshot.repository), revision: snapshot.revision,
-                                           matching: snapshot.files)
+                                           matching: snapshot.globs)
+                try Task.checkCancellation()
+                try snapshot.verify(in: snapshotFolder(in: folder, snapshot: snapshot))
                 break
             }
             // Without a source an empty folder would pass for the model.
@@ -198,18 +201,19 @@ final class ModelStore {
         return total
     }
 
-    private nonisolated static func message(for error: any Error) -> String {
-        if let error = error as? URLError {
-            switch error.code {
-            case .notConnectedToInternet, .networkConnectionLost:
-                return "The download needs an internet connection. Try again once you're online."
-            case .timedOut:
-                return "Hugging Face took too long to answer. Try again in a moment."
-            default:
-                break
+    /// Whether the Mac has a network now, from the path `NWPathMonitor` reports first.
+    private nonisolated static func isOnline() async -> Bool {
+        let monitor = NWPathMonitor()
+        defer { monitor.cancel() }
+        let path = await withCheckedContinuation { (done: CheckedContinuation<NWPath, Never>) in
+            let once = OSAllocatedUnfairLock(initialState: false)
+            monitor.pathUpdateHandler = { path in
+                guard once.withLock({ fired in defer { fired = true }; return !fired }) else { return }
+                done.resume(returning: path)
             }
+            monitor.start(queue: DispatchQueue(label: "studio.overclock.koe.network"))
         }
-        return "The download stopped: \(error.localizedDescription)"
+        return path.status == .satisfied
     }
 }
 

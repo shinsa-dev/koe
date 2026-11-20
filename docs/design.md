@@ -183,14 +183,17 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   (`ModelPlan.nextDownload`, one at a time). On an Intel Mac it streams with Apple's model.
 - **The Transcription card** shows a read-only row per model (`ModelStatus`): its name, a badge for what Koe uses it
   for ("Live", "Refine", "Live and refine", from what the plan will use once downloads are in), and its state:
-  downloading with a progress bar, preparing, loading, ready, didn't load, or failed with Try again. "Delete a
+  downloading with a progress bar, preparing, loading, ready, didn't load, or failed with Try again. A failure reads
+  as a sentence (`DownloadFailure`): no network, Hugging Face too slow, files that weren't the pinned ones, or a
+  download that didn't finish; the error itself only goes to the log. "Delete a
   download" is the only other control, a menu of the models on disk. A model you delete is remembered
   (`deletedModels`), so the automatic downloads leave it alone; its row offers Download to bring it back.
 - **Where they come from.** Fluid Speech Pro by FluidVoice (CC BY 4.0) is NVIDIA's Parakeet TDT 0.6B v3 fine-tuned
   for noisy rooms, with one small block added before the encoder. Its Core ML build
   (`FluidVoice-Labs/fluid-speech-pro-coreml`) has v3's files, inputs, outputs and vocabulary, so FluidAudio runs it
   as a v3. Koe fetches only its Core ML models and vocabulary, pinned to one commit (`HubSnapshot`), with WhisperKit's
-  Hugging Face client, and loads them into `AsrModels` itself: FluidAudio's own loader deletes a folder that fails
+  Hugging Face client, checks each file against the size and SHA-256 pinned with it (a mismatch deletes the folder
+  and the row offers Try again), and loads them into `AsrModels` itself: FluidAudio's own loader deletes a folder that fails
   to load and downloads NVIDIA's v3 into it, which would pass that model off as Pro. Parakeet v3 and v2 are
   FluidAudio's Core ML ports of NVIDIA's models, Whisper is WhisperKit's Neural Engine build; all download from
   Hugging Face into `~/Library/Application Support/Koe/Models/
