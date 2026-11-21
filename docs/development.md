@@ -73,13 +73,15 @@ runners; none waits on another, and none is skipped for the paths a change touch
 |---|---|---|---|---|
 | Lint | `lint` | `ubuntu-24.04` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
 | Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone, from the newest build tree `main` saved | 35 s |
-| Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 35 s |
+| Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 60 s |
 | Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
 
 - **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the `Runner.Worker` among its
   parent processes, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
-  both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise.
-- **Build trees.** Every push to `main` and every pull request run saves each macOS job's build tree under a key of
+  both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise. `app` is the one exception: warm on GitHub's free macOS runner it
+  measured 67 s with nothing to compile (11 s restoring its tree, 13 s before SwiftPM starts, 18 s fetching the
+  packages, 21 s planning and linking, 7 s saving), so its budget is 60 s and a warm pull request run skips the save.
+- **Build trees.** Every push to `main` saves, and so does a pull request run that found no tree to restore, each macOS job's build tree under a key of
   the job, the Xcode and the commit (`app` adds `Package.resolved`). A pull request restores its own newest tree, or
   else `main`'s, as GitHub lets a pull request read `main`'s caches but not another pull request's. A checkout stamps every file
   with the time it wrote it, and Swift rebuilds any file whose time differs from the one it built, so before building
