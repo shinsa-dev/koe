@@ -1,14 +1,11 @@
 name: Test
 
+# Every pull request runs every job, docs only too, so a required check never waits on a job a path filter skipped.
 on:
   push:
     branches: [main]
-    paths: &tested
-      - '**'
-      - '!docs/**'
-      - '!**/*.md'
   pull_request:
-    paths: *tested
+  merge_group:
 
 concurrency:
   group: test-${{ github.ref }}
@@ -17,26 +14,55 @@ concurrency:
 permissions:
   contents: read
 
+# FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the jobs keep to 26.3
+# until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+
 jobs:
-  koe:
+  # KoeCore and its tests alone: no package to fetch or build, so no cache to restore.
+  core:
     runs-on: macos-26
-    timeout-minutes: 30
-    # FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the job keeps to
-    # 26.3 until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
+    timeout-minutes: 10
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      KOE_CORE_ONLY: '1'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
         with:
-          path: .build
-          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: swiftpm-${{ runner.os }}-
-      - run: swift test --filter KoeCoreTests
+          filter: blob:none
+      - run: swift test --disable-automatic-resolution
+
+  # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull
+  # request starts from the newest one, so it compiles only what it changed.
+  app:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+      - id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build
+            !.build/repositories
+          key: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
+          restore-keys: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-
+      - run: swift build --disable-automatic-resolution
+      - if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .build
+            !.build/repositories
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   scripts:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          filter: blob:none
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
