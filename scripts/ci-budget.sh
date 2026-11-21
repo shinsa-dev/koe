@@ -1,20 +1,17 @@
 #!/bin/bash
 # usage: scripts/ci-budget.sh <seconds>
-# The last step of a CI job: fails it when the job has run longer than its budget, counted from when a runner took it,
-# so setup counts and time in the queue does not.
+# The last step of a CI job: fails it when the job has run longer than its budget. The runner starts one
+# Runner.Worker process per job when it takes the job, so its age counts setup and leaves out time in the queue.
 set -euo pipefail
 
 budget=${1:?usage: scripts/ci-budget.sh <seconds>}
-jobs="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/${GITHUB_RUN_ATTEMPT:-1}/jobs?per_page=100"
-started=$(gh api "$jobs" --jq ".jobs[] | select(.runner_name == \"$RUNNER_NAME\" and .status == \"in_progress\") | .started_at")
-if [[ -z $started || $started == *$'\n'* ]]; then
-  echo "::error title=Budget::Could not find when this job started on $RUNNER_NAME, so its budget cannot be checked."
+worker=$(pgrep -f Runner.Worker | head -n 1 || true)
+elapsed=$([[ -n $worker ]] && ps -o etime= -p "$worker" | tr -d ' ' || true)
+if [[ ! $elapsed =~ ^(([0-9]+)-)?(([0-9]+):)?([0-9]+):([0-9]+)$ ]]; then
+  echo "::error title=Budget::Could not find this job's Runner.Worker process, so its budget cannot be checked."
   exit 1
 fi
-
-took=$(python3 -c 'import datetime, sys
-start = datetime.datetime.fromisoformat(sys.argv[1].replace("Z", "+00:00"))
-print(int((datetime.datetime.now(datetime.timezone.utc) - start).total_seconds()))' "$started")
+took=$(((10#${BASH_REMATCH[2]:-0} * 24 + 10#${BASH_REMATCH[4]:-0}) * 3600 + 10#${BASH_REMATCH[5]} * 60 + 10#${BASH_REMATCH[6]}))
 
 if ((took > budget)); then
   echo "::error title=Budget::This job took ${took} s, over its budget of ${budget} s."

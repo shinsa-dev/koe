@@ -72,21 +72,26 @@ runners; none waits on another, and none is skipped for the paths a change touch
 | Workflow | Job | Runner | What it runs | Budget |
 |---|---|---|---|---|
 | Lint | `lint` | `ubuntu-24.04` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
-| Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone | 35 s |
+| Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone, from the newest build tree `main` saved | 35 s |
 | Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 35 s |
 | Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
 
-- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads from the Actions API when a runner took
-  the job and fails it when it ran longer than its budget, naming both times. Time in the queue does not count; setup
-  does. A slow job is a bug to find, never a budget to raise.
+- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the job's `Runner.Worker`
+  process, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
+  both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise.
+- **Build trees.** Every push to `main` saves each macOS job's build tree under a key of the job, the Xcode and the
+  commit (`app` adds `Package.resolved`), and a pull request restores the newest one. A checkout stamps every file
+  with the time it wrote it, and Swift rebuilds any file whose time differs from the one it built, so before building
+  `scripts/ci_source_times.py` gives each tracked file a time made from its content (its git blob id): an unchanged
+  file gets the time `main`'s build saw and is skipped, and a changed one gets another time and compiles again, with
+  what depends on it. Until `main` has saved a tree, the job builds from scratch.
 - **`core`.** With `KOE_CORE_ONLY` set, `Package.swift` declares only `KoeCore` and `KoeCoreTests`, with no packages
-  to fetch or build, so the job needs no cache. Run it as CI does with
-  `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`; the flag keeps the core-only
-  manifest from rewriting `Package.resolved`, and the scratch path keeps your app build apart.
-- **`app`.** Every push to `main` saves the build tree under a key of the Xcode, `Package.resolved` and the commit, and
-  a pull request restores the newest one, without the packages' git mirrors (`.build/repositories`): FluidAudio,
-  WhisperKit and Sparkle come checked out and built, and only Koe's own targets compile again, in full, since the
-  checkout gives every source file a new time. Both macOS jobs build with Xcode 26.3,
+  to fetch or build. CI runs it without `--disable-automatic-resolution`, since with that flag SwiftPM fetches every
+  package pinned in `Package.resolved`; without it, SwiftPM drops the file from the throwaway checkout. Locally, keep
+  the file with `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`, and the
+  scratch path keeps your app build apart.
+- **`app`.** Its tree leaves out the packages' git mirrors (`.build/repositories`, about half of it): FluidAudio,
+  WhisperKit and Sparkle come checked out and built. Both macOS jobs build with Xcode 26.3,
   the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
 - **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
   `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and

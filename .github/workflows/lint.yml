@@ -12,7 +12,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
 
 env:
   SWIFTLINT_VERSION: 0.65.1
@@ -65,6 +64,4 @@ jobs:
         run: shellcheck build.sh scripts/*.sh
       - name: Budget
         if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: scripts/ci-budget.sh 25

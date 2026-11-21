@@ -13,7 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
 
 # FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the jobs keep to 26.3
 # until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
@@ -21,7 +20,8 @@ env:
   DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
 jobs:
-  # KoeCore and its tests alone: no package to fetch or build, so no cache to restore.
+  # KoeCore and its tests alone, with no package to fetch or build. Without --disable-automatic-resolution, as the pins
+  # in Package.resolved would make SwiftPM fetch every package the app uses; it drops the file from this checkout.
   core:
     runs-on: macos-26
     timeout-minutes: 10
@@ -31,16 +31,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           filter: blob:none
-      - run: swift test --disable-automatic-resolution
+      - id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/*
+          key: core-${{ runner.os }}-xcode-26.3-${{ github.sha }}
+          restore-keys: core-${{ runner.os }}-xcode-26.3-
+      - run: python3 scripts/ci_source_times.py
+      - run: swift test
+      - if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/*
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Budget
         if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: scripts/ci-budget.sh 35
 
   # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull
-  # request starts from the newest one: the packages come built, and Koe's own targets compile again, as the checkout
-  # gives every source a new time. The cache lists `.build/*`, not `.build`: it archives a listed folder whole, so the
+  # request starts from the newest one; scripts/ci_source_times.py gives each file a time made from its content, so
+  # only the files the pull request changed, and what depends on them, compile again. The cache lists `.build/*`, not `.build`: it archives a listed folder whole, so the
   # exclusion of the git mirrors only works on its children.
   app:
     runs-on: macos-26
@@ -57,6 +67,7 @@ jobs:
             !.build/repositories
           key: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
           restore-keys: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-
+      - run: python3 scripts/ci_source_times.py
       - run: swift build --disable-automatic-resolution
       - if: github.event_name == 'push'
         uses: actions/cache/save@v4
@@ -67,8 +78,6 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Budget
         if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: scripts/ci-budget.sh 35
 
   scripts:
@@ -81,6 +90,4 @@ jobs:
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Budget
         if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: scripts/ci-budget.sh 15
