@@ -84,7 +84,9 @@ runners; none waits on another, and none is skipped for the paths a change touch
   `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`; the flag keeps the core-only
   manifest from rewriting `Package.resolved`, and the scratch path keeps your app build apart.
 - **`app`.** Every push to `main` saves the build tree under a key of the Xcode, `Package.resolved` and the commit, and
-  a pull request restores the newest one, so it compiles only what changed. Both macOS jobs build with Xcode 26.3,
+  a pull request restores the newest one, without the packages' git mirrors (`.build/repositories`): FluidAudio,
+  WhisperKit and Sparkle come checked out and built, and only Koe's own targets compile again, in full, since the
+  checkout gives every source file a new time. Both macOS jobs build with Xcode 26.3,
   the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
 - **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
   `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and

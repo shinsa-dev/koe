@@ -39,7 +39,9 @@ jobs:
         run: scripts/ci-budget.sh 35
 
   # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull
-  # request starts from the newest one, so it compiles only what it changed.
+  # request starts from the newest one: the packages come built, and Koe's own targets compile again, as the checkout
+  # gives every source a new time. The cache lists `.build/*`, not `.build`: it archives a listed folder whole, so the
+  # exclusion of the git mirrors only works on its children.
   app:
     runs-on: macos-26
     timeout-minutes: 20
@@ -51,7 +53,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            .build
+            .build/*
             !.build/repositories
           key: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
           restore-keys: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-
@@ -60,7 +62,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            .build
+            .build/*
             !.build/repositories
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Budget
