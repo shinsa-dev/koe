@@ -18,7 +18,8 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   `--audio-file <caf> --start --print-session` for a session, and `--snapshots <folder>` for the settings page as PNGs
   each time it changes, with the models' state on stdout. Never launch, quit, click or screenshot the installed app
   or open a window to test.
-- `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
+- `swift test --filter KoeCoreTests` runs the unit tests; CI's `core` job runs them without the app's packages as
+  `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core` (`docs/development.md` → CI). `swiftlint lint --quiet Sources Tests` lints.
   `.build/debug/Koe --bench` replays your newest recorded sessions and scores how often their endings are complete,
   with load and per-pass timings (`--model <id>` picks the model); run it after any change to transcription.
   `scripts/sandbox.sh --with-models --latency` times starting and finishing real sessions from your
@@ -30,7 +31,7 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   level. Both benches take `--gain off` to compare without the input gain on the same recordings.
 - Releases run in GitHub Actions (`docs/release.md`): `scripts/release_version.py` holds the version and appcast rules
   (`python3 -m unittest discover -s scripts -p 'test_*.py'`), `scripts/release.sh` the signing, notarizing, DMG and
-  R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/release.sh` lint them.
+  R2 steps. `actionlint .github/workflows/*.yml` and `shellcheck build.sh scripts/*.sh` lint them.
   `python3 scripts/dmg.py` redraws the installer background in `Resources/DMG`; `scripts/dmg_settings.py` lays the DMG out.
 - `python3 scripts/tokens.py` and `python3 scripts/fonts.py` regenerate Shinsa's colours and ABC Areal from
   `~/Developer/Projects/shinsa` (`--check` on tokens fails on drift). The icon is the Icon Composer

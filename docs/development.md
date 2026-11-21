@@ -61,7 +61,63 @@ Canary to Stable waits for the next stable release. A release build checks once 
 The Release workflow builds, signs, notarizes and publishes Koe, as Shinsa's does: every tested merge to `main` is a
 canary, and stable releases run from Actions → Release (`gh workflow run release.yml -f channel=stable`). Koe has
 no beta channel. Each
-release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. Lint
-(SwiftLint, actionlint, shellcheck) and Test (`swift test --filter KoeCoreTests`, the release script tests) run on
-every pull request. [release.md](release.md) has the versions, the steps, the files on shinsa.dev and the secrets.
+release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. [CI](#ci) gates
+every merge, and [release.md](release.md) has the versions, the steps, the files on shinsa.dev and the secrets.
 
+## CI
+
+Every pull request, every push to `main` and every merge queue run starts four jobs side by side, on GitHub's own
+runners; none waits on another, and none is skipped for the paths a change touches, so a required check never hangs:
+
+| Workflow | Job | Runner | What it runs | Budget |
+|---|---|---|---|---|
+| Lint | `lint` | `ubuntu-24.04` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
+| Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone, from the newest build tree `main` saved | 35 s |
+| Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 60 s |
+| Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
+
+- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the `Runner.Worker` among its
+  parent processes, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
+  both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise. `app` is the one exception: warm on GitHub's free macOS runner it
+  measured 67 s with nothing to compile (11 s restoring its tree, 13 s before SwiftPM starts, 18 s fetching the
+  packages, 21 s planning and linking, 7 s saving), so its budget is 60 s and a warm pull request run skips the save.
+- **Build trees.** Every push to `main` saves, and so does a pull request run that found no tree to restore, each macOS job's build tree under a key of
+  the job, the Xcode and the commit (`app` adds `Package.resolved`). A pull request restores its own newest tree, or
+  else `main`'s, as GitHub lets a pull request read `main`'s caches but not another pull request's. A checkout stamps every file
+  with the time it wrote it, and Swift rebuilds any file whose time differs from the one it built, so before building
+  `scripts/ci_source_times.py` gives each tracked file a time made from its content (its git blob id): an unchanged
+  file gets the time `main`'s build saw and is skipped, and a changed one gets another time and compiles again, with
+  what depends on it. A pull request's first run before `main` has saved a tree builds from scratch, and runs over its budget.
+- **`core`.** With `KOE_CORE_ONLY` set, `Package.swift` declares only `KoeCore` and `KoeCoreTests`, with no packages
+  to fetch or build. CI runs it without `--disable-automatic-resolution`, since with that flag SwiftPM fetches every
+  package pinned in `Package.resolved`; without it, SwiftPM drops the file from the throwaway checkout. Locally, keep
+  the file with `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`, and the
+  scratch path keeps your app build apart.
+- **`app`.** Its build tree leaves out the packages' git mirrors (`.build/repositories`, about half of it), which
+  have a cache of their own keyed on `Package.resolved` alone, saved once each time a package changes: without them
+  SwiftPM cloned every package again, 27 s of a warm run. FluidAudio, WhisperKit and Sparkle come checked out and built. Both macOS jobs build with Xcode 26.3,
+  the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
+- **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
+  `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and
+  quietly skips the rules that need it, so the step fails when SwiftLint reports a skipped rule. That build links
+  `libxml2.so.2`, which Ubuntu 26.04 dropped, so `lint` stays on `ubuntu-24.04`. Each linter runs even when another
+  fails, so one run lists every failure.
+- **No retries.** A test that fails sometimes has a bug: the dictionary's speed test counts the comparisons
+  `CustomDictionary.apply` makes (`comparisons(_:)`) instead of timing it, as a wall clock on a shared runner is noise.
+
+Before this layout, from the last 100 runs (14 to 21 November 2026), at p50/p95: Test took 80/108 s per pull request,
+its single macOS job 76/101 s (a 714 MB cache restore of 18/24 s that never refreshed, and a rebuild of the whole app
+for 0.4 s of tests); Lint took 20/24 s, half of it starting the SwiftLint container. It failed 2 of 40 runs: once the
+5 ms timing test, once a real compile error.
+
+`main` is protected by the ruleset in `.github/rulesets/main.json`: no deletion or force push, changes through a pull
+request, and the four jobs required on a branch that is up to date with `main`, so the full suite has run on exactly
+what merges. The workflows also run on `merge_group`, so a merge queue can replace the up-to-date rule later. Apply the
+ruleset once, or update it after changing the file:
+
+```sh
+gh api -X POST repos/shinsa-dev/koe/rulesets --input .github/rulesets/main.json
+gh api -X PUT repos/shinsa-dev/koe/rulesets/<id> --input .github/rulesets/main.json  # <id> from gh api repos/shinsa-dev/koe/rulesets
+```
+
+A new job joins the table above, `.github/rulesets/main.json` and its budget step together.
