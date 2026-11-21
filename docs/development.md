@@ -79,12 +79,13 @@ runners; none waits on another, and none is skipped for the paths a change touch
 - **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the `Runner.Worker` among its
   parent processes, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
   both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise.
-- **Build trees.** Every push to `main` saves each macOS job's build tree under a key of the job, the Xcode and the
-  commit (`app` adds `Package.resolved`), and a pull request restores the newest one. A checkout stamps every file
+- **Build trees.** Every push to `main` and every pull request run saves each macOS job's build tree under a key of
+  the job, the Xcode and the commit (`app` adds `Package.resolved`). A pull request restores its own newest tree, or
+  else `main`'s, as GitHub lets a pull request read `main`'s caches but not another pull request's. A checkout stamps every file
   with the time it wrote it, and Swift rebuilds any file whose time differs from the one it built, so before building
   `scripts/ci_source_times.py` gives each tracked file a time made from its content (its git blob id): an unchanged
   file gets the time `main`'s build saw and is skipped, and a changed one gets another time and compiles again, with
-  what depends on it. Until `main` has saved a tree, the job builds from scratch.
+  what depends on it. A pull request's first run before `main` has saved a tree builds from scratch, and runs over its budget.
 - **`core`.** With `KOE_CORE_ONLY` set, `Package.swift` declares only `KoeCore` and `KoeCoreTests`, with no packages
   to fetch or build. CI runs it without `--disable-automatic-resolution`, since with that flag SwiftPM fetches every
   package pinned in `Package.resolved`; without it, SwiftPM drops the file from the throwaway checkout. Locally, keep

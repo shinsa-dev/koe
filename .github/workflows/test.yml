@@ -39,7 +39,7 @@ jobs:
           restore-keys: core-${{ runner.os }}-xcode-26.3-
       - run: python3 scripts/ci_source_times.py
       - run: swift test
-      - if: github.event_name == 'push'
+      - if: github.event_name == 'push' || github.event_name == 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: .build/*
@@ -48,8 +48,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/ci-budget.sh 35
 
-  # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull
-  # request starts from the newest one; scripts/ci_source_times.py gives each file a time made from its content, so
+  # The whole app, so a compile error in Sources/Koe stays red. Main and every pull request run save their build tree, and a
+  # pull request starts from its own newest one, or main's; scripts/ci_source_times.py gives each file a time made from its content, so
   # only the files the pull request changed, and what depends on them, compile again. The cache lists `.build/*`, not `.build`: it archives a listed folder whole, so the
   # exclusion of the git mirrors only works on its children.
   app:
@@ -69,7 +69,7 @@ jobs:
           restore-keys: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-
       - run: python3 scripts/ci_source_times.py
       - run: swift build --disable-automatic-resolution
-      - if: github.event_name == 'push'
+      - if: github.event_name == 'push' || github.event_name == 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: |
