@@ -51,7 +51,8 @@ jobs:
   # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull request run when it found none to restore; a
   # pull request starts from its own newest one, or main's; scripts/ci_source_times.py gives each file a time made from its content, so
   # only the files the pull request changed, and what depends on them, compile again. The cache lists `.build/*`, not `.build`: it archives a listed folder whole, so the
-  # exclusion of the git mirrors only works on its children.
+  # exclusion of the git mirrors only works on its children. The mirrors have a cache of their own, keyed on Package.resolved alone: without them SwiftPM
+  # clones every package again (27 s), and they change only when a package does, so they are saved once per Package.resolved.
   app:
     runs-on: macos-26
     timeout-minutes: 20
@@ -67,8 +68,18 @@ jobs:
             !.build/repositories
           key: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
           restore-keys: app-${{ runner.os }}-xcode-26.3-${{ hashFiles('Package.resolved') }}-
+      - id: mirrors
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/repositories
+          key: app-mirrors-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
       - run: python3 scripts/ci_source_times.py
       - run: swift build --disable-automatic-resolution
+      - if: steps.mirrors.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/repositories
+          key: ${{ steps.mirrors.outputs.cache-primary-key }}
       - if: github.event_name == 'push' || (github.event_name == 'pull_request' && steps.cache.outputs.cache-matched-key == '')
         uses: actions/cache/save@v4
         with:

@@ -93,8 +93,9 @@ runners; none waits on another, and none is skipped for the paths a change touch
   package pinned in `Package.resolved`; without it, SwiftPM drops the file from the throwaway checkout. Locally, keep
   the file with `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`, and the
   scratch path keeps your app build apart.
-- **`app`.** Its tree leaves out the packages' git mirrors (`.build/repositories`, about half of it): FluidAudio,
-  WhisperKit and Sparkle come checked out and built. Both macOS jobs build with Xcode 26.3,
+- **`app`.** Its build tree leaves out the packages' git mirrors (`.build/repositories`, about half of it), which
+  have a cache of their own keyed on `Package.resolved` alone, saved once each time a package changes: without them
+  SwiftPM cloned every package again, 27 s of a warm run. FluidAudio, WhisperKit and Sparkle come checked out and built. Both macOS jobs build with Xcode 26.3,
   the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
 - **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
   `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and
