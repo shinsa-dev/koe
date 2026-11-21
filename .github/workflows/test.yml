@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 # FluidAudio 0.9 fails to compile on Xcode 26.4 and later (FluidInference/FluidAudio#415), so the jobs keep to 26.3
 # until Koe moves to FluidAudio 0.13 or a runner has Xcode 27.
@@ -31,6 +32,11 @@ jobs:
         with:
           filter: blob:none
       - run: swift test --disable-automatic-resolution
+      - name: Budget
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci-budget.sh 35
 
   # The whole app, so a compile error in Sources/Koe stays red. Main saves its build tree on every push, and a pull
   # request starts from the newest one, so it compiles only what it changed.
@@ -57,6 +63,11 @@ jobs:
             .build
             !.build/repositories
           key: ${{ steps.cache.outputs.cache-primary-key }}
+      - name: Budget
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci-budget.sh 35
 
   scripts:
     runs-on: ubuntu-latest
@@ -66,3 +77,8 @@ jobs:
         with:
           filter: blob:none
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Budget
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci-budget.sh 15

@@ -18,7 +18,8 @@ behaviour it describes. `docs/development.md` covers building, signing, updates 
   `--audio-file <caf> --start --print-session` for a session, and `--snapshots <folder>` for the settings page as PNGs
   each time it changes, with the models' state on stdout. Never launch, quit, click or screenshot the installed app
   or open a window to test.
-- `swift test --filter KoeCoreTests` runs the unit tests. `swiftlint lint --quiet Sources Tests` lints.
+- `swift test --filter KoeCoreTests` runs the unit tests; CI's `core` job runs them without the app's packages as
+  `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core` (`docs/development.md` → CI). `swiftlint lint --quiet Sources Tests` lints.
   `.build/debug/Koe --bench` replays your newest recorded sessions and scores how often their endings are complete,
   with load and per-pass timings (`--model <id>` picks the model); run it after any change to transcription.
   `scripts/sandbox.sh --with-models --latency` times starting and finishing real sessions from your

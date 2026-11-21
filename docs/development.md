@@ -61,7 +61,51 @@ Canary to Stable waits for the next stable release. A release build checks once 
 The Release workflow builds, signs, notarizes and publishes Koe, as Shinsa's does: every tested merge to `main` is a
 canary, and stable releases run from Actions → Release (`gh workflow run release.yml -f channel=stable`). Koe has
 no beta channel. Each
-release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. Lint
-(SwiftLint, actionlint, shellcheck) and Test (`swift test --filter KoeCoreTests`, the release script tests) run on
-every pull request. [release.md](release.md) has the versions, the steps, the files on shinsa.dev and the secrets.
+release is a GitHub release with `Koe.dmg`, copied to shinsa.dev under `koe/` with an appcast for its channel. [CI](#ci) gates
+every merge, and [release.md](release.md) has the versions, the steps, the files on shinsa.dev and the secrets.
 
+## CI
+
+Every pull request, every push to `main` and every merge queue run starts four jobs side by side, on GitHub's own
+runners; none waits on another, and none is skipped for the paths a change touches, so a required check never hangs:
+
+| Workflow | Job | Runner | What it runs | Budget |
+|---|---|---|---|---|
+| Lint | `lint` | `ubuntu-latest` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
+| Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone | 35 s |
+| Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 35 s |
+| Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
+
+- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads from the Actions API when a runner took
+  the job and fails it when it ran longer than its budget, naming both times. Time in the queue does not count; setup
+  does. A slow job is a bug to find, never a budget to raise.
+- **`core`.** With `KOE_CORE_ONLY` set, `Package.swift` declares only `KoeCore` and `KoeCoreTests`, with no packages
+  to fetch or build, so the job needs no cache. Run it as CI does with
+  `KOE_CORE_ONLY=1 swift test --disable-automatic-resolution --scratch-path .build/core`; the flag keeps the core-only
+  manifest from rewriting `Package.resolved`, and the scratch path keeps your app build apart.
+- **`app`.** Every push to `main` saves the build tree under a key of the Xcode, `Package.resolved` and the commit, and
+  a pull request restores the newest one, so it compiles only what changed. Both macOS jobs build with Xcode 26.3,
+  the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
+- **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
+  `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and
+  quietly skips the rules that need it, so the step fails when SwiftLint reports a skipped rule. Each linter runs
+  even when another fails, so one run lists every failure.
+- **No retries.** A test that fails sometimes has a bug: the dictionary's speed test counts the comparisons
+  `CustomDictionary.apply` makes (`comparisons(_:)`) instead of timing it, as a wall clock on a shared runner is noise.
+
+Before this layout, from the last 100 runs (14 to 21 November 2026), at p50/p95: Test took 80/108 s per pull request,
+its single macOS job 76/101 s (a 714 MB cache restore of 18/24 s that never refreshed, and a rebuild of the whole app
+for 0.4 s of tests); Lint took 20/24 s, half of it starting the SwiftLint container. It failed 2 of 40 runs: once the
+5 ms timing test, once a real compile error.
+
+`main` is protected by the ruleset in `.github/rulesets/main.json`: no deletion or force push, changes through a pull
+request, and the four jobs required on a branch that is up to date with `main`, so the full suite has run on exactly
+what merges. The workflows also run on `merge_group`, so a merge queue can replace the up-to-date rule later. Apply the
+ruleset once, or update it after changing the file:
+
+```sh
+gh api -X POST repos/shinsa-dev/koe/rulesets --input .github/rulesets/main.json
+gh api -X PUT repos/shinsa-dev/koe/rulesets/<id> --input .github/rulesets/main.json  # <id> from gh api repos/shinsa-dev/koe/rulesets
+```
+
+A new job joins the table above, `.github/rulesets/main.json` and its budget step together.
