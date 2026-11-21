@@ -141,20 +141,27 @@ struct CustomDictionaryTests {
         #expect(CustomDictionary.distance("", "abc") == 3)
     }
 
-    /// About seven minutes of talking against 504 entries, timed at its best of ten as other work shares the Mac.
-    @Test func aLongTranscriptIsFixedWithinFiveMilliseconds() {
-        let names = (0..<500).map { "Project\($0)name" } + ["Shinsa", "paywall-next", "BuzzKit", "Kodama"]
-        let fix = dictionary(names)
+    /// About seven minutes of talking against 504 entries costs no more work than against the 4 it names: each word
+    /// is looked up in the dictionary's indexes, never compared with every entry. Counted, not timed, so a busy
+    /// machine can't fail it.
+    @Test func aLongTranscriptCostsTheSameWorkHoweverLongTheDictionary() {
+        let named = ["Shinsa", "paywall-next", "BuzzKit", "Kodama"]
+        let large = dictionary((0..<500).map { "Project\($0)name" } + named)
         let sentence = "so look at the Shinza page and fix the pay wall next code in Kodima it is my project "
         let transcript = words(String(repeating: sentence, count: 56))
         #expect(transcript.count > 1_000)
-        let clock = ContinuousClock()
-        let best = (0..<10).map { _ in clock.measure { _ = fix.apply(transcript) } }.min() ?? .zero
-        // A hosted CI runner is about twice as slow as a Mac and runs the other suites at once.
-        let budget: Duration = ProcessInfo.processInfo.environment["CI"] == nil ? .milliseconds(5) : .milliseconds(15)
-        #expect(best < budget)
-        let fixed = text(Array(fix.apply(transcript).prefix(17)))
+        let work = large.comparisons(transcript)
+        #expect(work <= dictionary(named).comparisons(transcript) + transcript.count / 17)
+        #expect(work < transcript.count * 4)
+        let fixed = text(Array(large.apply(transcript).prefix(17)))
         #expect(fixed == "so look at the Shinsa page and fix the paywall-next code in Kodama it is my project")
+    }
+
+    @Test func comparingEveryWordWithEveryEntryWouldBreakTheBound() {
+        let large = dictionary((0..<500).map { "Project\($0)name" })
+        let transcript = words(String(repeating: "Projekt7name ", count: 100))
+        #expect(large.comparisons(transcript) < transcript.count * 4)
+        #expect(large.comparisons(transcript) < transcript.count * large.entries.count / 10)
     }
 
     @Test func theDictionarySettingsSurviveARoundTrip() {

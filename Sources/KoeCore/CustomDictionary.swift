@@ -86,6 +86,19 @@ public struct CustomDictionary: Sendable {
 
     /// The transcript with every run of words that sounds like an entry spelled as the entry.
     public func apply(_ words: [TimedWord]) -> [TimedWord] {
+        var comparisons = 0
+        return apply(words, comparisons: &comparisons)
+    }
+
+    /// How much work `apply` does on the words: each lookup in the dictionary's indexes, each distance it measures
+    /// and each word it asks the spell checker about. It grows with the words, not with the number of entries.
+    public func comparisons(_ words: [TimedWord]) -> Int {
+        var comparisons = 0
+        _ = apply(words, comparisons: &comparisons)
+        return comparisons
+    }
+
+    private func apply(_ words: [TimedWord], comparisons: inout Int) -> [TimedWord] {
         guard !entries.isEmpty else { return words }
         let letters = words.map { Self.heardLetters($0.text) }
         let sounds = letters.map { Self.string(Self.fold($0)) }
@@ -94,7 +107,8 @@ public struct CustomDictionary: Sendable {
         result.reserveCapacity(words.count)
         var index = 0
         while index < words.count {
-            if let (entry, span) = match(at: index, letters: letters, sounds: sounds, pauses: pauses) {
+            if let (entry, span) = match(at: index, letters: letters, sounds: sounds, pauses: pauses,
+                                         comparisons: &comparisons) {
                 result.append(Self.replace(words[index..<index + span], with: entry))
                 index += span
             } else {
@@ -108,10 +122,12 @@ public struct CustomDictionary: Sendable {
     /// The entry the words from `index` sound like, and how many words it takes: the longest run first. `sounds`
     /// holds each word's own sound key, so a word that can't start an entry costs one lookup. A run stops at a word
     /// that ends in punctuation, and at one that adds nothing to its sound ("Shinza you" sounds like "Shinza").
-    private func match(at index: Int, letters: [Key], sounds: [String], pauses: [Bool]) -> (String, Int)? {
+    private func match(at index: Int, letters: [Key], sounds: [String], pauses: [Bool],
+                       comparisons: inout Int) -> (String, Int)? {
         let first = sounds[index]
         guard !first.isEmpty else { return nil }
         var keys = [first]
+        comparisons += 1
         if prefixes.contains(first) {
             var run = letters[index]
             for offset in 1..<min(Self.maxSpan, letters.count - index) {
@@ -120,39 +136,49 @@ public struct CustomDictionary: Sendable {
                 run += word
                 let key = Self.string(Self.fold(run))
                 guard key != keys.last else { break }
+                comparisons += 1
                 guard prefixes.contains(key) else { break }
                 keys.append(key)
             }
         }
-        if let found = exactMatch(keys, at: index, letters: letters) { return found }
+        if let found = exactMatch(keys, at: index, letters: letters, comparisons: &comparisons) { return found }
         guard first.utf8.count >= Self.minNearKey, nearLengths.contains(first.utf8.count) else { return nil }
         // The spell checker is the slow part, so it is only asked about a word that comes close to an entry.
-        guard let entry = near(Array(first.utf8)), !isOrdinary(Self.string(letters[index])) else { return nil }
+        guard let entry = near(Array(first.utf8), comparisons: &comparisons) else { return nil }
+        comparisons += 1
+        guard !isOrdinary(Self.string(letters[index])) else { return nil }
         return (entry, 1)
     }
 
     /// The entry a run from `index` sounds exactly like, the longest run first; `keys` holds each run's sound key.
-    private func exactMatch(_ keys: [String], at index: Int, letters: [Key]) -> (String, Int)? {
+    private func exactMatch(_ keys: [String], at index: Int, letters: [Key],
+                            comparisons: inout Int) -> (String, Int)? {
         for span in stride(from: keys.count, through: 1, by: -1) {
             let key = keys[span - 1]
+            comparisons += 1
             guard let found = exact[key] else { continue }
             let entry = entries[found]
             if span == 1 && letters[index] == Self.letters(of: entry) { return (entry, span) }
             guard key.utf8.count >= Self.minKey else { continue }
             if found >= yours, span > 1, multiPart[found] { continue }
-            if found >= yours, (index..<index + span).allSatisfy({ isOrdinary(Self.string(letters[$0])) }) { continue }
+            if found >= yours {
+                comparisons += span
+                if (index..<index + span).allSatisfy({ isOrdinary(Self.string(letters[$0])) }) { continue }
+            }
             return (entry, span)
         }
         return nil
     }
 
     /// The entry whose sound key is one edit from `key` (two for long keys), the closest first.
-    private func near(_ key: Key) -> String? {
+    private func near(_ key: Key, comparisons: inout Int) -> String? {
         let limit = key.count >= 9 ? 2 : 1
         var best: (entry: Int, distance: Int)?
         var tried = Set<Int>()
         for variant in [key] + Self.deletions(of: key) {
+            comparisons += 1
             for entry in neighbours[variant] ?? [] where tried.insert(entry).inserted {
+                comparisons += 1
                 let distance = Self.distance(key, entryKeys[entry])
                 if distance <= limit, distance < best?.distance ?? .max { best = (entry, distance) }
             }
