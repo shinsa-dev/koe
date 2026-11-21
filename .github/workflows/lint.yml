@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 concurrency:
   group: lint-${{ github.ref }}
@@ -12,23 +13,51 @@ concurrency:
 permissions:
   contents: read
 
-jobs:
-  swiftlint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    container: ghcr.io/realm/swiftlint:0.65.1
-    steps:
-      - uses: actions/checkout@v4
-      - run: swiftlint lint --quiet --strict --reporter github-actions-logging Sources Tests
+env:
+  SWIFTLINT_VERSION: 0.65.1
+  SWIFTLINT_SHA256: caeed6f4a679c35539ffaf124f6c4ab4a8416917f7d8796279dc52b74026059d
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
 
-  workflows:
+jobs:
+  # Every linter runs even when another fails, so one run lists every failure.
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: actionlint
+        with:
+          filter: blob:none
+      - id: tools
+        name: Install SwiftLint and actionlint
         run: |
-          bash <(curl --fail --silent --show-error https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
-          ./actionlint -color
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"
+          cd "$tools"
+          curl -fsSLo swiftlint.zip "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/swiftlint_linux_amd64.zip"
+          curl -fsSLo actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          printf '%s  swiftlint.zip\n%s  actionlint.tar.gz\n' "$SWIFTLINT_SHA256" "$ACTIONLINT_SHA256" | sha256sum --check --strict
+          unzip -q swiftlint.zip swiftlint
+          tar -xzf actionlint.tar.gz actionlint
+          echo "$tools" >> "$GITHUB_PATH"
+      # The dynamic build, not swiftlint-static: the static one cannot load SourceKit and skips the rules that need it
+      # (statement_position). It runs on the runner's own Swift and its SourceKit.
+      - name: SwiftLint
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: |
+          swift_lib="$(dirname "$(readlink -f "$(command -v swift)")")/../lib"
+          export LD_LIBRARY_PATH="$swift_lib/swift/linux:$swift_lib"
+          swiftlint lint --quiet --strict --reporter github-actions-logging Sources Tests 2> "$RUNNER_TEMP/swiftlint.log" ||
+            status=$?
+          cat "$RUNNER_TEMP/swiftlint.log" >&2
+          if grep -q 'Skipping enabled rule' "$RUNNER_TEMP/swiftlint.log"; then
+            echo "::error title=SwiftLint::SwiftLint skipped a rule, so it checked less than it should."
+            exit 1
+          fi
+          exit "${status:-0}"
+      - name: actionlint
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: actionlint -color
       - name: shellcheck
-        run: shellcheck build.sh scripts/release.sh scripts/icon.sh
+        if: ${{ !cancelled() }}
+        run: shellcheck build.sh scripts/*.sh
