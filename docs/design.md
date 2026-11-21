@@ -173,28 +173,39 @@ that no longer exists is left out; with "Copy files with the text" off, only the
 
 ## Transcription
 
-- **Models.** Nobody picks a model: Koe picks its own (`ModelPlan`). It streams with Parakeet v3 (25 European
-  languages, about 480 MB) once it is downloaded and has loaded, and with Apple's on-device model (built in) until
-  then. A Parakeet v2 (English, about 460 MB) already on the Mac streams only while v3 isn't ready; Koe never
-  downloads it. Whisper large-v3 turbo (99 languages, about 650 MB) never streams, as its passes run past the 0.9 s
-  budget; it is the refine's best reader. Koe downloads Parakeet v3 first, then Whisper, in the background with no
-  click (`ModelPlan.nextDownload`, one at a time). On an Intel Mac it streams with Apple's model.
+- **Models.** Nobody picks a model: Koe picks its own (`ModelPlan`). It streams with Fluid Speech Pro (25 European
+  languages, 652 MB) once it is downloaded and has loaded, and with Apple's on-device model (built in) until then.
+  A Parakeet v3 (about 480 MB) or v2 (English, about 460 MB) already on the Mac streams only while Fluid Speech Pro
+  isn't ready, newest first (`ModelID.parakeetFamily`); Koe never downloads them, and once Pro is in they keep no
+  role and show only as a download to delete. Deleting Pro takes Koe back to one of them, or to Apple's model.
+  Whisper large-v3 turbo (99 languages, about 650 MB) never streams, as its passes run past the 0.9 s budget; it is
+  the refine's best reader. Koe downloads Fluid Speech Pro first, then Whisper, in the background with no click
+  (`ModelPlan.nextDownload`, one at a time). On an Intel Mac it streams with Apple's model.
 - **The Transcription card** shows a read-only row per model (`ModelStatus`): its name, a badge for what Koe uses it
   for ("Live", "Refine", "Live and refine", from what the plan will use once downloads are in), and its state:
-  downloading with a progress bar, preparing, loading, ready, didn't load, or failed with Try again. "Delete a
+  downloading with a progress bar, preparing, loading, ready, didn't load, or failed with Try again. A failure reads
+  as a sentence (`DownloadFailure`): no network, Hugging Face too slow, files that weren't the pinned ones, or a
+  download that didn't finish; the error itself only goes to the log. "Delete a
   download" is the only other control, a menu of the models on disk. A model you delete is remembered
   (`deletedModels`), so the automatic downloads leave it alone; its row offers Download to bring it back.
-- **Where they come from.** Parakeet is FluidAudio's Core ML port of NVIDIA's Parakeet TDT 0.6B, Whisper is
-  WhisperKit's Neural Engine build; both download from Hugging Face into `~/Library/Application Support/Koe/Models/
+- **Where they come from.** Fluid Speech Pro by FluidVoice (CC BY 4.0) is NVIDIA's Parakeet TDT 0.6B v3 fine-tuned
+  for noisy rooms, with one small block added before the encoder. Its Core ML build
+  (`FluidVoice-Labs/fluid-speech-pro-coreml`) has v3's files, inputs, outputs and vocabulary, so FluidAudio runs it
+  as a v3. Koe fetches only its Core ML models and vocabulary, pinned to one commit (`HubSnapshot`), with WhisperKit's
+  Hugging Face client, checks each file against the size and SHA-256 pinned with it (a mismatch deletes the folder
+  and the row offers Try again), and loads them into `AsrModels` itself: FluidAudio's own loader deletes a folder that fails
+  to load and downloads NVIDIA's v3 into it, which would pass that model off as Pro. Parakeet v3 and v2 are
+  FluidAudio's Core ML ports of NVIDIA's models, Whisper is WhisperKit's Neural Engine build; all download from
+  Hugging Face into `~/Library/Application Support/Koe/Models/
   <model>` (`ModelStore`). A `.koe-installed` file is written last, once the model has loaded, so a download cut
   short never counts. Whisper's first load has Core ML compile it for the Neural Engine, which takes a few minutes
   (then about a second, cached per app until the next macOS update), so its download ends by prewarming it: the row
   reads "Preparing it for this Mac" (`ModelInstall.preparing`, which can't be cancelled) and Apple's model runs
   until it is done. FluidAudio reports no progress, so the card measures the folder against the expected size.
   Besides updates ([development.md](development.md) → Updates), nothing else goes online: audio and text never leave the Mac.
-- **First launch** starts downloading Parakeet v3 (a download cut short starts again next launch) and transcribes
+- **First launch** starts downloading Fluid Speech Pro (a download cut short starts again next launch) and transcribes
   with Apple's model meanwhile. An old `transcriptionModel` choice is ignored, so someone who had chosen Apple's model
-  keeps it only until Parakeet is ready. `ActiveTranscriber` switches as soon as a download lands, without a relaunch;
+  keeps it only until Fluid Speech Pro is ready. `ActiveTranscriber` switches as soon as a download lands, without a relaunch;
   a session already running keeps its model. A live model that isn't downloaded, fails to load, or needs Apple
   silicon falls back to Apple's (`TranscriberRoute`). So does one that
   hasn't loaded yet in this run: it loads in the background and takes sessions only once it has, so a session never
@@ -214,10 +225,10 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   step and can flip on a short or quiet window. A session settles it once, from the first pass that read at least
   4 s of audio (`LanguageLock`), and every later pass decodes in it. A whole recording read back is detected afresh.
 - **Refine after the copy.** Once a session is copied, `Refiner` reads its `audio.caf` again with every installed
-  model at once (Whisper turbo, Parakeet, and Apple's), each in its own task, in the background. `TranscriptVote`
-  (`KoeCore`) combines them: the most trusted reading (Whisper, then Parakeet, then Apple's) is the backbone, the
-  others are lined up against it by text and by time (words said more than 1.5 s apart never stand for each other),
-  and each word goes to a vote. A word most readings agree on is kept; one most didn't hear is dropped, leaving its
+  model at once (Whisper turbo, the newest Parakeet-family model, and Apple's), each in its own task, in the
+  background. `TranscriptVote` (`KoeCore`) combines them: the most trusted reading (Whisper, then Fluid Speech Pro,
+  Parakeet v3 and v2, then Apple's) is the backbone, the others are lined up against it by text and by time (words
+  said more than 1.5 s apart never stand for each other), and each word goes to a vote. A word most readings agree on is kept; one most didn't hear is dropped, leaving its
   full stop to the word before; one most add is added; a tie goes to the most trusted. The backbone has no vote
   against a word said where it heard nothing within 1.5 s, so a stretch it skipped keeps the others' words.
   Punctuation is voted too: the backbone's own mark stands, and where it has none the others' mark is added when at
@@ -237,8 +248,8 @@ that no longer exists is left out; with "Copy files with the text" off, only the
   silence), and each is read on its own and timed from where it starts. No stretch is prompted with the text before
   it, as a prompt put every word's time at the end of the window, which broke the vote.
 - **Tail benchmark.** `Koe --bench` replays the newest 40 recorded sessions on this Mac (or a count, or the
-  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Parakeet v3, or the model
-  `--model <id>` names (Parakeet v3, Parakeet v2 or Whisper; Apple's streams on its own and can't be replayed). It
+  `audio.caf` files named) through the live window, fed 0.9 s at a time, with Fluid Speech Pro, or the model
+  `--model <id>` names (`fluid-speech-pro`, `parakeet-v3`, `parakeet-v2` or Whisper; Apple's streams on its own and can't be replayed). It
   prints whether each ends with the same three words as one decode of the whole recording (`TailScore`), and the
   total; how long the model took to load; and for each recording and in all, how long the passes took against the
   0.9 s they have and how long the whole decode took (`StepTimings`). It also prints what the cleanup takes out of

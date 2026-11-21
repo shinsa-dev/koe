@@ -2,10 +2,10 @@ import KoeCore
 import Testing
 
 struct TranscriptionModelTests {
-    @Test func parakeetV3IsTheRecommendedDefaultAndAppleTheBuiltInFallback() {
-        #expect(TranscriptionModel.standard.id == .parakeetV3)
-        #expect(TranscriptionModel.catalog.filter(\.isRecommended).map(\.id) == [.parakeetV3])
-        #expect(TranscriptionModel.catalog.first?.id == .parakeetV3)
+    @Test func fluidSpeechProIsTheRecommendedDefaultAndAppleTheBuiltInFallback() {
+        #expect(TranscriptionModel.standard.id == .fluidSpeechPro)
+        #expect(TranscriptionModel.catalog.filter(\.isRecommended).map(\.id) == [.fluidSpeechPro])
+        #expect(TranscriptionModel.catalog.first?.id == .fluidSpeechPro)
         #expect(TranscriptionModel.catalog.last?.id == .apple)
         #expect(!TranscriptionModel.apple.needsDownload)
         #expect(TranscriptionModel.apple.sizeLabel == "Built in")

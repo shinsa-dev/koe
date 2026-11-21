@@ -13,7 +13,7 @@ public enum ModelRole: Sendable, Hashable {
 /// for it again.
 public struct ModelPlan: Sendable, Equatable {
     /// The order Koe downloads in: the live model first, then the one only the refine uses.
-    public static let downloadOrder: [ModelID] = [.parakeetV3, .whisperTurbo]
+    public static let downloadOrder: [ModelID] = [.fluidSpeechPro, .whisperTurbo]
 
     public let installs: [ModelID: ModelInstall]
     public let deleted: Set<ModelID>
@@ -35,13 +35,13 @@ public struct ModelPlan: Sendable, Equatable {
         install(id).isInstalled || canDownload && Self.downloadOrder.contains(id) && !deleted.contains(id)
     }
 
-    /// The model sessions stream with once it has loaded: Parakeet v3, else a Parakeet v2 already on this Mac, else
-    /// Parakeet v3 on its way. Until it can run, `TranscriberRoute` hands sessions to Apple's model.
+    /// The model sessions stream with once it has loaded: the first of the Parakeet family on this Mac (Fluid Speech
+    /// Pro, else a Parakeet v3 or v2 left from before), else Fluid Speech Pro on its way. Until it can run,
+    /// `TranscriberRoute` hands sessions to Apple's model.
     public var liveCandidate: ModelID {
         guard canDownload else { return .apple }
-        if install(.parakeetV3).isInstalled { return .parakeetV3 }
-        if install(.parakeetV2).isInstalled { return .parakeetV2 }
-        return isComing(.parakeetV3) ? .parakeetV3 : .apple
+        if let installed = ModelID.parakeetFamily.first(where: { install($0).isInstalled }) { return installed }
+        return isComing(.fluidSpeechPro) ? .fluidSpeechPro : .apple
     }
 
     /// The download to start now, or nil while one runs or none is due. One that failed waits for Try again or the
@@ -56,7 +56,7 @@ public struct ModelPlan: Sendable, Equatable {
     /// What Koe uses `id` for, or will once it is in. `inUse` is the model that streams now.
     public func roles(_ id: ModelID, inUse: ModelID) -> Set<ModelRole> {
         var roles = Set<ModelRole>()
-        let streams = id == liveCandidate || id == .parakeetV3 && isComing(.parakeetV3)
+        let streams = id == liveCandidate || id == .fluidSpeechPro && isComing(.fluidSpeechPro)
         if id == inUse || streams && id != .apple { roles.insert(.live) }
         let coming = Set(TranscriptionModel.catalog.map(\.id).filter(isComing))
         if RefinePlan.readers(installed: coming).contains(id) { roles.insert(.refine) }
