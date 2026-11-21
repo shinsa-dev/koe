@@ -71,7 +71,7 @@ runners; none waits on another, and none is skipped for the paths a change touch
 
 | Workflow | Job | Runner | What it runs | Budget |
 |---|---|---|---|---|
-| Lint | `lint` | `ubuntu-latest` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
+| Lint | `lint` | `ubuntu-24.04` | SwiftLint 0.65.1 `--strict`, actionlint, shellcheck on `build.sh` and `scripts/*.sh` | 25 s |
 | Test | `core` | `macos-26` | `KOE_CORE_ONLY=1 swift test`: KoeCore and its tests alone | 35 s |
 | Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 35 s |
 | Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
@@ -90,8 +90,9 @@ runners; none waits on another, and none is skipped for the paths a change touch
   the compiler releases use, until Koe moves to FluidAudio 0.13 (FluidInference/FluidAudio#415).
 - **Lint.** SwiftLint and actionlint are downloaded from their releases and checked against the SHA-256 sums in
   `lint.yml`. SwiftLint is the dynamic Linux build on the runner's Swift: the static build cannot load SourceKit and
-  quietly skips the rules that need it, so the step fails when SwiftLint reports a skipped rule. Each linter runs
-  even when another fails, so one run lists every failure.
+  quietly skips the rules that need it, so the step fails when SwiftLint reports a skipped rule. That build links
+  `libxml2.so.2`, which Ubuntu 26.04 dropped, so `lint` stays on `ubuntu-24.04`. Each linter runs even when another
+  fails, so one run lists every failure.
 - **No retries.** A test that fails sometimes has a bug: the dictionary's speed test counts the comparisons
   `CustomDictionary.apply` makes (`comparisons(_:)`) instead of timing it, as a wall clock on a shared runner is noise.
 

@@ -23,7 +23,8 @@ env:
 jobs:
   # Every linter runs even when another fails, so one run lists every failure.
   lint:
-    runs-on: ubuntu-latest
+    # SwiftLint's Linux build links libxml2.so.2, which Ubuntu 26.04 (ubuntu-latest since November 2026) no longer has.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
