@@ -76,8 +76,8 @@ runners; none waits on another, and none is skipped for the paths a change touch
 | Test | `app` | `macos-26` | `swift build` of the whole app, from the newest build tree `main` saved | 35 s |
 | Test | `scripts` | `ubuntu-latest` | `python3 -m unittest discover -s scripts -p 'test_*.py'` | 15 s |
 
-- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the job's `Runner.Worker`
-  process, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
+- **Budgets.** Each job's last step, `scripts/ci-budget.sh <seconds>`, reads the age of the `Runner.Worker` among its
+  parent processes, which the runner starts when it takes the job, and fails the job when it ran longer than its budget, naming
   both times. Time in the queue does not count; setup does. A slow job is a bug to find, never a budget to raise.
 - **Build trees.** Every push to `main` saves each macOS job's build tree under a key of the job, the Xcode and the
   commit (`app` adds `Package.resolved`), and a pull request restores the newest one. A checkout stamps every file

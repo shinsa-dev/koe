@@ -8,20 +8,31 @@ SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ci-budget.sh"
 
 
 class CiBudgetTests(unittest.TestCase):
-    """Runs the script against a fake `pgrep` and `ps` that report a Runner.Worker of the given age."""
+    """Runs the script under a fake `ps` whose process table puts a Runner.Worker of the given age two levels above
+    the step's shell, as the runner does, with another Runner.Worker elsewhere that is not an ancestor."""
 
-    def run_budget(self, budget, elapsed, worker="4242"):
+    def run_budget(self, budget, elapsed, worker_name="Runner.Worker"):
         with tempfile.TemporaryDirectory() as folder:
-            tools = {
-                "pgrep": f'[ "$2" = Runner.Worker ] && [ -n "{worker}" ] && echo {worker} || exit 1',
-                "ps": f'[ "$4" = "{worker}" ] && echo "   {elapsed}"',
-            }
-            for name, body in tools.items():
-                path = os.path.join(folder, name)
-                with open(path, "w") as file:
-                    file.write(f"#!/bin/sh\n{body}\n")
-                os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
-            env = dict(os.environ, PATH=f"{folder}:{os.environ['PATH']}")
+            body = f"""pid=$4
+field=$2
+case "$pid:$field" in
+  "$STEP_SHELL:comm=") echo /bin/bash ;;
+  "$STEP_SHELL:ppid=") echo 700 ;;
+  700:comm=) echo /Users/runner/actions-runner/bin/{worker_name} ;;
+  700:ppid=) echo 600 ;;
+  700:etime=) echo "   {elapsed}" ;;
+  600:comm=) echo launchd ;;
+  600:ppid=) echo 1 ;;
+  800:comm=) echo Runner.Worker ;;
+  800:etime=) echo "   99:99" ;;
+  *) exit 1 ;;
+esac"""
+            path = os.path.join(folder, "ps")
+            with open(path, "w") as file:
+                file.write(f"#!/bin/sh\n{body}\n")
+            os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+            # The test runner stands in for the step's shell: it is the script's parent.
+            env = dict(os.environ, PATH=f"{folder}:{os.environ['PATH']}", STEP_SHELL=str(os.getpid()))
             env.pop("GITHUB_STEP_SUMMARY", None)
             return subprocess.run([SCRIPT, str(budget)], env=env, capture_output=True, text=True)
 
@@ -43,7 +54,7 @@ class CiBudgetTests(unittest.TestCase):
         self.assertEqual(self.run_budget(35, "00:35").returncode, 0)
 
     def test_a_runner_without_a_worker_fails(self):
-        result = self.run_budget(35, "00:20", worker="")
+        result = self.run_budget(35, "00:20", worker_name="Runner.Listener")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Could not find this job's Runner.Worker process", result.stdout)
 

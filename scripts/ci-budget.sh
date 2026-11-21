@@ -2,11 +2,20 @@
 # usage: scripts/ci-budget.sh <seconds>
 # The last step of a CI job: fails it when the job has run longer than its budget. The runner starts one
 # Runner.Worker process per job when it takes the job, so its age counts setup and leaves out time in the queue.
+# The worker is found among this step's ancestors: macOS's pgrep leaves its own ancestors out.
 set -euo pipefail
 
 budget=${1:?usage: scripts/ci-budget.sh <seconds>}
-worker=$(pgrep -f Runner.Worker | head -n 1 || true)
-elapsed=$([[ -n $worker ]] && ps -o etime= -p "$worker" | tr -d ' ' || true)
+pid=$PPID
+elapsed=""
+while [[ $pid =~ ^[0-9]+$ ]] && ((pid > 1)); do
+  command=$(ps -o comm= -p "$pid" || true)
+  if [[ $command == *Runner.Worker ]]; then
+    elapsed=$(ps -o etime= -p "$pid" | tr -d ' ')
+    break
+  fi
+  pid=$(ps -o ppid= -p "$pid" | tr -d ' ' || true)
+done
 if [[ ! $elapsed =~ ^(([0-9]+)-)?(([0-9]+):)?([0-9]+):([0-9]+)$ ]]; then
   echo "::error title=Budget::Could not find this job's Runner.Worker process, so its budget cannot be checked."
   exit 1
